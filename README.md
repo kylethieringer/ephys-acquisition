@@ -202,4 +202,4 @@ Recorded data is stored in HDF5 with the following structure:
 
 ## Contact
 
-For questions or issues, contact [your lab/PI name]
+For questions or issues, contact me, kyle thieringer
