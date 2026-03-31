@@ -2,34 +2,49 @@
 TrialAcquisition — orchestrates DAQWorker, CameraWorker, and TrialHDF5Saver
 for trial-based acquisition.
 
-Lifecycle:
+Lifecycle::
+
     start()            → DAQ + camera workers start (same as ContinuousAcquisition)
     run_protocol(...)  → builds trial order, enters state machine
     cancel_protocol()  → graceful cancel after the current trial finishes
     stop()             → cancel any active run, then shut down workers
 
-State machine (driven by sample counting in _on_ai_chunk, GUI thread):
+State machine
+-------------
+The state machine advances by counting AI samples.  It runs entirely in the
+GUI thread via the ``_on_ai_chunk`` Qt slot (connected with ``AutoConnection``
+from DAQWorker's ``data_ready`` signal), so no locking is needed on state
+variables.
 
-    IDLE
-        run_protocol() called
-        ↓
-    ITI  (inter-trial interval — AO waveform pre-loaded, TTL off)
-        iti_samples counted
-        ↓
-    PRE  (TTL fires immediately at entry; counting pre-baseline samples)
-        pre_samples counted
-        ↓
-    TRIAL (counting stim + post samples, accumulating data buffer)
-        (pre + stim + post) total counted
-        → TTL stops, trial data saved
-        ↓
-    ITI or DONE
+States and transitions::
 
-Camera TTL is active for the FULL trial window: pre + stim + post.
+    _S_IDLE
+        │  run_protocol() called
+        ▼
+    _S_ITI  (inter-trial interval — AO silent, TTL off)
+        │  iti_samples counted
+        ▼
+    _S_PRE  (pre-baseline — TTL fires, data accumulates)
+        │  pre_samples counted
+        ▼
+    _S_TRIAL  (stimulus + post — data accumulates)
+        │  (total_samples − pre_samples) counted
+        │  → TTL stops, trial saved
+        ▼
+    _S_ITI  ← repeat until all trials done, or cancel requested
+        │  all trials done / cancel
+        ▼
+    _S_DONE
 
-All public methods are called from the GUI thread.
-Data accumulation and state transitions happen in _on_ai_chunk (GUI thread
-via Qt AutoConnection from DAQWorker), so no locking is needed on state.
+Camera TTL is active for the **full** trial window: pre + stim + post.
+The AO waveform is pre-loaded during the ITI so the task rebuild (~5–10 ms)
+completes well before any current is output.
+
+Developer notes
+---------------
+All public methods are called from the GUI thread.  Data accumulation and
+state transitions happen in ``_on_ai_chunk`` (GUI thread), so no locking
+is required for state variables.
 """
 
 from __future__ import annotations
@@ -38,6 +53,7 @@ import datetime
 from pathlib import Path
 
 import numpy as np
+from numpy.typing import NDArray
 from PySide6.QtCore import QObject, Signal
 
 from config import (
@@ -63,6 +79,14 @@ from hardware.daq_worker import DAQWorker
 # ---------------------------------------------------------------------------
 
 def _ms_to_samples(ms: float) -> int:
+    """Convert a duration in ms to an integer sample count at :data:`~config.SAMPLE_RATE`.
+
+    Args:
+        ms: Duration in ms.
+
+    Returns:
+        Sample count, clamped to a minimum of 0.
+    """
     return max(0, int(ms / 1000.0 * SAMPLE_RATE))
 
 
@@ -71,25 +95,66 @@ def _ms_to_samples(ms: float) -> int:
 # ---------------------------------------------------------------------------
 
 _S_IDLE  = "idle"
+"""No protocol is active.  Workers may or may not be running."""
+
 _S_ITI   = "iti"
+"""Inter-trial interval.  AO is silent; TTL is off; counting ITI samples."""
+
 _S_PRE   = "pre"
+"""Pre-stimulus baseline.  TTL fires; data is accumulating into the trial buffer."""
+
 _S_TRIAL = "trial"
+"""Stimulus + post-stimulus.  Continuing to accumulate; AO waveform active."""
+
 _S_DONE  = "done"
+"""Protocol finished or cancelled.  HDF5 file has been closed."""
 
 
 class TrialAcquisition(QObject):
-    """
-    High-level controller for trial-based acquisition.
+    """High-level controller for trial-based acquisition.
+
+    Owns and coordinates a :class:`~hardware.daq_worker.DAQWorker`,
+    :class:`~hardware.camera_worker.CameraWorker`, and
+    :class:`~acquisition.trial_saver.TrialHDF5Saver`.
 
     Signals:
-        started():                workers are running
-        stopped():                workers have shut down
-        error_occurred(str):      forwarded from workers
-        trial_started(int, int):  (trial_index, total_trials)
-        trial_finished(int, int): (trial_index, total_trials)
-        protocol_finished(Path):  all trials complete; path = HDF5 file
-        protocol_cancelled(int):  run cancelled; int = n_trials_completed
-        progress_updated(int, int): (current_trial, total_trials)
+        started(): Emitted when the DAQ and camera workers are running.
+        stopped(): Emitted after all workers have shut down.
+        error_occurred(str): Forwarded from workers.
+        trial_started(int, int): Emitted at the beginning of each trial.
+            Arguments are ``(trial_index, total_trials)`` (0-based index).
+        trial_finished(int, int): Emitted after each trial's data is saved.
+            Arguments are ``(trial_index, total_trials)``.
+        protocol_finished(object): Emitted when all trials complete.
+            Argument is a ``pathlib.Path`` to the HDF5 file.
+        protocol_cancelled(int): Emitted when :meth:`cancel_protocol` is
+            honoured.  Argument is the number of trials completed before
+            cancellation.
+        progress_updated(int, int): Emitted at the start of each trial with
+            ``(current_trial_pos, total_trials)`` for UI progress displays.
+
+    Attributes:
+        _daq_worker (DAQWorker | None): AI/AO worker thread.
+        _camera_worker (CameraWorker | None): Camera capture thread.
+        _is_running (bool): Workers are running.
+        _frame_rate_hz (float): Active camera frame rate in Hz.
+        _exposure_ms (float): Active camera exposure in ms.
+        _on_new_data: Display callback for AI chunks.
+        _on_new_frame: Display callback for camera frames.
+        _protocol (TrialProtocol | None): Active protocol.
+        _trial_order (list[int]): Shuffled stimulus index sequence.
+        _saver (TrialHDF5Saver): HDF5 file writer.
+        _subject_metadata (dict): Subject info for the HDF5 file.
+        _state (str): Current state machine state (one of ``_S_*`` constants).
+        _trial_pos (int): Current position in ``_trial_order`` (0-based).
+        _sample_counter (int): Samples counted in the current state.
+        _pre_samples (int): Threshold sample count for the PRE → TRIAL transition.
+        _total_samples (int): Total waveform length in samples (pre + stim + post).
+        _iti_samples (int): Threshold sample count for the ITI → PRE transition.
+        _trial_buf (NDArray | None): Pre-allocated accumulation buffer for
+            the current trial, shape ``(N_AI_CHANNELS, total_samples)``.
+        _buf_ptr (int): Write pointer into ``_trial_buf``.
+        _cancel_requested (bool): ``True`` after :meth:`cancel_protocol` is called.
     """
 
     started            = Signal()
@@ -101,42 +166,35 @@ class TrialAcquisition(QObject):
     protocol_cancelled = Signal(int)
     progress_updated   = Signal(int, int)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
 
         self._daq_worker:    DAQWorker    | None = None
         self._camera_worker: CameraWorker | None = None
         self._is_running = False
 
-        # Hardware settings (mirror ContinuousAcquisition defaults)
         self._frame_rate_hz = DEFAULT_FRAME_RATE_HZ
         self._exposure_ms   = DEFAULT_EXPOSURE_MS
 
-        # Display callbacks (wired by MainWindow)
-        self._on_new_data  = None   # callable(np.ndarray)
-        self._on_new_frame = None   # callable(np.ndarray)
+        self._on_new_data  = None
+        self._on_new_frame = None
 
-        # Protocol run state
-        self._protocol:    TrialProtocol | None = None
-        self._trial_order: list[int]             = []
-        self._saver        = TrialHDF5Saver()
-        self._subject_metadata: dict             = {}
+        self._protocol:         TrialProtocol | None = None
+        self._trial_order:      list[int]             = []
+        self._saver             = TrialHDF5Saver()
+        self._subject_metadata: dict                  = {}
 
-        # State machine
-        self._state          = _S_IDLE
-        self._trial_pos      = 0          # position in _trial_order
-        self._sample_counter = 0          # samples counted in current state
+        self._state:          str                = _S_IDLE
+        self._trial_pos:      int                = 0
+        self._sample_counter: int                = 0
 
-        # Per-trial sample thresholds (set when waveform is loaded)
-        self._pre_samples   = 0
-        self._total_samples = 0           # pre + stim + post
-        self._iti_samples   = 0
+        self._pre_samples:   int = 0
+        self._total_samples: int = 0
+        self._iti_samples:   int = 0
 
-        # Data accumulation buffer for current trial
-        self._trial_buf:    np.ndarray | None = None
-        self._buf_ptr       = 0
+        self._trial_buf: NDArray[np.float64] | None = None
+        self._buf_ptr:   int                        = 0
 
-        # Graceful cancel flag
         self._cancel_requested = False
 
     # ------------------------------------------------------------------
@@ -145,10 +203,12 @@ class TrialAcquisition(QObject):
 
     @property
     def is_running(self) -> bool:
+        """``True`` if the DAQ and camera workers are running."""
         return self._is_running
 
     @property
     def is_protocol_active(self) -> bool:
+        """``True`` if a protocol run is in progress (not in IDLE or DONE)."""
         return self._state not in (_S_IDLE, _S_DONE)
 
     # ------------------------------------------------------------------
@@ -156,16 +216,35 @@ class TrialAcquisition(QObject):
     # ------------------------------------------------------------------
 
     def connect_data_callback(self, slot) -> None:
+        """Register a callback to receive each AI chunk for the trace panel.
+
+        Args:
+            slot: Callable accepting a ``(N_AI_CHANNELS, CHUNK_SIZE)``
+                float64 array in Volts.
+        """
         self._on_new_data = slot
 
     def connect_frame_callback(self, slot) -> None:
+        """Register a callback to receive each camera frame for preview.
+
+        Args:
+            slot: Callable accepting a ``(H, W)`` or ``(H, W, 3)`` array.
+        """
         self._on_new_frame = slot
 
     # ------------------------------------------------------------------
-    # Camera TTL settings (forwarded from MainWindow/CameraPanel)
+    # Camera TTL settings
     # ------------------------------------------------------------------
 
     def set_ttl_config(self, frame_rate_hz: float, exposure_ms: float) -> None:
+        """Update the camera TTL frame rate and exposure.
+
+        Stores the new values and forwards them to the DAQ worker if running.
+
+        Args:
+            frame_rate_hz: New camera frame rate in Hz.
+            exposure_ms: New camera exposure duration in ms.
+        """
         self._frame_rate_hz = frame_rate_hz
         self._exposure_ms   = exposure_ms
         if self._daq_worker is not None:
@@ -176,7 +255,11 @@ class TrialAcquisition(QObject):
     # ------------------------------------------------------------------
 
     def start(self) -> None:
-        """Start DAQ + camera workers (mirrors ContinuousAcquisition.start)."""
+        """Start the DAQ and camera workers.
+
+        Mirrors :meth:`~acquisition.continuous_mode.ContinuousAcquisition.start`.
+        No-op if already running.
+        """
         if self._is_running:
             return
 
@@ -194,16 +277,18 @@ class TrialAcquisition(QObject):
         self.started.emit()
 
     def stop(self) -> None:
-        """Cancel any running protocol and stop hardware."""
+        """Cancel any running protocol and stop all hardware workers.
+
+        Force-closes the HDF5 file if open, ensures the TTL is off, then
+        tears down the camera and DAQ worker threads.  No-op if not running.
+        """
         if not self._is_running:
             return
 
-        # Force-close any open recording
         if self._saver.is_open:
             self._saver.close()
         self._state = _S_IDLE
 
-        # Ensure TTL is off
         if self._daq_worker is not None:
             self._daq_worker.stop_ttl()
             self._daq_worker.clear_stimulus_waveform()
@@ -228,8 +313,20 @@ class TrialAcquisition(QObject):
         save_dir: str | Path,
         subject_metadata: dict,
     ) -> None:
-        """
-        Start a protocol run.  Workers must be started first via start().
+        """Start a protocol run.
+
+        Creates the HDF5 file, builds the shuffled trial order, and enters
+        the state machine at the ITI state.
+
+        Workers must be started first via :meth:`start`.  No-op if not
+        running or if ``protocol.stimuli`` is empty.
+
+        Args:
+            protocol: :class:`~acquisition.trial_protocol.TrialProtocol`
+                defining stimuli, timing, and clamp mode.
+            save_dir: Root directory for saving the HDF5 file.
+            subject_metadata: Subject information dict (same keys as
+                :meth:`~acquisition.data_saver.HDF5Saver.open`).
         """
         if not self._is_running or not protocol.stimuli:
             return
@@ -240,14 +337,12 @@ class TrialAcquisition(QObject):
         self._cancel_requested = False
         self._trial_pos        = 0
 
-        # Choose channel definitions based on clamp mode
         channel_defs = (
             AI_CHANNELS_VC
             if protocol.clamp_mode == "voltage_clamp"
             else AI_CHANNELS
         )
 
-        # Open HDF5 file
         self._saver.open(
             save_dir          = save_dir,
             protocol          = protocol,
@@ -257,14 +352,14 @@ class TrialAcquisition(QObject):
         )
 
         self._iti_samples = _ms_to_samples(protocol.iti_ms)
-
-        # Enter ITI state: pre-load waveform for first trial, then count ITI
         self._enter_iti()
 
     def cancel_protocol(self) -> None:
-        """
-        Request a graceful cancel.  The current trial (if any) finishes
-        saving before the run stops.  No data is lost.
+        """Request a graceful cancel of the running protocol.
+
+        The current trial (if any) finishes saving before the run stops.
+        No data from completed trials is lost.  ``protocol_cancelled`` is
+        emitted with the count of completed trials.
         """
         self._cancel_requested = True
 
@@ -273,32 +368,43 @@ class TrialAcquisition(QObject):
     # ------------------------------------------------------------------
 
     def _enter_iti(self) -> None:
-        """Start counting the inter-trial interval. AO remains at zero (silent)."""
+        """Enter the ITI state: AO silent, TTL off, counting ITI samples.
+
+        Does not issue any hardware commands — the TTL and AO are already
+        off from the previous trial end (or from startup).
+        """
         self._state          = _S_ITI
         self._sample_counter = 0
 
     def _enter_pre(self) -> None:
-        """Start the pre-baseline window: fire TTL, begin accumulating data."""
+        """Enter the PRE state: load waveform, fire TTL, start accumulating data.
+
+        Sequence:
+
+        1. Look up the next stimulus in ``_trial_order``.
+        2. Build the full AO waveform (pre zeros + hyperpol + staircase + post zeros).
+        3. Pre-allocate the trial data buffer.
+        4. Load the waveform into the AO task (rebuilds the nidaqmx task).
+        5. Fire the camera TTL.
+        6. Reset the sample counter and emit ``trial_started``.
+
+        The waveform is loaded *before* the TTL fires so the nidaqmx task
+        rebuild (~5–10 ms) completes before the camera starts capturing.
+        """
         stim_idx = self._trial_order[self._trial_pos]
         stim_def = self._protocol.stimuli[stim_idx]
 
-        # Build waveform: [zeros×pre | hyperpol | staircase | zeros×post]
         waveform = build_trial_waveform(stim_def, self._protocol)
         self._total_samples = len(waveform)
         self._pre_samples   = _ms_to_samples(self._protocol.pre_ms)
 
-        # Allocate trial data buffer
         self._trial_buf = np.empty(
             (N_AI_CHANNELS, self._total_samples), dtype=np.float64
         )
         self._buf_ptr = 0
 
         if self._daq_worker is not None:
-            # Load waveform before TTL so AO is ready when camera starts.
-            # The waveform begins with pre_ms of zeros so the NI task rebuild
-            # (~5-10 ms) completes well before any current is output.
             self._daq_worker.set_stimulus_waveform(waveform.reshape(1, -1))
-            # TTL fires at trial start (covers pre-baseline + stim + post)
             self._daq_worker.start_ttl()
 
         self._state          = _S_PRE
@@ -309,17 +415,31 @@ class TrialAcquisition(QObject):
         self.progress_updated.emit(self._trial_pos, total)
 
     def _on_trial_window_start(self) -> None:
-        """PRE threshold reached — transition to TRIAL state (no hardware change)."""
+        """Transition from PRE to TRIAL state (no hardware change).
+
+        Called when the pre-baseline sample threshold is reached.
+        Resets the counter so ``_check_state_transition`` can measure the
+        remaining (stim + post) samples.
+        """
         self._state          = _S_TRIAL
         self._sample_counter = 0
 
     def _on_trial_end(self) -> None:
-        """TRIAL+POST threshold reached — stop TTL, save data, advance."""
+        """Handle the end of a trial: stop TTL, save data, advance the state machine.
+
+        Sequence:
+
+        1. Stop the camera TTL.
+        2. Clear the AO waveform (revert ao0 to zeros).
+        3. Pre-create the HDF5 group (``begin_trial``).
+        4. Write the accumulated buffer (``write_trial``).
+        5. Emit ``trial_finished``.
+        6. Increment ``_trial_pos`` and call :meth:`_advance`.
+        """
         if self._daq_worker is not None:
             self._daq_worker.stop_ttl()
             self._daq_worker.clear_stimulus_waveform()
 
-        # Save trial data
         stim_idx = self._trial_order[self._trial_pos]
         stim_def = self._protocol.stimuli[stim_idx]
         onset_iso = datetime.datetime.now().isoformat()
@@ -341,11 +461,15 @@ class TrialAcquisition(QObject):
         self._advance()
 
     def _advance(self) -> None:
-        """Move to next trial or finish the run."""
+        """Move to the next trial or finish the run.
+
+        If a cancel was requested or all trials are done, closes the HDF5
+        file and emits the appropriate completion signal.  Otherwise enters
+        the next ITI.
+        """
         total = len(self._trial_order)
 
         if self._cancel_requested or self._trial_pos >= total:
-            # Done
             self._state = _S_DONE
             path = self._saver.close()
             if self._cancel_requested:
@@ -362,13 +486,16 @@ class TrialAcquisition(QObject):
     # Data ingestion — GUI thread (Qt AutoConnection)
     # ------------------------------------------------------------------
 
-    def _on_ai_chunk(self, chunk: np.ndarray) -> None:
+    def _on_ai_chunk(self, chunk: NDArray[np.float64]) -> None:
+        """Receive an AI data chunk and drive the state machine (~100 Hz).
+
+        Forwards the chunk to the display callback unconditionally, then
+        accumulates data into the trial buffer if in PRE or TRIAL state,
+        and calls :meth:`_check_state_transition` to advance the state.
+
+        Args:
+            chunk: ``(N_AI_CHANNELS, CHUNK_SIZE)`` float64 array in Volts.
         """
-        Called ~100 Hz with each 200-sample AI chunk.
-        Drives the state machine via sample counting.
-        Simultaneously feeds the display ring buffer.
-        """
-        # Push to display regardless of state
         if self._on_new_data is not None:
             self._on_new_data(chunk)
 
@@ -378,7 +505,6 @@ class TrialAcquisition(QObject):
         n = chunk.shape[1]
 
         if self._state in (_S_PRE, _S_TRIAL):
-            # Accumulate data into trial buffer
             if self._trial_buf is not None:
                 space = self._total_samples - self._buf_ptr
                 take  = min(n, space)
@@ -390,7 +516,13 @@ class TrialAcquisition(QObject):
         self._check_state_transition()
 
     def _check_state_transition(self) -> None:
-        """Evaluate whether a state boundary has been crossed."""
+        """Evaluate whether a state boundary has been crossed.
+
+        Checks if the current sample counter has reached the threshold for
+        the current state and calls the appropriate transition method.
+        The counter is decremented by the threshold (not zeroed) to preserve
+        any overshoot for the next state.
+        """
         if self._state == _S_ITI:
             if self._sample_counter >= self._iti_samples:
                 self._sample_counter -= self._iti_samples
@@ -411,7 +543,14 @@ class TrialAcquisition(QObject):
     # Camera frames
     # ------------------------------------------------------------------
 
-    def _on_camera_frame(self, frame: np.ndarray) -> None:
+    def _on_camera_frame(self, frame: NDArray) -> None:
+        """Forward camera frames to the display callback.
+
+        Trial mode does not record video — frames are display-only.
+
+        Args:
+            frame: ``(H, W)`` or ``(H, W, 3)`` camera frame array.
+        """
         if self._on_new_frame is not None:
             self._on_new_frame(frame)
 
@@ -420,6 +559,14 @@ class TrialAcquisition(QObject):
     # ------------------------------------------------------------------
 
     def _handle_error(self, msg: str) -> None:
+        """Handle a fatal DAQ error during a trial run.
+
+        Closes the HDF5 file (partial data is preserved), resets the state
+        machine, and tears down all workers.
+
+        Args:
+            msg: Human-readable error message from the DAQ worker.
+        """
         if self._saver.is_open:
             self._saver.close()
         self._state = _S_IDLE
@@ -432,6 +579,11 @@ class TrialAcquisition(QObject):
         self.error_occurred.emit(f"DAQ error: {msg}")
 
     def _handle_camera_error(self, msg: str) -> None:
+        """Forward a non-fatal camera error to the UI.
+
+        Args:
+            msg: Human-readable error message from the camera worker.
+        """
         self.error_occurred.emit(f"Camera error: {msg}")
 
     # ------------------------------------------------------------------
@@ -439,6 +591,7 @@ class TrialAcquisition(QObject):
     # ------------------------------------------------------------------
 
     def _teardown_camera(self) -> None:
+        """Stop and destroy the camera worker, blocking up to 3 seconds."""
         if self._camera_worker is not None:
             self._camera_worker.stop()
             self._camera_worker.wait(3000)

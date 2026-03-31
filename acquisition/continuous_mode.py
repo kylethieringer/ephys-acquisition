@@ -2,26 +2,51 @@
 ContinuousAcquisition — orchestrates DAQWorker, CameraWorker, RingBuffer,
 and HDF5Saver for the continuous acquisition mode.
 
-Lifecycle:
-    Start         → DAQ AI begins (traces visible), AO silent;
-                    camera opens in hardware-triggered mode (no TTL yet, no frames)
-    Record        → TTL fires immediately; camera captures every triggered frame;
-                    HDF5 and video file open
-    Stop Recording → TTL suppressed; after guard delay HDF5 + video are closed;
-                    camera stays open and armed for next recording
-    Stop          → camera closed, DAQ shut down
+Lifecycle
+---------
+::
 
-All public methods are called from the GUI thread.
+    Start         → DAQ AI begins (traces visible); AO silent;
+                    camera opens in hardware-triggered mode
+                    (no TTL yet — no frames arrive)
+    Record        → TTL fires; camera captures every triggered frame;
+                    HDF5 file and video file open
+    Stop Recording → TTL ceases; after guard delay HDF5 + video close;
+                    camera stays open and armed for next recording
+    Stop          → camera closed; DAQ shut down
+
+Recording guard delay
+---------------------
+After ``stop_ttl()`` the camera may still deliver a final frame triggered by
+the last TTL pulse.  :data:`~config.CAMERA_GUARD_DELAY_MS` milliseconds of
+extra HDF5 recording captures the trailing exposure-return signal on AI3
+before the file is closed.
+
+Developer notes
+---------------
+All public methods are called from the GUI thread.  ``_on_ai_chunk`` and
+``_on_camera_frame`` are Qt slots connected with ``AutoConnection`` so they
+execute in the GUI thread even though the signals are emitted from worker
+threads.  No locking is needed for the saver or ring buffer.
 """
+
+from __future__ import annotations
 
 import datetime
 import json
 from pathlib import Path
 
 import numpy as np
+from numpy.typing import NDArray
 from PySide6.QtCore import QObject, QTimer, Signal
 
-from config import AI_CHANNELS, CAMERA_GUARD_DELAY_MS, DEFAULT_EXPOSURE_MS, DEFAULT_FRAME_RATE_HZ, SAMPLE_RATE
+from config import (
+    AI_CHANNELS,
+    CAMERA_GUARD_DELAY_MS,
+    DEFAULT_EXPOSURE_MS,
+    DEFAULT_FRAME_RATE_HZ,
+    SAMPLE_RATE,
+)
 from acquisition.data_buffer import RingBuffer
 from acquisition.data_saver import HDF5Saver
 from hardware.daq_worker import DAQWorker
@@ -36,24 +61,51 @@ except ImportError:
 
 
 class ContinuousAcquisition(QObject):
-    """
-    High-level controller for continuous acquisition.
+    """High-level controller for continuous acquisition mode.
+
+    Owns and coordinates a :class:`~hardware.daq_worker.DAQWorker`,
+    :class:`~hardware.camera_worker.CameraWorker`,
+    :class:`~acquisition.data_buffer.RingBuffer`, and
+    :class:`~acquisition.data_saver.HDF5Saver`.
 
     Signals:
-        started():            emitted when DAQ + camera workers are running
-        stopped():            emitted after workers have cleanly stopped
-        error_occurred(str):  forwarded from workers
-        recording_started(Path):  emitted when TTL is live and HDF5 is open
-        recording_stopped(int):   emitted with total samples saved
+        started(): Emitted when both the DAQ and camera workers are running.
+        stopped(): Emitted after all workers have shut down cleanly.
+        error_occurred(str): Forwarded from workers; the acquisition loop
+            has already been stopped when this fires.
+        recording_started(object): Emitted when TTL is live and the HDF5
+            file is open.  Argument is a ``pathlib.Path`` to the experiment
+            folder.
+        recording_stopped(int): Emitted after the HDF5 file is closed.
+            Argument is the total number of samples saved.
+
+    Attributes:
+        _ring_buffer (RingBuffer): Rolling 5-second display buffer shared
+            with the trace panel.
+        _saver (HDF5Saver): Handles HDF5 file creation and appending.
+        _daq_worker (DAQWorker | None): AI/AO worker thread.
+        _camera_worker (CameraWorker | None): Camera capture thread.
+        _is_running (bool): ``True`` between :meth:`start` and :meth:`stop`.
+        _is_recording (bool): ``True`` between :meth:`start_recording` and
+            :meth:`stop_recording`.
+        _frame_rate_hz (float): Active camera frame rate in Hz.
+        _exposure_ms (float): Active camera exposure in ms.
+        _video_writer: ``cv2.VideoWriter`` instance, or ``None``.
+        _video_path (Path | None): Path to the video file being written.
+        _metadata_path (Path | None): Path to the metadata JSON sidecar.
+        _metadata (dict | None): In-memory metadata dict; written on open and
+            updated (end_time, duration) on close.
+        _on_new_data: Callback receiving each AI chunk for the trace panel.
+        _on_new_frame: Callback receiving each camera frame for the preview.
     """
 
     started            = Signal()
     stopped            = Signal()
     error_occurred     = Signal(str)
-    recording_started  = Signal(object)   # Path
+    recording_started  = Signal(object)   # Path — experiment folder
     recording_stopped  = Signal(int)      # n_samples_saved
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
 
         self._ring_buffer     = RingBuffer()
@@ -63,21 +115,16 @@ class ContinuousAcquisition(QObject):
         self._is_running      = False
         self._is_recording    = False
 
-        # Current hardware settings (kept here so we can re-apply on restart)
         self._frame_rate_hz = DEFAULT_FRAME_RATE_HZ
         self._exposure_ms   = DEFAULT_EXPOSURE_MS
 
-        # Video recording
-        self._video_writer = None   # cv2.VideoWriter | None
-        self._video_path: Path | None = None
-
-        # Metadata JSON (written on record start, updated on stop)
+        self._video_writer = None
+        self._video_path:    Path | None = None
         self._metadata_path: Path | None = None
-        self._metadata: dict | None = None
+        self._metadata:      dict | None = None
 
-        # Callbacks registered by UI panels
-        self._on_new_data   = None   # callable(np.ndarray) for ring buffer push + display
-        self._on_new_frame  = None   # callable(np.ndarray) for camera display
+        self._on_new_data  = None
+        self._on_new_frame = None
 
     # ------------------------------------------------------------------
     # Property accessors
@@ -85,14 +132,17 @@ class ContinuousAcquisition(QObject):
 
     @property
     def ring_buffer(self) -> RingBuffer:
+        """Rolling display buffer shared with the live trace panel."""
         return self._ring_buffer
 
     @property
     def is_running(self) -> bool:
+        """``True`` if the DAQ and camera workers are running."""
         return self._is_running
 
     @property
     def is_recording(self) -> bool:
+        """``True`` if an HDF5 recording is in progress."""
         return self._is_recording
 
     # ------------------------------------------------------------------
@@ -100,11 +150,23 @@ class ContinuousAcquisition(QObject):
     # ------------------------------------------------------------------
 
     def connect_data_callback(self, slot) -> None:
-        """Slot receives raw AI chunk (np.ndarray shape=(N_AI, CHUNK_SIZE))."""
+        """Register a callback to receive each AI chunk for display.
+
+        Args:
+            slot: Callable that accepts a ``numpy.ndarray`` of shape
+                ``(N_AI_CHANNELS, CHUNK_SIZE)`` in raw Volts.  Called once
+                per chunk (~100 Hz) from the GUI thread.
+        """
         self._on_new_data = slot
 
     def connect_frame_callback(self, slot) -> None:
-        """Slot receives camera frame (np.ndarray HxW or HxWx3)."""
+        """Register a callback to receive each camera frame for preview.
+
+        Args:
+            slot: Callable that accepts a ``numpy.ndarray`` of shape
+                ``(H, W)`` (grayscale) or ``(H, W, 3)`` (colour).
+                Called from the GUI thread via Qt AutoConnection.
+        """
         self._on_new_frame = slot
 
     # ------------------------------------------------------------------
@@ -112,19 +174,27 @@ class ContinuousAcquisition(QObject):
     # ------------------------------------------------------------------
 
     def start(self) -> None:
+        """Start the DAQ and camera workers.
+
+        After this call:
+
+        - AI acquisition is running at 20 kHz (traces are visible).
+        - The camera is open in hardware-triggered mode but receives no
+          frames until :meth:`start_recording` fires the TTL.
+        - AO output is silent (0 V on ao0).
+
+        No-op if already running.
+        """
         if self._is_running:
             return
 
         self._ring_buffer.reset()
 
-        # Start DAQ with AO silent (no TTL, no command current)
         self._daq_worker = DAQWorker(self._frame_rate_hz, self._exposure_ms)
         self._daq_worker.data_ready.connect(self._on_ai_chunk)
         self._daq_worker.error_occurred.connect(self._handle_error)
         self._daq_worker.start()
 
-        # Open camera immediately so it is armed and ready before Record is pressed.
-        # In hardware-triggered mode no frames arrive until TTL fires.
         self._camera_worker = CameraWorker(self._exposure_ms)
         self._camera_worker.frame_ready.connect(self._on_camera_frame)
         self._camera_worker.error_occurred.connect(self._handle_camera_error)
@@ -134,10 +204,14 @@ class ContinuousAcquisition(QObject):
         self.started.emit()
 
     def stop(self) -> None:
+        """Stop all workers and close any open recording.
+
+        If recording is in progress the file is closed immediately without
+        the guard delay.  No-op if not running.
+        """
         if not self._is_running:
             return
 
-        # If recording, close files immediately (no guard delay — we're shutting down)
         if self._is_recording:
             self._close_recording()
 
@@ -155,14 +229,33 @@ class ContinuousAcquisition(QObject):
     # Recording control (TTL + HDF5 + video)
     # ------------------------------------------------------------------
 
-    def start_recording(self, save_dir: str | Path, metadata: dict | None = None) -> None:
+    def start_recording(
+        self,
+        save_dir: str | Path,
+        metadata: dict | None = None,
+    ) -> None:
+        """Open the HDF5 file and start the camera TTL.
+
+        Requires the workers to be running (:meth:`start` called first).
+        No-op if already recording or not running.
+
+        Args:
+            save_dir: Root directory for saving.  The experiment subfolder
+                is created automatically by :class:`~acquisition.data_saver.HDF5Saver`.
+            metadata: Subject metadata dict (see
+                :meth:`~acquisition.data_saver.HDF5Saver.open` for expected keys).
+                Defaults to a minimal ``{"expt_id": "ephys"}`` dict.
+
+        Note:
+            The ``recording_started`` signal is emitted with the experiment
+            folder path after this call returns.
+        """
         if self._is_recording or not self._is_running:
             return
 
         if metadata is None:
             metadata = {"expt_id": "ephys", "genotype": "", "age": "", "sex": "Unknown", "targeted_cell_type": ""}
 
-        # Open HDF5 file — saver creates the experiment folder
         h5_path = self._saver.open(save_dir, metadata)
         folder = self._saver.folder
         self._video_path = folder / (h5_path.stem + ".avi")
@@ -170,29 +263,47 @@ class ContinuousAcquisition(QObject):
         self._write_metadata_json(metadata, h5_path, self._video_path)
         self._is_recording = True
 
-        # Start counter TTL — camera is already armed and will catch every frame
         if self._daq_worker is not None:
             self._daq_worker.start_ttl()
 
         self.recording_started.emit(folder)
 
     def stop_recording(self) -> None:
+        """Stop the camera TTL and close the recording after a guard delay.
+
+        The TTL counter is stopped immediately.  The HDF5 and video files
+        remain open for :data:`~config.CAMERA_GUARD_DELAY_MS` milliseconds
+        to capture any trailing signals, then closed via
+        :meth:`_finish_stop_recording`.  No-op if not recording.
+        """
         if not self._is_recording:
             return
 
-        # Stop counter TTL so no further triggers are sent
         if self._daq_worker is not None:
             self._daq_worker.stop_ttl()
 
-        # Guard delay: keeps HDF5 open long enough to record the trailing
-        # exposure signals on AI3 after the last TTL pulse.
         QTimer.singleShot(CAMERA_GUARD_DELAY_MS, self._finish_stop_recording)
 
     def _finish_stop_recording(self) -> None:
+        """Close recording files after the guard delay has elapsed."""
         self._close_recording()
 
-    def _write_metadata_json(self, subject_metadata: dict, h5_path: Path, video_path: Path) -> None:
-        """Write initial metadata.json; end_time/duration filled in on close."""
+    def _write_metadata_json(
+        self,
+        subject_metadata: dict,
+        h5_path: Path,
+        video_path: Path,
+    ) -> None:
+        """Write the initial ``metadata.json`` sidecar file.
+
+        ``end_time``, ``duration_samples``, and ``duration_seconds`` are
+        ``None`` at creation and filled in by :meth:`_close_recording`.
+
+        Args:
+            subject_metadata: Subject information dict.
+            h5_path: Path to the HDF5 file being recorded.
+            video_path: Path to the video file being recorded.
+        """
         self._metadata = {
             "subject": subject_metadata,
             "start_time": datetime.datetime.now().isoformat(),
@@ -222,7 +333,7 @@ class ContinuousAcquisition(QObject):
         self._metadata_path.write_text(json.dumps(self._metadata, indent=2))
 
     def _close_recording(self) -> None:
-        """Release video writer, close HDF5, finalise metadata JSON."""
+        """Release the video writer, close the HDF5 file, and finalise metadata."""
         if self._video_writer is not None:
             self._video_writer.release()
             self._video_writer = None
@@ -246,17 +357,32 @@ class ContinuousAcquisition(QObject):
     # ------------------------------------------------------------------
 
     def set_ttl_config(self, frame_rate_hz: float, exposure_ms: float) -> None:
+        """Update the camera TTL frame rate and exposure.
+
+        Stores the new values and forwards them to the DAQ worker if running.
+
+        Args:
+            frame_rate_hz: New camera frame rate in Hz.
+            exposure_ms: New camera exposure duration in ms.
+        """
         self._frame_rate_hz = frame_rate_hz
         self._exposure_ms   = exposure_ms
         if self._daq_worker is not None:
             self._daq_worker.set_ttl_config(frame_rate_hz, exposure_ms)
 
-    def apply_stimulus_waveform(self, ao0: np.ndarray) -> None:
-        """Send a 1-D ao0 command-current waveform (Volts) to the DAQ worker."""
+    def apply_stimulus_waveform(self, ao0: NDArray[np.float64]) -> None:
+        """Send a 1-D ao0 command-current waveform to the DAQ worker.
+
+        Args:
+            ao0: 1-D float64 array of ao0 voltages in V.  Reshaped to
+                ``(1, N)`` before passing to the worker.  Convert pA to V
+                using :data:`~config.AO_PA_PER_VOLT` beforehand.
+        """
         if self._daq_worker is not None:
             self._daq_worker.set_stimulus_waveform(ao0.reshape(1, -1))
 
     def clear_stimulus(self) -> None:
+        """Revert ao0 to zero (silent) on the DAQ worker."""
         if self._daq_worker is not None:
             self._daq_worker.clear_stimulus_waveform()
 
@@ -265,7 +391,7 @@ class ContinuousAcquisition(QObject):
     # ------------------------------------------------------------------
 
     def _teardown_camera(self) -> None:
-        """Stop and destroy the camera worker."""
+        """Stop and destroy the camera worker, blocking up to 3 seconds."""
         if self._camera_worker is not None:
             self._camera_worker.stop()
             self._camera_worker.wait(3000)
@@ -275,21 +401,54 @@ class ContinuousAcquisition(QObject):
     # Internal slots (GUI thread via Qt AutoConnection)
     # ------------------------------------------------------------------
 
-    def _on_ai_chunk(self, chunk: np.ndarray) -> None:
+    def _on_ai_chunk(self, chunk: NDArray[np.float64]) -> None:
+        """Handle an incoming AI data chunk (~100 Hz).
+
+        Pushes data to the ring buffer, appends to the HDF5 saver if
+        recording, and forwards to the display callback.
+
+        Args:
+            chunk: ``(N_AI_CHANNELS, CHUNK_SIZE)`` float64 array in Volts.
+        """
         self._ring_buffer.push(chunk)
         if self._is_recording:
             self._saver.append(chunk)
         if self._on_new_data is not None:
             self._on_new_data(chunk)
 
-    def _on_camera_frame(self, frame: np.ndarray) -> None:
+    def _on_camera_frame(self, frame: NDArray) -> None:
+        """Handle an incoming camera frame.
+
+        Writes to the video file if recording and forwards to the preview
+        callback.
+
+        Args:
+            frame: ``(H, W)`` uint8/uint16 (grayscale) or ``(H, W, 3)``
+                array.
+        """
         if self._is_recording:
             self._write_video_frame(frame)
         if self._on_new_frame is not None:
             self._on_new_frame(frame)
 
-    def _write_video_frame(self, frame: np.ndarray) -> None:
-        """Lazily open a cv2.VideoWriter on the first frame, then write."""
+    def _write_video_frame(self, frame: NDArray) -> None:
+        """Lazily open a ``cv2.VideoWriter`` on the first frame, then write.
+
+        The writer is created on the first call using the frame dimensions
+        and the actual (rounded) frame rate.  Subsequent calls write directly.
+
+        ``uint16`` frames from high-bit-depth cameras are downsampled to
+        ``uint8`` by right-shifting 8 bits.  Colour frames are converted
+        from RGB (Basler convention) to BGR (OpenCV convention).
+
+        Args:
+            frame: Camera frame array.  May be uint8, uint16, or other
+                integer dtype.  Colour frames must have 3 channels.
+
+        Note:
+            No-op if OpenCV (cv2) is not installed or ``_video_path`` is
+            ``None``.
+        """
         if not HAS_CV2 or self._video_path is None:
             return
 
@@ -305,20 +464,25 @@ class ContinuousAcquisition(QObject):
         if not self._video_writer.isOpened():
             return
 
-        # Convert to uint8 if needed (Basler cameras may output uint16)
         if frame.dtype == np.uint16:
             frame = (frame >> 8).astype(np.uint8)
         elif frame.dtype != np.uint8:
             frame = frame.astype(np.uint8)
 
-        # OpenCV expects BGR for color frames
         if frame.ndim == 3:
             frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
         self._video_writer.write(frame)
 
     def _handle_error(self, msg: str) -> None:
-        # Immediate teardown — hardware is already in a bad state
+        """Handle a fatal DAQ error by tearing down all acquisition state.
+
+        Closes the recording (if active), stops the camera, and shuts down
+        the DAQ worker before emitting ``error_occurred``.
+
+        Args:
+            msg: Human-readable error message from the worker thread.
+        """
         if self._is_recording:
             self._close_recording()
         self._teardown_camera()
@@ -332,5 +496,11 @@ class ContinuousAcquisition(QObject):
         self.error_occurred.emit(f"DAQ error: {msg}")
 
     def _handle_camera_error(self, msg: str) -> None:
-        # Camera errors are non-fatal for the main acquisition loop
+        """Handle a non-fatal camera error by forwarding it to the UI.
+
+        Camera errors do not interrupt the DAQ acquisition loop.
+
+        Args:
+            msg: Human-readable error message from the camera worker.
+        """
         self.error_occurred.emit(f"Camera error: {msg}")

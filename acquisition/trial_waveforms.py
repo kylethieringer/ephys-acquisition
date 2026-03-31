@@ -3,28 +3,45 @@ AO waveform builders for trial-based acquisition.
 
 No Qt or hardware dependencies — pure numpy functions.
 
-Each builder returns a 1D float64 array in Volts, sized to exactly
-    pre_samples + stim_samples + post_samples
-where stim_samples depends on the stimulus type.
+Each builder returns a 1-D float64 array in **Volts** sized to exactly::
 
-Current-clamp trial waveform layout:
+    pre_samples + stim_samples + post_samples
+
+where ``stim_samples`` depends on the stimulus type.
+
+Current-clamp (CC) trial waveform layout
+-----------------------------------------
+::
+
     [zeros × pre_samples]
     [hyperpol_pulse × hyperpol_samples]   ← access-resistance measurement
+    [zeros × gap_samples]                 ← gap between hyperpol and staircase
     [staircase waveform × staircase_samples]
     [zeros × post_samples]
 
-The hyperpol pulse occupies the first part of the stimulus window.
-TTL fires at trial start (covering pre + stim + post).
+The hyperpolarization section is omitted when
+:attr:`~acquisition.trial_protocol.TrialProtocol.hyperpolarization` is ``None``.
+Camera TTL fires at trial start and covers the entire waveform (pre + stim + post).
 
-Voltage-clamp trial waveform layout:
+Voltage-clamp (VC) trial waveform layout
+-----------------------------------------
+::
+
     [zeros × pre_samples]                ← AO = 0; holding set on amplifier
-    [step_mV/ao_mv_per_volt × step_samples]
+    [step_V × step_samples]              ← step_mV / ao_mv_per_volt
     [zeros × post_samples]
+
+AO scaling
+----------
+- Current clamp: divide pA by :data:`~config.AO_PA_PER_VOLT` (400 pA/V).
+- Voltage clamp: divide mV by :data:`~config.AO_MV_PER_VOLT` (20 mV/V, or
+  the per-protocol ``ao_mv_per_volt`` field).
 """
 
 from __future__ import annotations
 
 import numpy as np
+from numpy.typing import NDArray
 
 from config import AO_MV_PER_VOLT, AO_PA_PER_VOLT, SAMPLE_RATE
 from acquisition.trial_protocol import HyperpolarizationParams, StimulusDefinition, TrialProtocol
@@ -36,6 +53,17 @@ from utils.stimulus_generator import generate_staircase_pa_array
 # ---------------------------------------------------------------------------
 
 def _ms_to_samples(ms: float, sample_rate: int = SAMPLE_RATE) -> int:
+    """Convert a duration in ms to an integer sample count.
+
+    Args:
+        ms: Duration in ms.  Negative values are clamped to 0.
+        sample_rate: DAQ sample rate in Hz.  Defaults to
+            :data:`~config.SAMPLE_RATE` (20 kHz).
+
+    Returns:
+        Number of samples corresponding to ``ms`` at ``sample_rate``,
+        truncated to an integer and clamped to a minimum of 0.
+    """
     return max(0, int(ms / 1000.0 * sample_rate))
 
 
@@ -49,19 +77,39 @@ def build_cc_trial_waveform(
     post_ms: float,
     hyperpol: HyperpolarizationParams | None,
     sample_rate: int = SAMPLE_RATE,
-) -> np.ndarray:
-    """
-    Build a full CC trial AO waveform (Volts).
+) -> NDArray[np.float64]:
+    """Build the AO waveform for one current-clamp trial.
 
-    Structure:
-        [zeros × pre_ms]
-        [hyperpol pulse × hyperpol.duration_ms]   ← when hyperpol is not None
-        [zeros × gap_ms]                          ← gap between hyperpol and steps
-        [staircase steps]
-        [zeros × post_ms]
+    Produces a 1-D Volts array for the ao0 channel of the NI DAQ.
+    The amplifier command sensitivity is :data:`~config.AO_PA_PER_VOLT`
+    (400 pA/V), so a 100 pA step is encoded as 0.25 V.
 
-    The gap_ms from the stimulus definition is reused as the silence between
-    the hyperpolarisation pulse and the first current step.
+    Waveform layout::
+
+        [0 V × pre_samples]
+        [hyperpol_V × hyperpol_samples]   ← only when hyperpol is not None
+        [0 V × gap_samples]               ← stim_def.gap_ms reused as post-hyperpol gap
+        [staircase_V × staircase_samples]
+        [0 V × post_samples]
+
+    Args:
+        stim_def: Staircase stimulus definition containing ``min_pA``,
+            ``max_pA``, ``step_pA``, ``step_width_ms``, ``gap_ms``, and
+            ``staircase_repeats``.
+        pre_ms: Silent baseline duration before the stimulus in ms.
+        post_ms: Silent tail duration after the stimulus in ms.
+        hyperpol: Optional hyperpolarization pulse parameters.  When provided,
+            a negative current pulse of ``hyperpol.amplitude_pA`` pA lasting
+            ``hyperpol.duration_ms`` ms is prepended, followed by a gap of
+            ``stim_def.gap_ms`` ms before the staircase begins.
+            Pass ``None`` to omit the pulse.
+        sample_rate: DAQ sample rate in Hz.  Defaults to
+            :data:`~config.SAMPLE_RATE`.
+
+    Returns:
+        1-D float64 array of ao0 voltages in V.  Total length =
+        ``pre_samples + hyperpol_samples + gap_samples + staircase_samples
+        + post_samples``.
     """
     pre_samples  = _ms_to_samples(pre_ms,  sample_rate)
     post_samples = _ms_to_samples(post_ms, sample_rate)
@@ -108,17 +156,35 @@ def build_vc_trial_waveform(
     post_ms: float,
     ao_mv_per_volt: float = AO_MV_PER_VOLT,
     sample_rate: int = SAMPLE_RATE,
-) -> np.ndarray:
-    """
-    Build a full VC trial AO waveform (Volts).
+) -> NDArray[np.float64]:
+    """Build the AO waveform for one voltage-clamp trial.
 
-    The holding potential is set externally on the amplifier.
-    AO = 0 V during pre/post; AO = step_mV / ao_mv_per_volt during step.
+    The amplifier holding potential is set externally on the amplifier.
+    The AO output is 0 V during pre/post windows, and
+    ``stim_def.step_mV / ao_mv_per_volt`` V during the step window.
 
-    Structure:
-        [zeros × pre]
-        [step_mV/ao_mv_per_volt × step_samples]
-        [zeros × post]
+    Waveform layout::
+
+        [0 V × pre_samples]
+        [step_V × step_samples]   ← step_V = step_mV / ao_mv_per_volt
+        [0 V × post_samples]
+
+    Args:
+        stim_def: Voltage-step stimulus definition containing ``step_mV``
+            (step amplitude relative to holding potential, in mV) and
+            ``duration_ms`` (step duration in ms).
+        pre_ms: Silent baseline duration before the step in ms.
+        post_ms: Silent tail duration after the step in ms.
+        ao_mv_per_volt: Amplifier command sensitivity in mV/V.  Defaults to
+            :data:`~config.AO_MV_PER_VOLT` (20 mV/V for Axopatch 200B).
+            Override with :attr:`~acquisition.trial_protocol.TrialProtocol.ao_mv_per_volt`
+            for other amplifiers.
+        sample_rate: DAQ sample rate in Hz.  Defaults to
+            :data:`~config.SAMPLE_RATE`.
+
+    Returns:
+        1-D float64 array of ao0 voltages in V.  Total length =
+        ``pre_samples + step_samples + post_samples``.
     """
     pre_samples  = _ms_to_samples(pre_ms,  sample_rate)
     post_samples = _ms_to_samples(post_ms, sample_rate)
@@ -140,8 +206,20 @@ def build_vc_trial_waveform(
 def build_trial_waveform(
     stim_def: StimulusDefinition,
     protocol: TrialProtocol,
-) -> np.ndarray:
-    """Return the AO waveform (Volts) for one trial of the given stimulus."""
+) -> NDArray[np.float64]:
+    """Return the ao0 waveform (Volts) for one trial of the given stimulus.
+
+    Dispatches to :func:`build_vc_trial_waveform` or
+    :func:`build_cc_trial_waveform` based on ``protocol.clamp_mode``.
+
+    Args:
+        stim_def: Stimulus definition for this trial.
+        protocol: Protocol containing clamp mode, timing, and (in CC mode)
+            hyperpolarization parameters.
+
+    Returns:
+        1-D float64 array of ao0 voltages in V.
+    """
     if protocol.clamp_mode == "voltage_clamp":
         return build_vc_trial_waveform(
             stim_def,

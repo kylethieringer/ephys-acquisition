@@ -1,21 +1,35 @@
 """
-StimulusPanel — define a staircase current-injection protocol and preview it.
+StimulusPanel — quick staircase current-injection stimulus builder and preview.
+
+This panel is for **continuous mode** ad-hoc stimulation.  For structured,
+repeatable stimulation use the Protocol Builder and trial-based mode instead.
 
 Parameters (all in pA / ms):
     min_pA, max_pA, step_pA  — amplitude range and step size
-    step_width_ms             — duration each step is held
-    gap_ms                    — silent gap between steps (ao0 = 0)
+    step_width_ms             — duration each current step is held
+    gap_ms                    — silent gap between steps (ao0 = 0 V)
+    repeats                   — number of times to tile the staircase
 
 Preview:
-    All steps overlaid on a single plot, each drawn in a distinct color,
+    All steps overlaid on a single plot, each drawn in a distinct colour,
     starting at t = 0 so the user can compare relative amplitudes and timing.
 
-Apply:
-    Emits a combined 2×N numpy array (ao0 + ao1) via the stimulus_applied signal.
-    The acquisition layer picks this up and writes it to the AO task.
+Apply (Stimulate button):
+    Emits ``stimulus_applied`` with a 1-D Volts waveform (ao0 only).
+    The waveform is automatically cleared after one pass via a QTimer.
+
+Developer notes
+---------------
+The panel talks to the acquisition layer only via signals — it has no direct
+reference to :class:`~acquisition.continuous_mode.ContinuousAcquisition`.
+:data:`~config.SAMPLE_RATE` is imported to compute waveform duration for the
+auto-clear timer.
 """
 
+from __future__ import annotations
+
 import numpy as np
+from numpy.typing import NDArray
 import pyqtgraph as pg
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtWidgets import (
@@ -39,7 +53,7 @@ from utils.stimulus_generator import (
 )
 
 # Qualitative color palette for step traces (cycles if > 10 steps)
-_STEP_COLORS = [
+_STEP_COLORS: list[str] = [
     "#e41a1c", "#377eb8", "#4daf4a", "#984ea3",
     "#ff7f00", "#ffff33", "#a65628", "#f781bf",
     "#999999", "#66c2a5",
@@ -47,18 +61,23 @@ _STEP_COLORS = [
 
 
 class StimulusPanel(QWidget):
-    """
-    Stimulus creation and preview panel.
+    """Panel for defining a staircase stimulus and applying it in continuous mode.
 
     Signals:
-        stimulus_applied(np.ndarray):  2×N combined AO waveform (Volts)
-        stimulus_cleared():            user clicked "Clear" — ao0 → 0
+        stimulus_applied(object): Emitted when the user clicks "Stimulate".
+            Argument is a 1-D float64 ``numpy.ndarray`` of ao0 voltages in V.
+        stimulus_cleared(): Emitted when the user clicks "Clear" or when the
+            auto-clear timer fires after a single waveform pass.
+
+    Attributes:
+        _auto_clear_timer (QTimer): Single-shot timer that emits
+            ``stimulus_cleared`` after the waveform duration has elapsed.
     """
 
-    stimulus_applied = Signal(object)   # np.ndarray shape (2, N)
+    stimulus_applied = Signal(object)   # 1-D float64 ndarray in Volts
     stimulus_cleared = Signal()
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._auto_clear_timer = QTimer(self)
         self._auto_clear_timer.setSingleShot(True)
@@ -71,6 +90,7 @@ class StimulusPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _build_ui(self) -> None:
+        """Build the full panel layout: parameter form, buttons, preview plot."""
         root = QVBoxLayout(self)
         root.setContentsMargins(4, 4, 4, 4)
         root.setSpacing(6)
@@ -151,6 +171,7 @@ class StimulusPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _update_step_count(self) -> None:
+        """Recompute and display the step count and total duration label."""
         amps = get_step_amplitudes(
             self._min_spin.value(),
             self._max_spin.value(),
@@ -166,6 +187,7 @@ class StimulusPanel(QWidget):
         )
 
     def _on_preview(self) -> None:
+        """Render the step-overlay preview plot from the current parameters."""
         self._preview_plot.clear()
 
         t_ms, traces = generate_preview_steps(
@@ -189,12 +211,17 @@ class StimulusPanel(QWidget):
                 if len(trace) else "",
             )
 
-        # Auto-fit Y
         all_vals = np.concatenate(traces)
         pad = max(abs(all_vals.max() - all_vals.min()) * 0.05, 10)
         self._preview_plot.setYRange(all_vals.min() - pad, all_vals.max() + pad, padding=0)
 
     def _on_apply(self) -> None:
+        """Generate the ao0 waveform and emit ``stimulus_applied``.
+
+        Builds the waveform in Volts, tiles it by the repeat count, emits
+        ``stimulus_applied``, and starts the auto-clear timer so ao0 returns
+        to zero after one full pass.
+        """
         ao0 = generate_ao0_waveform(
             self._min_spin.value(),
             self._max_spin.value(),
@@ -216,8 +243,10 @@ class StimulusPanel(QWidget):
         self._auto_clear_timer.start(duration_ms)
 
     def _on_auto_clear(self) -> None:
+        """Emit ``stimulus_cleared`` when the auto-clear timer fires."""
         self.stimulus_cleared.emit()
 
     def _on_clear(self) -> None:
+        """Cancel the auto-clear timer and immediately emit ``stimulus_cleared``."""
         self._auto_clear_timer.stop()
         self.stimulus_cleared.emit()

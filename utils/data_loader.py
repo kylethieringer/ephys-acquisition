@@ -4,7 +4,12 @@ Utilities for loading and visualizing HDF5 ephys data files.
 
 from pathlib import Path
 import numpy as np
-import matplotlib.pyplot as plt
+
+try:
+    import matplotlib.pyplot as plt
+    HAS_MPL = True
+except ImportError:
+    HAS_MPL = False
 
 try:
     import h5py

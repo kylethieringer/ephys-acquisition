@@ -1,10 +1,22 @@
 """
 ControlPanel — acquisition mode selector, start/stop, and recording controls.
 
-Split into two placeable widgets:
-    settings_widget:     mode toggle, start/stop, save dir, prefix
-    recording_bar:       record / stop-recording buttons + status label
+The panel is split into two separately-placeable sub-widgets so
+:class:`~ui.main_window.MainWindow` can position them independently:
+
+- :attr:`ControlPanel.settings_widget`: mode toggle, Start/Stop buttons,
+  save directory browser, and subject metadata form.
+- :attr:`ControlPanel.recording_bar`: Record / Stop Recording buttons plus
+  a status label (always visible at the bottom of the window).
+
+Developer notes
+---------------
+The panel emits signals but holds no references to acquisition objects.
+:class:`~ui.main_window.MainWindow` connects the signals to the appropriate
+acquisition controller methods.
 """
+
+from __future__ import annotations
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
@@ -24,36 +36,43 @@ from PySide6.QtWidgets import (
 
 
 class ControlPanel(QWidget):
-    """
-    Acquisition control panel.
+    """Acquisition control panel: mode selection, start/stop, and recording.
+
+    This widget itself is invisible — :class:`~ui.main_window.MainWindow`
+    uses :attr:`settings_widget` and :attr:`recording_bar` directly and
+    places them in different parts of the layout.
 
     Signals:
-        start_requested():               user clicked Start
-        stop_requested():                user clicked Stop
-        record_requested(str, str):      (save_dir, prefix)
-        stop_record_requested():         user clicked Stop Recording
-        mode_changed(str):               "continuous" | "trial"  (future)
+        start_requested(): User clicked the Start button.
+        stop_requested(): User clicked the Stop button.
+        record_requested(str, dict): User clicked Record.  Arguments are
+            ``(save_dir, metadata)`` where ``metadata`` is the subject info
+            dict from :meth:`get_metadata`.
+        stop_record_requested(): User clicked Stop Recording.
+        mode_changed(str): User toggled the acquisition mode radio button.
+            Argument is ``"continuous"`` or ``"trial"``.
+        open_protocol_builder_requested(): User clicked "Open Protocol Builder…".
+
+    Attributes:
+        _save_dir (str): Currently selected save directory path.
     """
 
-    start_requested               = Signal()
-    stop_requested                = Signal()
-    record_requested              = Signal(str, dict)  # save_dir, metadata
-    stop_record_requested         = Signal()
-    mode_changed                  = Signal(str)
+    start_requested                 = Signal()
+    stop_requested                  = Signal()
+    record_requested                = Signal(str, dict)   # save_dir, metadata
+    stop_record_requested           = Signal()
+    mode_changed                    = Signal(str)
     open_protocol_builder_requested = Signal()
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._save_dir = "E:/data"
 
-        # Build sub-widgets (they have no parent yet — MainWindow will place them)
         self._settings_widget = QWidget()
         self._recording_bar   = QWidget()
         self._build_settings()
         self._build_recording_bar()
 
-        # This widget itself is invisible — MainWindow uses settings_widget
-        # and recording_bar directly.
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
@@ -63,12 +82,12 @@ class ControlPanel(QWidget):
 
     @property
     def settings_widget(self) -> QWidget:
-        """Mode selector + Start/Stop + save directory + prefix."""
+        """Sub-widget containing mode selector, Start/Stop, save dir, metadata."""
         return self._settings_widget
 
     @property
     def recording_bar(self) -> QWidget:
-        """Record / Stop Recording buttons + status label."""
+        """Sub-widget containing Record/Stop Recording buttons and status label."""
         return self._recording_bar
 
     # ------------------------------------------------------------------
@@ -77,9 +96,17 @@ class ControlPanel(QWidget):
 
     @property
     def save_dir(self) -> str:
+        """Currently selected save directory path."""
         return self._save_dir
 
     def get_metadata(self) -> dict:
+        """Read the subject metadata form and return it as a dict.
+
+        Returns:
+            Dict with keys: ``"expt_id"``, ``"genotype"``, ``"age"``,
+            ``"sex"``, ``"targeted_cell_type"``.  ``expt_id`` falls back
+            to ``"ephys"`` if the field is empty.
+        """
         return {
             "expt_id":            self._expt_id_edit.text().strip() or "ephys",
             "genotype":           self._genotype_edit.text().strip(),
@@ -89,24 +116,54 @@ class ControlPanel(QWidget):
         }
 
     def set_running(self, running: bool) -> None:
+        """Update Start/Stop button states to reflect running status.
+
+        When ``running`` is ``False``, also calls :meth:`set_recording` to
+        ensure the Record button is disabled.
+
+        Args:
+            running: ``True`` if acquisition is active.
+        """
         self._start_btn.setEnabled(not running)
         self._stop_btn.setEnabled(running)
         if not running:
             self.set_recording(False)
 
     def set_stopping(self) -> None:
-        """Disable both Start and Stop while the post-trigger guard delay runs."""
+        """Disable both Start and Stop while the post-trigger guard delay runs.
+
+        Called by :class:`~ui.main_window.MainWindow` between pressing Stop
+        and the ``stopped`` signal arriving, to prevent double-clicks.
+        """
         self._start_btn.setEnabled(False)
         self._stop_btn.setEnabled(False)
 
     def set_recording(self, recording: bool) -> None:
+        """Update Record/Stop Recording button states.
+
+        Args:
+            recording: ``True`` if a recording is in progress.
+        """
         self._record_btn.setEnabled(not recording)
         self._stop_rec_btn.setEnabled(recording)
 
     def set_status(self, msg: str) -> None:
+        """Update the status label text in the recording bar.
+
+        Args:
+            msg: Message to display (e.g. ``"Recording…"`` or ``"Stopped."``).
+        """
         self._status_lbl.setText(msg)
 
     def enable_record_button(self, enabled: bool) -> None:
+        """Enable or disable the Record button independently of recording state.
+
+        Used by :class:`~ui.main_window.MainWindow` to keep Record disabled
+        until acquisition is running.
+
+        Args:
+            enabled: ``True`` to enable the button.
+        """
         self._record_btn.setEnabled(enabled)
 
     # ------------------------------------------------------------------
@@ -114,6 +171,7 @@ class ControlPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _build_settings(self) -> None:
+        """Build the settings sub-widget: mode, start/stop, save dir, metadata."""
         root = QVBoxLayout(self._settings_widget)
         root.setContentsMargins(4, 4, 4, 4)
         root.setSpacing(8)
@@ -198,10 +256,11 @@ class ControlPanel(QWidget):
         root.addStretch()
 
     # ------------------------------------------------------------------
-    # UI construction — recording bar (always visible at bottom)
+    # UI construction — recording bar
     # ------------------------------------------------------------------
 
     def _build_recording_bar(self) -> None:
+        """Build the recording bar: Record/Stop buttons and status label."""
         root = QHBoxLayout(self._recording_bar)
         root.setContentsMargins(4, 4, 4, 4)
         root.setSpacing(8)
@@ -225,6 +284,7 @@ class ControlPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _browse_dir(self) -> None:
+        """Open a directory chooser and update the save directory."""
         path = QFileDialog.getExistingDirectory(
             self, "Select Save Directory", self._save_dir
         )
@@ -233,6 +293,7 @@ class ControlPanel(QWidget):
             self._dir_edit.setText(path)
 
     def _on_record(self) -> None:
+        """Emit ``record_requested`` with the current save dir and metadata."""
         metadata = {
             "expt_id":          self._expt_id_edit.text().strip() or "ephys",
             "genotype":         self._genotype_edit.text().strip(),
