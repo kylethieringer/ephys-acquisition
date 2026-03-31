@@ -37,7 +37,8 @@ class HDF5Saver:
         self._file    = None
         self._dataset = None
         self._n_saved = 0
-        self._path: Path | None = None
+        self._path:   Path | None = None
+        self._folder: Path | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -52,8 +53,10 @@ class HDF5Saver:
             raise RuntimeError("h5py is not installed. Run: pip install h5py")
 
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        self._path = Path(save_dir) / f"{prefix}_{timestamp}.h5"
-        self._path.parent.mkdir(parents=True, exist_ok=True)
+        stem = f"{prefix}_{timestamp}"
+        self._folder = Path(save_dir) / stem
+        self._folder.mkdir(parents=True, exist_ok=True)
+        self._path = self._folder / f"{stem}.h5"
 
         self._file = h5py.File(self._path, "w")
         self._write_metadata()
@@ -85,6 +88,10 @@ class HDF5Saver:
             finally:
                 self._file    = None
                 self._dataset = None
+
+    @property
+    def folder(self) -> Path | None:
+        return self._folder
 
     @property
     def is_open(self) -> bool:

@@ -196,10 +196,6 @@ Recorded data is stored in HDF5 with the following structure:
 - **CPU**: Single-threaded DAQ reader + separate camera thread keeps UI responsive
 - **Memory**: Ring buffer holds ~5 seconds of 5-channel data (~4 MB)
 
-## License
-
-[Add your license here]
-
 ## Contact
 
 For questions or issues, contact me, kyle thieringer

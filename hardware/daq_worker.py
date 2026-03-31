@@ -157,6 +157,21 @@ class DAQWorker(QThread):
             ao_task.start()
             ai_task.start()
 
+            # Track TTL phase so waveform transitions don't create spurious
+            # trigger pulses.  When _rebuild_ao stops the old AO task the
+            # hardware holds the last output voltage; if that voltage is
+            # TTL_HIGH the camera sees an extended pulse.  By rolling the
+            # new waveform's TTL row to start at the current phase offset we
+            # ensure the first sample written after the rebuild continues the
+            # TTL cycle rather than restarting it from zero.
+            #
+            # AO and AI share the same sample clock so the AO advances by
+            # exactly CHUNK_SIZE samples during every AI read; incrementing
+            # ttl_phase by CHUNK_SIZE after each read keeps the estimate
+            # accurate with zero drift.
+            ttl_period_len = n_wf   # samples per TTL period (= initial wf length)
+            ttl_phase      = 0      # current offset within the TTL period
+
             # Track whether we're in "custom waveform" mode
             using_custom_waveform = False
 
@@ -171,33 +186,46 @@ class DAQWorker(QThread):
                     self._pending_ttl_cfg  = None
 
                 if pending_ttl is not None:
-                    self._frame_rate  = pending_ttl[0]
-                    self._exposure_ms = pending_ttl[1]
-                    using_custom_waveform = False  # reset to default TTL on reconfigure
+                    self._frame_rate   = pending_ttl[0]
+                    self._exposure_ms  = pending_ttl[1]
+                    ttl_period_len     = max(1, int(SAMPLE_RATE / self._frame_rate))
+                    ttl_phase          = 0   # reset on TTL reconfiguration
+                    using_custom_waveform = False
 
                 if pending_wf is _SUPPRESS:
                     # Silence both AO channels (no TTL, no command)
                     n_silent = max(1, int(SAMPLE_RATE / self._frame_rate))
                     ao_task, writer = self._rebuild_ao(
                         ao_task, np.zeros((2, n_silent), dtype=np.float64))
+                    ttl_phase = 0
                     using_custom_waveform = False
 
                 elif pending_wf is _CLEAR:
-                    # Revert to default TTL-only waveform
-                    ttl_period = generate_ttl_period(self._frame_rate, self._exposure_ms)
-                    new_wf = np.vstack([np.zeros(len(ttl_period), dtype=np.float64),
-                                        ttl_period])
+                    # Revert to default TTL-only waveform, phase-aligned
+                    ttl_period_wf = generate_ttl_period(self._frame_rate, self._exposure_ms)
+                    aligned_ttl   = np.roll(ttl_period_wf, -(ttl_phase % len(ttl_period_wf)))
+                    new_wf = np.vstack([
+                        np.zeros(len(ttl_period_wf), dtype=np.float64),
+                        aligned_ttl,
+                    ])
                     ao_task, writer = self._rebuild_ao(ao_task, new_wf)
                     using_custom_waveform = False
 
                 elif pending_wf is not _NO_CHANGE:
-                    # Load new stimulus waveform; rebuild AO task if buffer size changed
-                    ao_task, writer = self._rebuild_ao(ao_task, pending_wf)
+                    # Load new stimulus waveform with TTL phase-aligned to avoid
+                    # a spurious extended pulse at the transition point
+                    aligned_wf    = pending_wf.copy()
+                    aligned_wf[1] = np.roll(pending_wf[1], -(ttl_phase % ttl_period_len))
+                    ao_task, writer = self._rebuild_ao(ao_task, aligned_wf)
                     using_custom_waveform = True
 
                 # -- Read AI --
                 reader.read_many_sample(ai_buf, CHUNK_SIZE, timeout=2.0)
                 self.data_ready.emit(ai_buf.copy())
+
+                # Advance phase counter: AO and AI share the same clock so the
+                # AO produces exactly CHUNK_SIZE samples per AI read.
+                ttl_phase = (ttl_phase + CHUNK_SIZE) % ttl_period_len
 
         except Exception as exc:
             if self._running:   # suppress errors that occur during intentional shutdown

@@ -6,8 +6,6 @@ Split into two placeable widgets:
     recording_bar:       record / stop-recording buttons + status label
 """
 
-from pathlib import Path
-
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -43,7 +41,7 @@ class ControlPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._save_dir = str(Path.home() / "ephys_data")
+        self._save_dir = "E:/data"
 
         # Build sub-widgets (they have no parent yet — MainWindow will place them)
         self._settings_widget = QWidget()
@@ -150,7 +148,7 @@ class ControlPanel(QWidget):
         save_layout.addLayout(dir_row)
 
         prefix_row = QHBoxLayout()
-        prefix_row.addWidget(QLabel("Prefix:"))
+        prefix_row.addWidget(QLabel("Experiment Name:"))
         self._prefix_edit = QLineEdit("ephys")
         prefix_row.addWidget(self._prefix_edit, stretch=1)
         save_layout.addLayout(prefix_row)

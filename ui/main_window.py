@@ -188,7 +188,6 @@ class MainWindow(QMainWindow):
     def _on_record(self, save_dir: str, prefix: str) -> None:
         try:
             self._acq.start_recording(save_dir, prefix)
-            self._ctrl_panel.set_status("Starting camera triggers\u2026")
         except Exception as exc:
             self._on_error(str(exc))
 
@@ -209,16 +208,16 @@ class MainWindow(QMainWindow):
     def _on_acq_started(self) -> None:
         self._ctrl_panel.set_running(True)
         self._ctrl_panel.enable_record_button(True)
-        self._ctrl_panel.set_status("Acquiring (no camera triggers)")
+        self._ctrl_panel.set_status("Acquiring — camera armed, waiting for Record")
 
     def _on_acq_stopped(self) -> None:
         self._ctrl_panel.set_running(False)
         self._ctrl_panel.enable_record_button(False)
         self._ctrl_panel.set_status("Stopped.")
 
-    def _on_recording_started(self, path: Path) -> None:
+    def _on_recording_started(self, folder: Path) -> None:
         self._ctrl_panel.set_recording(True)
-        self._ctrl_panel.set_status(f"Recording + camera \u2192 {path.name}")
+        self._ctrl_panel.set_status(f"Recording + camera \u2192 {folder.name}/")
 
     def _on_recording_stopped(self, n_samples: int) -> None:
         self._ctrl_panel.set_recording(False)
@@ -239,10 +238,6 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def closeEvent(self, event) -> None:
-        # Immediate teardown — no guard delay since the process is exiting.
-        if self._acq.is_recording:
-            self._acq._teardown_camera()
-            self._acq._close_recording()
         if self._acq.is_running:
             self._acq.stop()
         event.accept()

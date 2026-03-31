@@ -76,15 +76,15 @@ class CameraWorker(QThread):
                     self.GRAB_TIMEOUT_MS,
                     pylon.TimeoutHandling_Return,
                 )
-                if result is None:
+                # IsValid() must be checked before any property access —
+                # TimeoutHandling_Return gives a null GrabResultPtr on timeout.
+                if not result.IsValid():
                     continue
 
                 try:
                     if result.GrabSucceeded():
                         img = result.Array
                         self.frame_ready.emit(img.copy())
-                    # Silently ignore individual grab failures (e.g., timeout)
-                    # to keep the loop alive; persistent failure will be caught below.
                 finally:
                     result.Release()
 
