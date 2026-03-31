@@ -8,7 +8,9 @@ Split into two placeable widgets:
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
+    QComboBox,
     QFileDialog,
+    QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -33,11 +35,12 @@ class ControlPanel(QWidget):
         mode_changed(str):               "continuous" | "trial"  (future)
     """
 
-    start_requested      = Signal()
-    stop_requested       = Signal()
-    record_requested     = Signal(str, str)   # save_dir, prefix
-    stop_record_requested = Signal()
-    mode_changed         = Signal(str)
+    start_requested               = Signal()
+    stop_requested                = Signal()
+    record_requested              = Signal(str, dict)  # save_dir, metadata
+    stop_record_requested         = Signal()
+    mode_changed                  = Signal(str)
+    open_protocol_builder_requested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -71,6 +74,19 @@ class ControlPanel(QWidget):
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+
+    @property
+    def save_dir(self) -> str:
+        return self._save_dir
+
+    def get_metadata(self) -> dict:
+        return {
+            "expt_id":            self._expt_id_edit.text().strip() or "ephys",
+            "genotype":           self._genotype_edit.text().strip(),
+            "age":                self._age_edit.text().strip(),
+            "sex":                self._sex_combo.currentText(),
+            "targeted_cell_type": self._cell_type_edit.text().strip(),
+        }
 
     def set_running(self, running: bool) -> None:
         self._start_btn.setEnabled(not running)
@@ -108,7 +124,6 @@ class ControlPanel(QWidget):
         self._continuous_rb = QRadioButton("Continuous")
         self._trial_rb      = QRadioButton("Trial-based")
         self._continuous_rb.setChecked(True)
-        self._trial_rb.setEnabled(False)   # placeholder — not yet implemented
         self._continuous_rb.toggled.connect(
             lambda checked: self.mode_changed.emit("continuous") if checked else None
         )
@@ -118,6 +133,13 @@ class ControlPanel(QWidget):
         mode_layout.addWidget(self._continuous_rb)
         mode_layout.addWidget(self._trial_rb)
         root.addWidget(mode_box)
+
+        # Protocol builder button — shown only in trial mode
+        self._open_builder_btn = QPushButton("Open Protocol Builder…")
+        self._open_builder_btn.setVisible(False)
+        self._open_builder_btn.clicked.connect(self.open_protocol_builder_requested)
+        self._trial_rb.toggled.connect(self._open_builder_btn.setVisible)
+        root.addWidget(self._open_builder_btn)
 
         # --- Start / Stop ---
         acq_box = QGroupBox("Acquisition")
@@ -133,7 +155,7 @@ class ControlPanel(QWidget):
         acq_layout.addWidget(self._stop_btn)
         root.addWidget(acq_box)
 
-        # --- Save settings (directory + prefix) ---
+        # --- Save settings (directory) ---
         save_box = QGroupBox("Data Recording")
         save_layout = QVBoxLayout(save_box)
 
@@ -147,13 +169,32 @@ class ControlPanel(QWidget):
         dir_row.addWidget(self._browse_btn)
         save_layout.addLayout(dir_row)
 
-        prefix_row = QHBoxLayout()
-        prefix_row.addWidget(QLabel("Experiment Name:"))
-        self._prefix_edit = QLineEdit("ephys")
-        prefix_row.addWidget(self._prefix_edit, stretch=1)
-        save_layout.addLayout(prefix_row)
-
         root.addWidget(save_box)
+
+        # --- Subject metadata ---
+        meta_box = QGroupBox("Subject Metadata")
+        meta_layout = QFormLayout(meta_box)
+        meta_layout.setRowWrapPolicy(QFormLayout.DontWrapRows)
+        meta_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+
+        self._expt_id_edit       = QLineEdit()
+        self._expt_id_edit.setPlaceholderText("e.g. 20260330_001")
+        self._genotype_edit      = QLineEdit()
+        self._genotype_edit.setPlaceholderText("e.g. Ai14xSst-Cre")
+        self._age_edit           = QLineEdit()
+        self._age_edit.setPlaceholderText("e.g. P30")
+        self._sex_combo          = QComboBox()
+        self._sex_combo.addItems(["Unknown", "M", "F"])
+        self._cell_type_edit     = QLineEdit()
+        self._cell_type_edit.setPlaceholderText("e.g. SST interneuron")
+
+        meta_layout.addRow("Experiment ID:", self._expt_id_edit)
+        meta_layout.addRow("Genotype:",      self._genotype_edit)
+        meta_layout.addRow("Age:",           self._age_edit)
+        meta_layout.addRow("Sex:",           self._sex_combo)
+        meta_layout.addRow("Target cell type:", self._cell_type_edit)
+
+        root.addWidget(meta_box)
         root.addStretch()
 
     # ------------------------------------------------------------------
@@ -192,4 +233,11 @@ class ControlPanel(QWidget):
             self._dir_edit.setText(path)
 
     def _on_record(self) -> None:
-        self.record_requested.emit(self._save_dir, self._prefix_edit.text() or "ephys")
+        metadata = {
+            "expt_id":          self._expt_id_edit.text().strip() or "ephys",
+            "genotype":         self._genotype_edit.text().strip(),
+            "age":              self._age_edit.text().strip(),
+            "sex":              self._sex_combo.currentText(),
+            "targeted_cell_type": self._cell_type_edit.text().strip(),
+        }
+        self.record_requested.emit(self._save_dir, metadata)

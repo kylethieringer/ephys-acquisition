@@ -31,12 +31,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from config import DEFAULT_EXPOSURE_MS, DEFAULT_FRAME_RATE_HZ, SAMPLE_RATE
+from config import SAMPLE_RATE
 from utils.stimulus_generator import (
-    build_combined_ao_waveform,
     generate_ao0_waveform,
     generate_preview_steps,
-    get_actual_frame_rate,
     get_step_amplitudes,
 )
 
@@ -62,23 +60,11 @@ class StimulusPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._frame_rate_hz = DEFAULT_FRAME_RATE_HZ
-        self._exposure_ms   = DEFAULT_EXPOSURE_MS
-
         self._auto_clear_timer = QTimer(self)
         self._auto_clear_timer.setSingleShot(True)
         self._auto_clear_timer.timeout.connect(self._on_auto_clear)
 
         self._build_ui()
-
-    # ------------------------------------------------------------------
-    # Public
-    # ------------------------------------------------------------------
-
-    def set_ttl_params(self, frame_rate_hz: float, exposure_ms: float) -> None:
-        """Keep TTL params in sync with the camera panel."""
-        self._frame_rate_hz = frame_rate_hz
-        self._exposure_ms   = exposure_ms
 
     # ------------------------------------------------------------------
     # UI construction
@@ -223,8 +209,7 @@ class StimulusPanel(QWidget):
         if repeats > 1:
             ao0 = np.tile(ao0, repeats)
 
-        combined = build_combined_ao_waveform(ao0, self._frame_rate_hz, self._exposure_ms)
-        self.stimulus_applied.emit(combined)
+        self.stimulus_applied.emit(ao0)
 
         # Schedule auto-clear after the waveform finishes one pass
         duration_ms = int(len(ao0) / SAMPLE_RATE * 1000)

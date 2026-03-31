@@ -1,15 +1,17 @@
 """
-nidaqmx Task builders for AI and AO.
+nidaqmx Task builders for AI, AO, and counter TTL.
 
-AI task:  5 channels (ai0-ai4), differential except ai3 (RSE)
-AO task:  2 channels (ao0=command current, ao1=TTL), clocked from AI sample clock
-          so they are phase-locked.
+AI task:   5 channels (ai0-ai4), differential except ai3 (RSE)
+AO task:   ao0 only (command current), clocked from AI sample clock
+CTR task:  ctr0 continuous pulse train for camera TTL (output on PFI12),
+           independent 100 MHz timebase — never stopped by stimulus changes
 """
 
 try:
     import nidaqmx
     from nidaqmx.constants import (
         AcquisitionType,
+        Level,
         RegenerationMode,
         TerminalConfiguration,
     )
@@ -23,7 +25,7 @@ import numpy as np
 from config import (
     AI_CHANNELS,
     AO_COMMAND_CH,
-    AO_TTL_CH,
+    CTR_CHANNEL,
     CHUNK_SIZE,
     DEVICE_NAME,
     SAMPLE_RATE,
@@ -61,9 +63,10 @@ def build_ao_task(n_waveform_samples: int) -> "nidaqmx.Task":
     """
     Build and return a configured (but not started) continuous AO task.
 
-    The AO sample clock is sourced from the AI sample clock so both
-    tasks are phase-locked.  ALLOW_REGENERATION means the board loops
-    the written waveform without CPU intervention.
+    ao0 only (command current).  Clocked from the AI sample clock so
+    the command waveform is phase-locked to acquired data.
+    ALLOW_REGENERATION means the board loops the waveform without CPU
+    intervention.
 
     n_waveform_samples: total samples of the waveform that will be written.
     """
@@ -73,11 +76,6 @@ def build_ao_task(n_waveform_samples: int) -> "nidaqmx.Task":
         min_val=-10.0,
         max_val=10.0,
     )
-    task.ao_channels.add_ao_voltage_chan(
-        f"{DEVICE_NAME}/{AO_TTL_CH}",
-        min_val=0.0,
-        max_val=5.0,
-    )
     task.timing.cfg_samp_clk_timing(
         rate=SAMPLE_RATE,
         source=f"/{DEVICE_NAME}/ai/SampleClock",
@@ -85,6 +83,30 @@ def build_ao_task(n_waveform_samples: int) -> "nidaqmx.Task":
         samps_per_chan=max(n_waveform_samples, CHUNK_SIZE * 4),
     )
     task.out_stream.regen_mode = RegenerationMode.ALLOW_REGENERATION
+    return task
+
+
+def build_ttl_counter_task(frame_rate_hz: float, exposure_ms: float) -> "nidaqmx.Task":
+    """
+    Build and return a configured (but not started) counter output task.
+
+    Generates a continuous square wave on CTR0 (physical output: PFI12)
+    at frame_rate_hz with a duty cycle matching exposure_ms.  Uses the
+    device's own 100 MHz timebase so it runs independently of the AO
+    task and is never disrupted by stimulus waveform changes.
+    """
+    period_ms  = 1000.0 / frame_rate_hz
+    duty_cycle = min(max(exposure_ms / period_ms, 0.01), 0.99)
+
+    task = nidaqmx.Task("ttl_ctr_task")
+    task.co_channels.add_co_pulse_chan_freq(
+        f"{DEVICE_NAME}/{CTR_CHANNEL}",
+        freq=frame_rate_hz,
+        duty_cycle=duty_cycle,
+        idle_state=Level.LOW,
+        initial_delay=0.0,
+    )
+    task.timing.cfg_implicit_timing(sample_mode=AcquisitionType.CONTINUOUS)
     return task
 
 

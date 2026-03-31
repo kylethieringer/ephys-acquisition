@@ -155,21 +155,24 @@ class ContinuousAcquisition(QObject):
     # Recording control (TTL + HDF5 + video)
     # ------------------------------------------------------------------
 
-    def start_recording(self, save_dir: str | Path, prefix: str = "ephys") -> None:
+    def start_recording(self, save_dir: str | Path, metadata: dict | None = None) -> None:
         if self._is_recording or not self._is_running:
             return
 
+        if metadata is None:
+            metadata = {"expt_id": "ephys", "genotype": "", "age": "", "sex": "Unknown", "targeted_cell_type": ""}
+
         # Open HDF5 file — saver creates the experiment folder
-        h5_path = self._saver.open(save_dir, prefix)
+        h5_path = self._saver.open(save_dir, metadata)
         folder = self._saver.folder
         self._video_path = folder / (h5_path.stem + ".avi")
         self._metadata_path = folder / "metadata.json"
-        self._write_metadata_json(prefix, h5_path, self._video_path)
+        self._write_metadata_json(metadata, h5_path, self._video_path)
         self._is_recording = True
 
-        # Enable TTL immediately — camera is already armed and will catch every frame
+        # Start counter TTL — camera is already armed and will catch every frame
         if self._daq_worker is not None:
-            self._daq_worker.clear_stimulus_waveform()
+            self._daq_worker.start_ttl()
 
         self.recording_started.emit(folder)
 
@@ -177,9 +180,9 @@ class ContinuousAcquisition(QObject):
         if not self._is_recording:
             return
 
-        # Suppress TTL so no further triggers are sent
+        # Stop counter TTL so no further triggers are sent
         if self._daq_worker is not None:
-            self._daq_worker.suppress_ttl()
+            self._daq_worker.stop_ttl()
 
         # Guard delay: keeps HDF5 open long enough to record the trailing
         # exposure signals on AI3 after the last TTL pulse.
@@ -188,10 +191,10 @@ class ContinuousAcquisition(QObject):
     def _finish_stop_recording(self) -> None:
         self._close_recording()
 
-    def _write_metadata_json(self, prefix: str, h5_path: Path, video_path: Path) -> None:
+    def _write_metadata_json(self, subject_metadata: dict, h5_path: Path, video_path: Path) -> None:
         """Write initial metadata.json; end_time/duration filled in on close."""
         self._metadata = {
-            "experiment_name": prefix,
+            "subject": subject_metadata,
             "start_time": datetime.datetime.now().isoformat(),
             "end_time": None,
             "duration_samples": None,
@@ -248,10 +251,10 @@ class ContinuousAcquisition(QObject):
         if self._daq_worker is not None:
             self._daq_worker.set_ttl_config(frame_rate_hz, exposure_ms)
 
-    def apply_stimulus_waveform(self, ao_2xN: np.ndarray) -> None:
-        """Send a combined 2×N AO waveform to the DAQ worker."""
+    def apply_stimulus_waveform(self, ao0: np.ndarray) -> None:
+        """Send a 1-D ao0 command-current waveform (Volts) to the DAQ worker."""
         if self._daq_worker is not None:
-            self._daq_worker.set_stimulus_waveform(ao_2xN)
+            self._daq_worker.set_stimulus_waveform(ao0.reshape(1, -1))
 
     def clear_stimulus(self) -> None:
         if self._daq_worker is not None:

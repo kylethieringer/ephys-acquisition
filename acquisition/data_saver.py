@@ -44,22 +44,33 @@ class HDF5Saver:
     # Public API
     # ------------------------------------------------------------------
 
-    def open(self, save_dir: str | Path, prefix: str = "ephys") -> Path:
+    def open(self, save_dir: str | Path, subject_metadata: dict | None = None) -> Path:
         """
         Open a new HDF5 file.  Returns the full path that was created.
         Raises RuntimeError if h5py is not installed.
+
+        Folder:  {save_dir}/{expt_id}/
+        File:    {expt_id}_{genotype}_{YYYYMMDD}.h5
         """
         if not HAS_H5PY:
             raise RuntimeError("h5py is not installed. Run: pip install h5py")
 
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        stem = f"{prefix}_{timestamp}"
-        self._folder = Path(save_dir) / stem
+        if subject_metadata is None:
+            subject_metadata = {}
+
+        expt_id  = subject_metadata.get("expt_id", "ephys") or "ephys"
+        genotype = subject_metadata.get("genotype", "") or "unknown"
+        # Sanitise for filesystem
+        safe_genotype = genotype.replace(" ", "_").replace("/", "-")
+        datestamp = datetime.datetime.now().strftime("%Y%m%d")
+        stem = f"{expt_id}_{safe_genotype}_{datestamp}"
+
+        self._folder = Path(save_dir) / expt_id
         self._folder.mkdir(parents=True, exist_ok=True)
         self._path = self._folder / f"{stem}.h5"
 
         self._file = h5py.File(self._path, "w")
-        self._write_metadata()
+        self._write_metadata(subject_metadata)
         self._create_dataset()
         self._n_saved = 0
         return self._path
@@ -109,7 +120,7 @@ class HDF5Saver:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _write_metadata(self) -> None:
+    def _write_metadata(self, subject_metadata: dict | None = None) -> None:
         grp = self._file.create_group("metadata")
         grp.attrs["sample_rate"]  = SAMPLE_RATE
         grp.attrs["start_time"]   = datetime.datetime.now().isoformat()
@@ -120,6 +131,11 @@ class HDF5Saver:
         grp.create_dataset("channel_names",  data=np.array(names,  dtype=object), dtype=dt_str)
         grp.create_dataset("display_scales", data=np.array(scales, dtype=np.float64))
         grp.create_dataset("units",          data=np.array(units,  dtype=object), dtype=dt_str)
+
+        if subject_metadata:
+            subj_grp = self._file.create_group("subject")
+            for key, value in subject_metadata.items():
+                subj_grp.attrs[key] = str(value) if value else ""
 
     def _create_dataset(self) -> None:
         data_grp = self._file.create_group("data")

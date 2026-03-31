@@ -57,6 +57,40 @@ def generate_preview_steps(
     return t_ms, traces
 
 
+def generate_staircase_pa_array(
+    min_pa: float,
+    max_pa: float,
+    step_pa: float,
+    width_ms: float,
+    gap_ms: float,
+    repeats: int = 1,
+) -> np.ndarray:
+    """
+    Generate a staircase waveform in pA units (NOT scaled to Volts).
+
+    The staircase consists of n_steps pulses, each of width_ms duration
+    with gap_ms of silence between steps.  The full pattern is tiled
+    `repeats` times.
+
+    Used by trial_waveforms.py so that a hyperpolarisation pulse can be
+    prepended before the AO scaling is applied.
+
+    Returns:
+        1D float64 array in pA, length = repeats × n_steps × step_samples
+    """
+    amplitudes    = get_step_amplitudes(min_pa, max_pa, step_pa)
+    width_samples = max(1, int(width_ms / 1000.0 * SAMPLE_RATE))
+    gap_samples   = max(0, int(gap_ms   / 1000.0 * SAMPLE_RATE))
+    step_samples  = width_samples + gap_samples
+
+    one_pass = np.zeros(len(amplitudes) * step_samples, dtype=np.float64)
+    for i, amp_pa in enumerate(amplitudes):
+        start = i * step_samples
+        one_pass[start : start + width_samples] = amp_pa
+
+    return np.tile(one_pass, repeats)
+
+
 def generate_ao0_waveform(
     min_pa: float,
     max_pa: float,
