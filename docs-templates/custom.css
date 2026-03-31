@@ -3,24 +3,31 @@
 /* Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
-/* ── CSS Variables (override pdoc defaults) ──────────────────────────────── */
+/* ── Palette ─────────────────────────────────────────────────────────────── */
 :root {
-    --pdoc-background: #f5f7fb;
+    --dust-grey:    #dad7cd;
+    --dry-sage:     #a3b18a;
+    --fern:         #588157;
+    --hunter-green: #3a5a40;
+    --pine-teal:    #344e41;
+
+    --pdoc-background: #f4f5f2;
 }
 
+/* ── pdoc variable overrides ─────────────────────────────────────────────── */
 .pdoc {
-    --text: #1a202c;
-    --muted: #718096;
-    --link: #4361ee;
-    --link-hover: #3a0ca3;
-    --code: #eef2ff;
-    --active: #c7d2fe;
-    --accent: #e8ecf8;
-    --accent2: #b8c4e8;
-    --nav-hover: rgba(67, 97, 238, 0.12);
-    --name: #4361ee;
-    --def: #059669;
-    --annotation: #7c3aed;
+    --text: #1c2419;
+    --muted: #6b7c64;
+    --link: var(--fern);
+    --link-hover: var(--hunter-green);
+    --code: #edf0e8;
+    --active: #c8d5be;
+    --accent: #e4e8de;
+    --accent2: #b5c2aa;
+    --nav-hover: rgba(88, 129, 87, 0.14);
+    --name: var(--fern);
+    --def: var(--hunter-green);
+    --annotation: #4a7c59;
 
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     color: var(--text);
@@ -28,7 +35,7 @@
 
 /* ── Navigation sidebar ───────────────────────────────────────────────────── */
 nav.pdoc {
-    background: linear-gradient(180deg, #1e1b4b 0%, #312e81 100%);
+    background: linear-gradient(180deg, var(--pine-teal) 0%, var(--hunter-green) 100%);
     border-right: none;
     box-shadow: 2px 0 12px rgba(0,0,0,0.15);
 }
@@ -36,7 +43,7 @@ nav.pdoc {
 nav.pdoc a,
 nav.pdoc h2,
 nav.pdoc .pdoc-button {
-    color: #c7d2fe !important;
+    color: var(--dust-grey) !important;
 }
 
 nav.pdoc a:hover {
@@ -50,7 +57,7 @@ nav.pdoc h2 {
     font-weight: 700;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: #818cf8 !important;
+    color: var(--dry-sage) !important;
     margin-top: 1.5rem;
 }
 
@@ -74,14 +81,14 @@ main.pdoc {
     padding-top: 2.5rem;
     padding-right: 3rem;
     padding-bottom: 2.5rem;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 4px 24px rgba(67,97,238,0.06);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 4px 24px rgba(52, 78, 65, 0.08);
 }
 
 .pdoc h1 {
     font-size: 2rem;
     font-weight: 700;
-    color: #1e1b4b;
-    border-bottom: 2px solid #e8ecf8;
+    color: var(--pine-teal);
+    border-bottom: 2px solid var(--dust-grey);
     padding-bottom: 0.5rem;
     margin-bottom: 1.5rem;
 }
@@ -89,14 +96,14 @@ main.pdoc {
 .pdoc h2 {
     font-size: 1.3rem;
     font-weight: 600;
-    color: #312e81;
+    color: var(--hunter-green);
     margin-top: 2rem;
 }
 
 .pdoc h3 {
     font-size: 1.05rem;
     font-weight: 600;
-    color: #3730a3;
+    color: var(--fern);
 }
 
 /* ── Code blocks and signatures ───────────────────────────────────────────── */
@@ -106,14 +113,14 @@ main.pdoc {
 }
 
 .pdoc .pdoc-code {
-    background: #f8f9ff;
-    border: 1px solid #e0e7ff;
+    background: #f6f8f3;
+    border: 1px solid #d5dccc;
     border-radius: 8px;
 }
 
 .pdoc .def {
-    background: linear-gradient(90deg, #eef2ff 0%, #f8faff 100%);
-    border-left: 3px solid #6366f1;
+    background: linear-gradient(90deg, #edf1e7 0%, #f8faf5 100%);
+    border-left: 3px solid var(--fern);
     border-radius: 0 8px 8px 0;
     padding: 0.6rem 1rem;
     margin-bottom: 0.25rem;
@@ -121,8 +128,8 @@ main.pdoc {
 
 /* ── Docstring sections (Args, Returns, etc.) ─────────────────────────────── */
 .pdoc dl.field-list {
-    background: #f8f9ff;
-    border: 1px solid #e0e7ff;
+    background: #f6f8f3;
+    border: 1px solid #d5dccc;
     border-radius: 10px;
     padding: 1rem 1.25rem;
     margin: 0.75rem 0;
@@ -130,7 +137,7 @@ main.pdoc {
 
 .pdoc dt {
     font-weight: 600;
-    color: #4338ca;
+    color: var(--hunter-green);
     font-size: 0.85rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -147,7 +154,7 @@ main.pdoc {
 
 /* ── Section dividers ─────────────────────────────────────────────────────── */
 .pdoc section:not(:last-child) {
-    border-bottom: 1px solid #eef2ff;
+    border-bottom: 1px solid #e4e8de;
     margin-bottom: 2rem;
     padding-bottom: 1rem;
 }
@@ -157,7 +164,7 @@ main.pdoc {
     background: rgba(255,255,255,0.12);
     border: 1px solid rgba(255,255,255,0.2);
     border-radius: 8px;
-    color: #c7d2fe !important;
+    color: var(--dust-grey) !important;
     font-size: 0.82rem;
     padding: 0.4rem 0.75rem;
     transition: background 0.15s;

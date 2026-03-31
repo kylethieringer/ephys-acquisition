@@ -21,9 +21,18 @@
     /* ── Google Fonts ── */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
+    /* ── Palette ── */
+    :root {
+        --dust-grey:    #dad7cd;
+        --dry-sage:     #a3b18a;
+        --fern:         #588157;
+        --hunter-green: #3a5a40;
+        --pine-teal:    #344e41;
+    }
+
     /* ── Landing page layout ── */
     body {
-        background: #f5f7fb;
+        background: #f4f5f2;
     }
     main.pdoc {
         /* Do NOT override padding-left — pdoc layout.css uses it to clear the sidebar.
@@ -36,7 +45,7 @@
 
     /* ── Hero section ── */
     .hero {
-        background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);
+        background: linear-gradient(135deg, var(--pine-teal) 0%, var(--hunter-green) 55%, var(--fern) 100%);
         color: #fff;
         padding: 3.5rem 3rem 3rem;
         position: relative;
@@ -72,7 +81,7 @@
         letter-spacing: 0.04em;
         padding: 0.25rem 0.85rem;
         margin-bottom: 1.25rem;
-        color: #c7d2fe;
+        color: var(--dust-grey);
     }
     .hero h1 {
         font-family: 'Inter', sans-serif;
@@ -86,7 +95,7 @@
     .hero .subtitle {
         font-size: 1.1rem;
         font-weight: 400;
-        color: #a5b4fc;
+        color: var(--dust-grey);
         margin-bottom: 1.75rem;
         max-width: 540px;
         line-height: 1.6;
@@ -127,7 +136,7 @@
         border: 1px solid rgba(255,255,255,0.18);
         border-radius: 8px;
         font-size: 0.82rem;
-        color: #c7d2fe;
+        color: var(--dust-grey);
         padding: 0.3rem 0.85rem;
     }
     .hero-stat strong { color: #fff; font-weight: 600; }
@@ -144,18 +153,18 @@
         font-weight: 700;
         letter-spacing: 0.1em;
         text-transform: uppercase;
-        color: #6366f1;
+        color: var(--fern);
         margin-bottom: 0.85rem;
     }
     .section-title {
         font-family: 'Inter', sans-serif;
         font-size: 1.45rem;
         font-weight: 700;
-        color: #1e1b4b;
+        color: var(--pine-teal);
         margin: 0 0 0.4rem;
     }
     .section-desc {
-        color: #64748b;
+        color: #5a6b58;
         font-size: 0.95rem;
         margin-bottom: 1.5rem;
         line-height: 1.6;
@@ -170,7 +179,7 @@
     }
     .module-card {
         background: #fff;
-        border: 1px solid #e0e7ff;
+        border: 1px solid var(--dust-grey);
         border-radius: 12px;
         padding: 1.25rem 1.35rem;
         text-decoration: none !important;
@@ -181,8 +190,8 @@
         gap: 0.5rem;
     }
     .module-card:hover {
-        box-shadow: 0 4px 20px rgba(67,97,238,0.12);
-        border-color: #818cf8;
+        box-shadow: 0 4px 20px rgba(88,129,87,0.15);
+        border-color: var(--fern);
         transform: translateY(-2px);
     }
     .module-card-icon {
@@ -194,16 +203,16 @@
         font-family: 'JetBrains Mono', monospace;
         font-size: 0.92rem;
         font-weight: 500;
-        color: #4338ca;
+        color: var(--hunter-green);
     }
     .module-card-desc {
         font-size: 0.83rem;
-        color: #64748b;
+        color: #5a6b58;
         line-height: 1.5;
         flex: 1;
     }
     .module-card-arrow {
-        color: #a5b4fc;
+        color: var(--dry-sage);
         font-size: 0.85rem;
         align-self: flex-end;
         margin-top: 0.25rem;
@@ -211,16 +220,16 @@
 
     /* ── Quick-start section ── */
     .quickstart {
-        background: #f8f9ff;
-        border: 1px solid #e0e7ff;
+        background: #f0f3ed;
+        border: 1px solid #c8d5be;
         border-radius: 14px;
         padding: 1.5rem 1.75rem;
         margin-bottom: 2.5rem;
     }
     .quickstart pre {
-        background: #1e1b4b;
+        background: var(--pine-teal);
         border-radius: 10px;
-        color: #c7d2fe;
+        color: var(--dust-grey);
         font-family: 'JetBrains Mono', monospace;
         font-size: 0.85rem;
         line-height: 1.7;
@@ -228,11 +237,11 @@
         overflow-x: auto;
         padding: 1.1rem 1.35rem;
     }
-    .quickstart pre .cm { color: #6b7db3; }
-    .quickstart pre .kw { color: #f472b6; }
-    .quickstart pre .fn { color: #34d399; }
-    .quickstart pre .st { color: #fbbf24; }
-    .quickstart pre .nb { color: #a5b4fc; }
+    .quickstart pre .cm { color: #7a9e82; }
+    .quickstart pre .kw { color: #f9c784; }
+    .quickstart pre .fn { color: #a3b18a; }
+    .quickstart pre .st { color: #dad7cd; }
+    .quickstart pre .nb { color: #c8d5be; }
 
     /* ── Feature cards ── */
     .feature-grid {
@@ -243,32 +252,32 @@
     }
     .feature-card {
         background: #fff;
-        border: 1px solid #e8ecf8;
+        border: 1px solid #d5dccc;
         border-radius: 10px;
         padding: 1rem 1.15rem;
     }
     .feature-card-title {
         font-size: 0.88rem;
         font-weight: 600;
-        color: #1e1b4b;
+        color: var(--pine-teal);
         margin-bottom: 0.3rem;
     }
     .feature-card-body {
         font-size: 0.8rem;
-        color: #64748b;
+        color: #5a6b58;
         line-height: 1.5;
     }
 
     /* ── Navigation sidebar ── */
-    nav.pdoc { background: linear-gradient(180deg, #1e1b4b 0%, #312e81 100%); }
-    nav.pdoc a, nav.pdoc h2 { color: #c7d2fe !important; }
+    nav.pdoc { background: linear-gradient(180deg, var(--pine-teal) 0%, var(--hunter-green) 100%); }
+    nav.pdoc a, nav.pdoc h2 { color: var(--dust-grey) !important; }
     nav.pdoc a:hover { background: rgba(255,255,255,0.1); border-radius: 6px; color: #fff !important; }
     nav.pdoc h2 {
         font-size: 0.68rem;
         font-weight: 700;
         letter-spacing: 0.1em;
         text-transform: uppercase;
-        color: #818cf8 !important;
+        color: var(--dry-sage) !important;
     }
     nav.pdoc input[type=search] {
         background: rgba(255,255,255,0.1);
@@ -279,14 +288,14 @@
 
     /* ── Footer ── */
     .landing-footer {
-        border-top: 1px solid #e0e7ff;
-        color: #94a3b8;
+        border-top: 1px solid #d5dccc;
+        color: #7a8f74;
         font-size: 0.78rem;
         margin-top: 1rem;
         padding-top: 1.25rem;
         text-align: center;
     }
-    .landing-footer a { color: #818cf8; text-decoration: none; }
+    .landing-footer a { color: var(--fern); text-decoration: none; }
     .landing-footer a:hover { text-decoration: underline; }
 
     @media (max-width: 700px) {
