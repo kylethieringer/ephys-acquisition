@@ -1,0 +1,484 @@
+{#
+  Custom landing-page index for ephys_acquisition docs.
+  Overrides the bare pdoc module list with a proper home page.
+#}
+{% if root_module_name %}
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="refresh" content="0; url=./{{ root_module_name.replace(".","/") }}.html"/>
+</head>
+</html>
+{% else %}
+{% extends "frame.html.jinja2" %}
+
+{% block title %}ephys_acquisition — API Documentation{% endblock %}
+
+{% block style %}
+    {{ super() | safe }}
+    <style>
+    /* ── Google Fonts ── */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    /* ── Landing page layout ── */
+    body {
+        background: #f5f7fb;
+    }
+    main.pdoc {
+        /* Do NOT override padding-left — pdoc layout.css uses it to clear the sidebar.
+           Zero out only top/right/bottom so the hero/landing divs fill edge-to-edge. */
+        padding-top: 0;
+        padding-right: 0;
+        padding-bottom: 0;
+        overflow: hidden;
+    }
+
+    /* ── Hero section ── */
+    .hero {
+        background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);
+        color: #fff;
+        padding: 3.5rem 3rem 3rem;
+        position: relative;
+        overflow: hidden;
+    }
+    .hero::before {
+        content: '';
+        position: absolute;
+        top: -60px; right: -60px;
+        width: 320px; height: 320px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.04);
+        pointer-events: none;
+    }
+    .hero::after {
+        content: '';
+        position: absolute;
+        bottom: -80px; left: -40px;
+        width: 240px; height: 240px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.03);
+        pointer-events: none;
+    }
+    .hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: rgba(255,255,255,0.12);
+        border: 1px solid rgba(255,255,255,0.2);
+        border-radius: 100px;
+        font-size: 0.78rem;
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        padding: 0.25rem 0.85rem;
+        margin-bottom: 1.25rem;
+        color: #c7d2fe;
+    }
+    .hero h1 {
+        font-family: 'Inter', sans-serif;
+        font-size: 2.4rem;
+        font-weight: 700;
+        margin: 0 0 0.5rem;
+        line-height: 1.15;
+        color: #fff;
+        border: none;
+    }
+    .hero .subtitle {
+        font-size: 1.1rem;
+        font-weight: 400;
+        color: #a5b4fc;
+        margin-bottom: 1.75rem;
+        max-width: 540px;
+        line-height: 1.6;
+    }
+    .hero-search {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        max-width: 480px;
+    }
+    .hero-search input[type=search] {
+        flex: 1;
+        background: rgba(255,255,255,0.12);
+        border: 1px solid rgba(255,255,255,0.25);
+        border-radius: 10px;
+        color: #fff;
+        font-family: 'Inter', sans-serif;
+        font-size: 1rem;
+        outline: none;
+        padding: 0.6rem 1rem;
+        transition: border-color 0.2s, background 0.2s;
+    }
+    .hero-search input[type=search]::placeholder { color: rgba(255,255,255,0.45); }
+    .hero-search input[type=search]:focus {
+        border-color: rgba(255,255,255,0.5);
+        background: rgba(255,255,255,0.18);
+    }
+
+    /* ── Stat pills below hero ── */
+    .hero-stats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-top: 2rem;
+    }
+    .hero-stat {
+        background: rgba(255,255,255,0.1);
+        border: 1px solid rgba(255,255,255,0.18);
+        border-radius: 8px;
+        font-size: 0.82rem;
+        color: #c7d2fe;
+        padding: 0.3rem 0.85rem;
+    }
+    .hero-stat strong { color: #fff; font-weight: 600; }
+
+    /* ── Main content area ── */
+    .landing-body {
+        padding: 2.5rem 3rem;
+    }
+
+    /* ── Section headings ── */
+    .section-label {
+        font-family: 'Inter', sans-serif;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #6366f1;
+        margin-bottom: 0.85rem;
+    }
+    .section-title {
+        font-family: 'Inter', sans-serif;
+        font-size: 1.45rem;
+        font-weight: 700;
+        color: #1e1b4b;
+        margin: 0 0 0.4rem;
+    }
+    .section-desc {
+        color: #64748b;
+        font-size: 0.95rem;
+        margin-bottom: 1.5rem;
+        line-height: 1.6;
+    }
+
+    /* ── Module cards grid ── */
+    .module-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2.5rem;
+    }
+    .module-card {
+        background: #fff;
+        border: 1px solid #e0e7ff;
+        border-radius: 12px;
+        padding: 1.25rem 1.35rem;
+        text-decoration: none !important;
+        color: inherit;
+        transition: box-shadow 0.18s, border-color 0.18s, transform 0.15s;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    .module-card:hover {
+        box-shadow: 0 4px 20px rgba(67,97,238,0.12);
+        border-color: #818cf8;
+        transform: translateY(-2px);
+    }
+    .module-card-icon {
+        font-size: 1.5rem;
+        line-height: 1;
+        margin-bottom: 0.1rem;
+    }
+    .module-card-name {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.92rem;
+        font-weight: 500;
+        color: #4338ca;
+    }
+    .module-card-desc {
+        font-size: 0.83rem;
+        color: #64748b;
+        line-height: 1.5;
+        flex: 1;
+    }
+    .module-card-arrow {
+        color: #a5b4fc;
+        font-size: 0.85rem;
+        align-self: flex-end;
+        margin-top: 0.25rem;
+    }
+
+    /* ── Quick-start section ── */
+    .quickstart {
+        background: #f8f9ff;
+        border: 1px solid #e0e7ff;
+        border-radius: 14px;
+        padding: 1.5rem 1.75rem;
+        margin-bottom: 2.5rem;
+    }
+    .quickstart pre {
+        background: #1e1b4b;
+        border-radius: 10px;
+        color: #c7d2fe;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.85rem;
+        line-height: 1.7;
+        margin: 0.75rem 0 0;
+        overflow-x: auto;
+        padding: 1.1rem 1.35rem;
+    }
+    .quickstart pre .cm { color: #6b7db3; }
+    .quickstart pre .kw { color: #f472b6; }
+    .quickstart pre .fn { color: #34d399; }
+    .quickstart pre .st { color: #fbbf24; }
+    .quickstart pre .nb { color: #a5b4fc; }
+
+    /* ── Feature cards ── */
+    .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 0.85rem;
+        margin-bottom: 2.5rem;
+    }
+    .feature-card {
+        background: #fff;
+        border: 1px solid #e8ecf8;
+        border-radius: 10px;
+        padding: 1rem 1.15rem;
+    }
+    .feature-card-title {
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: #1e1b4b;
+        margin-bottom: 0.3rem;
+    }
+    .feature-card-body {
+        font-size: 0.8rem;
+        color: #64748b;
+        line-height: 1.5;
+    }
+
+    /* ── Navigation sidebar ── */
+    nav.pdoc { background: linear-gradient(180deg, #1e1b4b 0%, #312e81 100%); }
+    nav.pdoc a, nav.pdoc h2 { color: #c7d2fe !important; }
+    nav.pdoc a:hover { background: rgba(255,255,255,0.1); border-radius: 6px; color: #fff !important; }
+    nav.pdoc h2 {
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #818cf8 !important;
+    }
+    nav.pdoc input[type=search] {
+        background: rgba(255,255,255,0.1);
+        border: 1px solid rgba(255,255,255,0.2);
+        border-radius: 8px;
+        color: #fff;
+    }
+
+    /* ── Footer ── */
+    .landing-footer {
+        border-top: 1px solid #e0e7ff;
+        color: #94a3b8;
+        font-size: 0.78rem;
+        margin-top: 1rem;
+        padding-top: 1.25rem;
+        text-align: center;
+    }
+    .landing-footer a { color: #818cf8; text-decoration: none; }
+    .landing-footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 700px) {
+        .hero { padding: 2rem 1.5rem; }
+        .landing-body { padding: 1.5rem 1.25rem; }
+        .hero h1 { font-size: 1.75rem; }
+    }
+    </style>
+{% endblock %}
+
+{% block nav %}
+    <h2>Modules</h2>
+    <ul>
+        {% for submodule in all_modules if "._" not in submodule and not submodule.startswith("_") %}
+            <li><a href="{{ submodule.replace(".","/") }}.html">{{ submodule }}</a></li>
+        {% endfor %}
+    </ul>
+{% endblock %}
+
+{% block content %}
+<main class="pdoc">
+
+    <!-- ── Hero ─────────────────────────────────────────────────────────── -->
+    <div class="hero">
+        <div class="hero-badge">&#9679;&nbsp; NI PCIe-6323 · PyQt6 · Python</div>
+        <h1>ephys_acquisition</h1>
+        <p class="subtitle">
+            A desktop GUI for in-vivo whole-cell electrophysiology — continuous and
+            trial-based acquisition, live waveform display, and HDF5 data archiving.
+        </p>
+
+        {% if search %}
+        <div class="hero-search">
+            <input type="search" placeholder="Search API documentation…" aria-label="search box">
+        </div>
+        {% endif %}
+
+        <div class="hero-stats">
+            <span class="hero-stat"><strong>5</strong> packages</span>
+            <span class="hero-stat"><strong>20 kS/s</strong> sample rate</span>
+            <span class="hero-stat"><strong>CC &amp; VC</strong> modes</span>
+            <span class="hero-stat"><strong>HDF5</strong> output</span>
+            <span class="hero-stat"><strong>Basler</strong> camera</span>
+        </div>
+    </div>
+
+    <!-- ── Body ──────────────────────────────────────────────────────────── -->
+    <div class="landing-body">
+
+        <!-- Module grid -->
+        <p class="section-label">Packages &amp; Modules</p>
+        <h2 class="section-title">Browse the API</h2>
+        <p class="section-desc">
+            Click any card to open the full module reference with class, function, and
+            parameter documentation.
+        </p>
+
+        <div class="module-grid">
+            <a class="module-card" href="config.html">
+                <div class="module-card-icon">&#9881;&#65039;</div>
+                <div class="module-card-name">config</div>
+                <div class="module-card-desc">
+                    Global constants — channel map, sample rate, AO scaling (400 pA/V CC,
+                    20 mV/V VC), and the <code>ChannelDef</code> type alias.
+                </div>
+                <div class="module-card-arrow">&#8594;</div>
+            </a>
+            <a class="module-card" href="acquisition/continuous_mode.html">
+                <div class="module-card-icon">&#128200;</div>
+                <div class="module-card-name">acquisition</div>
+                <div class="module-card-desc">
+                    Continuous &amp; trial-based acquisition controllers, data savers
+                    (HDF5), trial protocol definitions, and waveform builders.
+                </div>
+                <div class="module-card-arrow">&#8594;</div>
+            </a>
+            <a class="module-card" href="hardware/daq_config.html">
+                <div class="module-card-icon">&#128268;</div>
+                <div class="module-card-name">hardware</div>
+                <div class="module-card-desc">
+                    NI-DAQmx task builders (AI, AO, CTR), clock topology, and the
+                    real-time <code>DAQWorker</code> thread.
+                </div>
+                <div class="module-card-arrow">&#8594;</div>
+            </a>
+            <a class="module-card" href="ui/main_window.html">
+                <div class="module-card-icon">&#128421;&#65039;</div>
+                <div class="module-card-name">ui</div>
+                <div class="module-card-desc">
+                    PyQt6 widgets — main window, control panel, stimulus panel, and
+                    the trial-protocol builder dialog.
+                </div>
+                <div class="module-card-arrow">&#8594;</div>
+            </a>
+            <a class="module-card" href="utils/stimulus_generator.html">
+                <div class="module-card-icon">&#128301;</div>
+                <div class="module-card-name">utils</div>
+                <div class="module-card-desc">
+                    Stimulus waveform generators, TTL chunk iterator, and HDF5 data
+                    loader / matplotlib plotting helpers.
+                </div>
+                <div class="module-card-arrow">&#8594;</div>
+            </a>
+        </div>
+
+        <!-- Quick-start -->
+        <p class="section-label">Quick Start</p>
+        <h2 class="section-title">Load &amp; plot a recording</h2>
+
+        <div class="quickstart">
+            <p style="font-size:0.9rem;color:#475569;margin:0 0 0.25rem;">
+                Use <code>utils.data_loader</code> to inspect any saved HDF5 file without
+                launching the GUI.
+            </p>
+            <pre><span class="kw">from</span> utils.data_loader <span class="kw">import</span> load_hdf5, plot_data
+
+<span class="cm"># Load raw data into a dict</span>
+d = <span class="fn">load_hdf5</span>(<span class="st">"recording_2025-06-01.h5"</span>)
+<span class="nb">print</span>(d[<span class="st">'channel_names'</span>])   <span class="cm"># ['Im (pA)', 'Vm (mV)', ...]</span>
+<span class="nb">print</span>(d[<span class="st">'data'</span>].shape)       <span class="cm"># (n_channels, n_samples)</span>
+
+<span class="cm"># Plot first 10 seconds, one subplot per channel</span>
+<span class="fn">plot_data</span>(<span class="st">"recording_2025-06-01.h5"</span>, time_range=(<span class="nb">0</span>, <span class="nb">10</span>))</pre>
+        </div>
+
+        <!-- Feature highlights -->
+        <p class="section-label">Key Concepts</p>
+        <h2 class="section-title">Domain &amp; design notes</h2>
+        <p class="section-desc">
+            Refer to <a href="config.html"><code>config</code></a> for all physical-unit
+            definitions and channel scaling.
+        </p>
+
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-card-title">Current Clamp (CC)</div>
+                <div class="feature-card-body">
+                    Inject current in pA; record membrane voltage in mV.
+                    AO scale: <strong>400 pA/V</strong> — write X/400 V to ao0
+                    to inject X pA.
+                </div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-card-title">Voltage Clamp (VC)</div>
+                <div class="feature-card-body">
+                    Command voltage in mV; record clamping current in pA.
+                    AO scale: <strong>20 mV/V</strong> — write X/20 V for X mV command.
+                </div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-card-title">TTL Pulses</div>
+                <div class="feature-card-body">
+                    5 V transistor-logic pulses via a counter task. Used to trigger
+                    external stimulators or cameras in synchrony with acquisition.
+                </div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-card-title">Trial State Machine</div>
+                <div class="feature-card-body">
+                    IDLE → ITI → PRE → TRIAL → DONE. Staircase amplitudes step
+                    automatically across the protocol's trial list.
+                </div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-card-title">Clock Topology</div>
+                <div class="feature-card-body">
+                    AI task = master clock. AO task slaved to
+                    <code>ai/SampleClock</code>. CTR runs independently from the
+                    100 MHz on-board timebase.
+                </div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-card-title">HDF5 Layout</div>
+                <div class="feature-card-body">
+                    <code>/data/analog_input</code> — float64 (n_ch × n_samp).
+                    <code>/metadata</code> — sample rate, channel names, units,
+                    display scales, start time.
+                </div>
+            </div>
+        </div>
+
+        <div class="landing-footer">
+            Generated with <a href="https://pdoc.dev">pdoc</a> &mdash;
+            ephys_acquisition &copy; Tuthill Lab
+        </div>
+
+    </div><!-- /.landing-body -->
+
+</main>
+
+{% if search %}
+    {% include "search.html.jinja2" %}
+{% endif %}
+{% endblock %}
+{% endif %}
