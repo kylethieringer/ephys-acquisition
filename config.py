@@ -142,20 +142,21 @@ N_AI_CHANNELS: int = len(AI_CHANNELS)
 # ---------------------------------------------------------------------------
 
 AI_CHANNELS_VC: list[ChannelDef] = [
-    ("I_mem",       "ai0", "differential", 0.1,    "nA"),
+    ("I_mem",       "ai0", "differential", 100.0,  "pA"),
     ("V_pip",       "ai1", "differential", 1000.0, "mV"),
-    ("AmpCmd",      "ai2", "differential", 400.0,  "pA"),
-    ("Camera",      "ai3", "rse",          1.0,    "V"),
-    ("TTLLoopback", "ai4", "differential", 1.0,    "V"),
+    ("AmpCmd",      "ai2", "differential",  20.0,  "mV"),
+    ("Camera",      "ai3", "rse",           1.0,   "V"),
+    ("TTLLoopback", "ai4", "differential",  1.0,   "V"),
 ]
 """Analog input channel definitions for voltage-clamp (VC) mode.
 
 The physical channels are the same (ai0–ai4), but the amplifier output
 interpretation changes:
 
-- ai0 (I_mem):   10 V/nA amplifier gain  → display_scale = 0.1 nA/V
+- ai0 (I_mem):   10 V/nA = 10,000 V/pA → 0.1 nA/V × 1000 pA/nA = 100.0 pA/V
 - ai1 (V_pip):   1 V/V  pipette voltage  → display_scale = 1000.0 mV/V
-- ai2–ai4: identical to :data:`AI_CHANNELS`.
+- ai2 (AmpCmd):  Axopatch 200B VC external command 20 mV/V → display_scale = 20.0 mV/V
+- ai3–ai4: identical to :data:`AI_CHANNELS`.
 """
 
 # ---------------------------------------------------------------------------
@@ -234,6 +235,18 @@ AI_Y_DEFAULTS: list[tuple[float, float]] = [
 """Default Y-axis (min, max) ranges in display units for each AI channel.
 
 Indices correspond to :data:`AI_CHANNELS` row order.
+"""
+
+AI_Y_DEFAULTS_VC: list[tuple[float, float]] = [
+    (-2000.0, 2000.0),   # I_mem  (pA)
+    ( -100.0,  100.0),   # V_pip  (mV)
+    ( -200.0,  200.0),   # AmpCmd (mV, ±10 V DAQ × 20 mV/V)
+    (   -0.5,    5.5),   # Camera (V)
+    (   -0.5,    5.5),   # TTLLoopback (V)
+]
+"""Default Y-axis (min, max) ranges in display units for each AI channel in VC mode.
+
+Indices correspond to :data:`AI_CHANNELS_VC` row order.
 """
 
 TRACE_COLORS: list[str] = [

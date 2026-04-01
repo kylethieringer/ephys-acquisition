@@ -1,6 +1,6 @@
 """
 ContinuousAcquisition — orchestrates DAQWorker, CameraWorker, RingBuffer,
-and HDF5Saver for the continuous acquisition mode.
+and ContinuousSaver for the continuous acquisition mode.
 
 Lifecycle
 ---------
@@ -42,13 +42,14 @@ from PySide6.QtCore import QObject, QTimer, Signal
 
 from config import (
     AI_CHANNELS,
+    AI_CHANNELS_VC,
     CAMERA_GUARD_DELAY_MS,
     DEFAULT_EXPOSURE_MS,
     DEFAULT_FRAME_RATE_HZ,
     SAMPLE_RATE,
 )
 from acquisition.data_buffer import RingBuffer
-from acquisition.data_saver import HDF5Saver
+from acquisition.data_saver import ContinuousSaver
 from hardware.daq_worker import DAQWorker
 from hardware.camera_worker import CameraWorker
 from utils.stimulus_generator import get_actual_frame_rate
@@ -66,7 +67,7 @@ class ContinuousAcquisition(QObject):
     Owns and coordinates a :class:`~hardware.daq_worker.DAQWorker`,
     :class:`~hardware.camera_worker.CameraWorker`,
     :class:`~acquisition.data_buffer.RingBuffer`, and
-    :class:`~acquisition.data_saver.HDF5Saver`.
+    :class:`~acquisition.data_saver.ContinuousSaver`.
 
     Signals:
         started(): Emitted when both the DAQ and camera workers are running.
@@ -82,7 +83,7 @@ class ContinuousAcquisition(QObject):
     Attributes:
         _ring_buffer (RingBuffer): Rolling 5-second display buffer shared
             with the trace panel.
-        _saver (HDF5Saver): Handles HDF5 file creation and appending.
+        _saver (ContinuousSaver): Handles binary recording and HDF5 conversion.
         _daq_worker (DAQWorker | None): AI/AO worker thread.
         _camera_worker (CameraWorker | None): Camera capture thread.
         _is_running (bool): ``True`` between :meth:`start` and :meth:`stop`.
@@ -99,22 +100,25 @@ class ContinuousAcquisition(QObject):
         _on_new_frame: Callback receiving each camera frame for the preview.
     """
 
-    started            = Signal()
-    stopped            = Signal()
-    error_occurred     = Signal(str)
-    recording_started  = Signal(object)   # Path — experiment folder
-    recording_stopped  = Signal(int)      # n_samples_saved
+    started             = Signal()
+    stopped             = Signal()
+    error_occurred      = Signal(str)
+    recording_started   = Signal(object)   # Path — experiment folder
+    recording_stopped   = Signal(int)      # n_samples_saved
+    conversion_status   = Signal(str)      # status message for the UI
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
 
         self._ring_buffer     = RingBuffer()
-        self._saver           = HDF5Saver()
+        self._saver           = ContinuousSaver()
+        self._conversion_worker = None
         self._daq_worker:    DAQWorker    | None = None
         self._camera_worker: CameraWorker | None = None
         self._is_running      = False
         self._is_recording    = False
 
+        self._clamp_mode    = "current_clamp"
         self._frame_rate_hz = DEFAULT_FRAME_RATE_HZ
         self._exposure_ms   = DEFAULT_EXPOSURE_MS
 
@@ -144,6 +148,18 @@ class ContinuousAcquisition(QObject):
     def is_recording(self) -> bool:
         """``True`` if an HDF5 recording is in progress."""
         return self._is_recording
+
+    def set_clamp_mode(self, mode: str) -> None:
+        """Set the clamp mode used when writing recording metadata.
+
+        Must be called before :meth:`start_recording`.  Has no effect on the
+        hardware — the DAQ records the same physical channels regardless of
+        mode; only the metadata channel descriptions change.
+
+        Args:
+            mode: ``"current_clamp"`` or ``"voltage_clamp"``.
+        """
+        self._clamp_mode = mode
 
     # ------------------------------------------------------------------
     # Connect UI callbacks
@@ -241,9 +257,9 @@ class ContinuousAcquisition(QObject):
 
         Args:
             save_dir: Root directory for saving.  The experiment subfolder
-                is created automatically by :class:`~acquisition.data_saver.HDF5Saver`.
+                is created automatically by :class:`~acquisition.data_saver.ContinuousSaver`.
             metadata: Subject metadata dict (see
-                :meth:`~acquisition.data_saver.HDF5Saver.open` for expected keys).
+                :meth:`~acquisition.data_saver.ContinuousSaver.open` for expected keys).
                 Defaults to a minimal ``{"expt_id": "ephys"}`` dict.
 
         Note:
@@ -256,7 +272,8 @@ class ContinuousAcquisition(QObject):
         if metadata is None:
             metadata = {"expt_id": "ephys", "genotype": "", "age": "", "sex": "Unknown", "targeted_cell_type": ""}
 
-        h5_path = self._saver.open(save_dir, metadata)
+        channels = AI_CHANNELS_VC if self._clamp_mode == "voltage_clamp" else AI_CHANNELS
+        h5_path = self._saver.open(save_dir, metadata, channel_defs=channels)
         folder = self._saver.folder
         self._video_path = folder / (h5_path.stem + ".avi")
         self._metadata_path = folder / "metadata.json"
@@ -304,12 +321,14 @@ class ContinuousAcquisition(QObject):
             h5_path: Path to the HDF5 file being recorded.
             video_path: Path to the video file being recorded.
         """
+        channels = AI_CHANNELS_VC if self._clamp_mode == "voltage_clamp" else AI_CHANNELS
         self._metadata = {
             "subject": subject_metadata,
             "start_time": datetime.datetime.now().isoformat(),
             "end_time": None,
             "duration_samples": None,
             "duration_seconds": None,
+            "clamp_mode": self._clamp_mode,
             "sample_rate_hz": SAMPLE_RATE,
             "channels": [
                 {
@@ -319,7 +338,7 @@ class ContinuousAcquisition(QObject):
                     "display_scale": ch[3],
                     "units": ch[4],
                 }
-                for ch in AI_CHANNELS
+                for ch in channels
             ],
             "camera": {
                 "frame_rate_hz": self._frame_rate_hz,
@@ -333,13 +352,12 @@ class ContinuousAcquisition(QObject):
         self._metadata_path.write_text(json.dumps(self._metadata, indent=2))
 
     def _close_recording(self) -> None:
-        """Release the video writer, close the HDF5 file, and finalise metadata."""
+        """Release the video writer, close the binary file, start HDF5 conversion."""
         if self._video_writer is not None:
             self._video_writer.release()
             self._video_writer = None
 
         n = self._saver.n_saved
-        self._saver.close()
 
         if self._metadata is not None and self._metadata_path is not None:
             self._metadata["end_time"] = datetime.datetime.now().isoformat()
@@ -351,6 +369,24 @@ class ContinuousAcquisition(QObject):
 
         self._is_recording = False
         self.recording_stopped.emit(n)
+
+        worker = self._saver.close()
+        if worker is not None:
+            self._conversion_worker = worker
+            self.conversion_status.emit("Converting to HDF5...")
+            worker.conversion_done.connect(self._on_conversion_done)
+            worker.conversion_failed.connect(self._on_conversion_failed)
+            worker.start()
+
+    def _on_conversion_done(self, path: str) -> None:
+        """Handle successful HDF5 conversion."""
+        from pathlib import Path as _Path
+        fname = _Path(path).name
+        self.conversion_status.emit(f"Saved: {fname}")
+
+    def _on_conversion_failed(self, msg: str) -> None:
+        """Handle failed HDF5 conversion (binary file preserved)."""
+        self.conversion_status.emit(f"HDF5 conversion failed — raw .bin preserved. {msg}")
 
     # ------------------------------------------------------------------
     # TTL / stimulus control

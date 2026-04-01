@@ -336,6 +336,8 @@ def _stim_duration_ms(
         return hyperpol_dur + gap_dur + _staircase_duration_ms(stim)
     elif stim.type == "voltage_step":
         return stim.duration_ms or 0.0
+    elif stim.type == "baseline":
+        return 0.0   # no stim window; trial = pre + post only
     return 0.0
 
 

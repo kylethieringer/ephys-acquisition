@@ -220,6 +220,11 @@ def build_trial_waveform(
     Returns:
         1-D float64 array of ao0 voltages in V.
     """
+    if stim_def.type == "baseline":
+        # AO stays at 0 V for the full trial window (pre + post only, no stim).
+        n = _ms_to_samples(protocol.pre_ms) + _ms_to_samples(protocol.post_ms)
+        return np.zeros(n, dtype=np.float64)
+
     if protocol.clamp_mode == "voltage_clamp":
         return build_vc_trial_waveform(
             stim_def,

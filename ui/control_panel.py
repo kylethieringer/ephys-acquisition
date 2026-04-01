@@ -62,7 +62,9 @@ class ControlPanel(QWidget):
     record_requested                = Signal(str, dict)   # save_dir, metadata
     stop_record_requested           = Signal()
     mode_changed                    = Signal(str)
+    clamp_mode_changed              = Signal(str)         # "current_clamp" or "voltage_clamp"
     open_protocol_builder_requested = Signal()
+    run_protocol_requested          = Signal()
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -105,10 +107,10 @@ class ControlPanel(QWidget):
         Returns:
             Dict with keys: ``"expt_id"``, ``"genotype"``, ``"age"``,
             ``"sex"``, ``"targeted_cell_type"``.  ``expt_id`` falls back
-            to ``"ephys"`` if the field is empty.
+            to ``"expt_xx"`` if the field is empty.
         """
         return {
-            "expt_id":            self._expt_id_edit.text().strip() or "ephys",
+            "expt_id":            self._expt_id_edit.text().strip() or "expt_xx",
             "genotype":           self._genotype_edit.text().strip(),
             "age":                self._age_edit.text().strip(),
             "sex":                self._sex_combo.currentText(),
@@ -155,6 +157,17 @@ class ControlPanel(QWidget):
         """
         self._status_lbl.setText(msg)
 
+    def enable_run_protocol_button(self, enabled: bool) -> None:
+        """Enable or disable the Run Protocol button.
+
+        Enabled by :class:`~ui.main_window.MainWindow` once a protocol has
+        been staged via "Use This Protocol" in the builder dialog.
+
+        Args:
+            enabled: ``True`` to enable the button.
+        """
+        self._run_protocol_btn.setEnabled(enabled)
+
     def enable_record_button(self, enabled: bool) -> None:
         """Enable or disable the Record button independently of recording state.
 
@@ -192,12 +205,39 @@ class ControlPanel(QWidget):
         mode_layout.addWidget(self._trial_rb)
         root.addWidget(mode_box)
 
+        # --- Clamp Mode selector (continuous mode only) ---
+        self._clamp_mode_box = QGroupBox("Clamp Mode")
+        clamp_layout = QHBoxLayout(self._clamp_mode_box)
+        self._cc_clamp_rb = QRadioButton("Current clamp")
+        self._vc_clamp_rb = QRadioButton("Voltage clamp")
+        self._cc_clamp_rb.setChecked(True)
+        self._cc_clamp_rb.toggled.connect(
+            lambda checked: self.clamp_mode_changed.emit("current_clamp") if checked else None
+        )
+        self._vc_clamp_rb.toggled.connect(
+            lambda checked: self.clamp_mode_changed.emit("voltage_clamp") if checked else None
+        )
+        clamp_layout.addWidget(self._cc_clamp_rb)
+        clamp_layout.addWidget(self._vc_clamp_rb)
+        self._trial_rb.toggled.connect(
+            lambda checked: self._clamp_mode_box.setVisible(not checked)
+        )
+        root.addWidget(self._clamp_mode_box)
+
         # Protocol builder button — shown only in trial mode
         self._open_builder_btn = QPushButton("Open Protocol Builder…")
         self._open_builder_btn.setVisible(False)
         self._open_builder_btn.clicked.connect(self.open_protocol_builder_requested)
         self._trial_rb.toggled.connect(self._open_builder_btn.setVisible)
         root.addWidget(self._open_builder_btn)
+
+        # Run Protocol button — shown only in trial mode; enabled once a protocol is staged
+        self._run_protocol_btn = QPushButton("Run Protocol")
+        self._run_protocol_btn.setVisible(False)
+        self._run_protocol_btn.setEnabled(False)
+        self._run_protocol_btn.clicked.connect(self.run_protocol_requested)
+        self._trial_rb.toggled.connect(self._run_protocol_btn.setVisible)
+        root.addWidget(self._run_protocol_btn)
 
         # --- Start / Stop ---
         acq_box = QGroupBox("Acquisition")
@@ -236,15 +276,15 @@ class ControlPanel(QWidget):
         meta_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
         self._expt_id_edit       = QLineEdit()
-        self._expt_id_edit.setPlaceholderText("e.g. 20260330_001")
+        self._expt_id_edit.setPlaceholderText("e.g. frexxx")
         self._genotype_edit      = QLineEdit()
-        self._genotype_edit.setPlaceholderText("e.g. Ai14xSst-Cre")
+        self._genotype_edit.setPlaceholderText("e.g. gal4-uas")
         self._age_edit           = QLineEdit()
-        self._age_edit.setPlaceholderText("e.g. P30")
+        self._age_edit.setPlaceholderText("e.g. 4")
         self._sex_combo          = QComboBox()
-        self._sex_combo.addItems(["Unknown", "M", "F"])
+        self._sex_combo.addItems(["not specified", "M", "F"])
         self._cell_type_edit     = QLineEdit()
-        self._cell_type_edit.setPlaceholderText("e.g. SST interneuron")
+        self._cell_type_edit.setPlaceholderText("e.g. dvmn")
 
         meta_layout.addRow("Experiment ID:", self._expt_id_edit)
         meta_layout.addRow("Genotype:",      self._genotype_edit)
