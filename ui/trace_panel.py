@@ -26,7 +26,9 @@ from PySide6.QtWidgets import (
 
 from config import (
     AI_CHANNELS,
+    AI_CHANNELS_VC,
     AI_Y_DEFAULTS,
+    AI_Y_DEFAULTS_VC,
     DISPLAY_SAMPLES,
     DISPLAY_SECONDS,
     SAMPLE_RATE,
@@ -52,10 +54,10 @@ class ChannelYControls(QWidget):
         layout.setContentsMargins(2, 0, 2, 0)
         layout.setSpacing(4)
 
-        lbl = QLabel(f"{name} ({units})")
-        lbl.setFixedWidth(130)
-        lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        layout.addWidget(lbl)
+        self._lbl = QLabel(f"{name} ({units})")
+        self._lbl.setFixedWidth(130)
+        self._lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        layout.addWidget(self._lbl)
 
         self._min_spin = QDoubleSpinBox()
         self._min_spin.setRange(-1e6, 1e6)
@@ -82,6 +84,22 @@ class ChannelYControls(QWidget):
 
         self._apply_range()
 
+    def update_channel(self, name: str, units: str, y_min: float, y_max: float) -> None:
+        """Update labels and Y-range defaults when the clamp mode changes.
+
+        Args:
+            name: New channel display name.
+            units: New unit string (used for label and spinbox suffix).
+            y_min: New default Y-axis minimum in display units.
+            y_max: New default Y-axis maximum in display units.
+        """
+        self._lbl.setText(f"{name} ({units})")
+        self._min_spin.setSuffix(f" {units}")
+        self._max_spin.setSuffix(f" {units}")
+        self._min_spin.setValue(y_min)
+        self._max_spin.setValue(y_max)
+        self._apply_range()
+
     def _apply_range(self) -> None:
         if not self._auto_cb.isChecked():
             self._plot.setYRange(self._min_spin.value(), self._max_spin.value(), padding=0)
@@ -104,9 +122,11 @@ class LiveTracePanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._ring_buffer = None
+        self._ring_buffer  = None
+        self._channel_defs = list(AI_CHANNELS)
+        self._y_defaults   = list(AI_Y_DEFAULTS)
 
-        n_ch = len(AI_CHANNELS)
+        n_ch = len(self._channel_defs)
         t_axis = np.linspace(-DISPLAY_SECONDS, 0, DISPLAY_SAMPLES // DOWNSAMPLE_FACTOR)
         self._t_axis = t_axis
 
@@ -118,7 +138,7 @@ class LiveTracePanel(QWidget):
         self._splitter = QSplitter(Qt.Vertical)
         self._splitter.setChildrenCollapsible(False)
 
-        for i, (name, _, _, scale, units) in enumerate(AI_CHANNELS):
+        for i, (name, _, _, scale, units) in enumerate(self._channel_defs):
             pw = pg.PlotWidget(background="#1a1a2e")
             plot = pw.plotItem
 
@@ -128,7 +148,7 @@ class LiveTracePanel(QWidget):
             plot.setMenuEnabled(False)
             plot.setXRange(-DISPLAY_SECONDS, 0, padding=0)
 
-            y_min, y_max = AI_Y_DEFAULTS[i]
+            y_min, y_max = self._y_defaults[i]
             plot.setYRange(y_min, y_max, padding=0)
             plot.enableAutoRange(axis="y", enable=False)
 
@@ -182,6 +202,22 @@ class LiveTracePanel(QWidget):
     def set_ring_buffer(self, buf) -> None:
         self._ring_buffer = buf
 
+    def set_clamp_mode(self, mode: str) -> None:
+        """Switch channel definitions and Y-range defaults for CC or VC mode.
+
+        Updates axis labels, scale factors (used by the refresh loop), and
+        Y-axis ranges on all plots.
+
+        Args:
+            mode: ``"current_clamp"`` or ``"voltage_clamp"``.
+        """
+        self._channel_defs = list(AI_CHANNELS_VC if mode == "voltage_clamp" else AI_CHANNELS)
+        self._y_defaults   = list(AI_Y_DEFAULTS_VC if mode == "voltage_clamp" else AI_Y_DEFAULTS)
+        for i, (name, _, _, _, units) in enumerate(self._channel_defs):
+            self._plots[i].setLabel("left", f"{name} ({units})", color=TRACE_COLORS[i])
+            y_min, y_max = self._y_defaults[i]
+            self._plots[i].setYRange(y_min, y_max, padding=0)
+
     # ------------------------------------------------------------------
     # Internal refresh
     # ------------------------------------------------------------------
@@ -193,7 +229,7 @@ class LiveTracePanel(QWidget):
         data = self._ring_buffer.read_contiguous(DISPLAY_SAMPLES)  # (N_AI, DISPLAY_SAMPLES)
         ds   = DOWNSAMPLE_FACTOR
 
-        for i, (_, _, _, scale, _) in enumerate(AI_CHANNELS):
+        for i, (_, _, _, scale, _) in enumerate(self._channel_defs):
             raw  = data[i, ::ds]
             disp = raw * scale
             self._curves[i].setData(self._t_axis, disp)

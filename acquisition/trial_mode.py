@@ -1,5 +1,5 @@
 """
-TrialAcquisition — orchestrates DAQWorker, CameraWorker, and TrialHDF5Saver
+TrialAcquisition — orchestrates DAQWorker, CameraWorker, and TrialSaver
 for trial-based acquisition.
 
 Lifecycle::
@@ -50,11 +50,18 @@ is required for state variables.
 from __future__ import annotations
 
 import datetime
+import json
 from pathlib import Path
 
 import numpy as np
 from numpy.typing import NDArray
 from PySide6.QtCore import QObject, Signal
+
+try:
+    import cv2
+    HAS_CV2 = True
+except ImportError:
+    HAS_CV2 = False
 
 from config import (
     AI_CHANNELS,
@@ -64,11 +71,12 @@ from config import (
     N_AI_CHANNELS,
     SAMPLE_RATE,
 )
+from utils.stimulus_generator import get_actual_frame_rate
 from acquisition.trial_protocol import (
     TrialProtocol,
     build_trial_order,
 )
-from acquisition.trial_saver import TrialHDF5Saver
+from acquisition.trial_saver import TrialSaver
 from acquisition.trial_waveforms import build_trial_waveform
 from hardware.camera_worker import CameraWorker
 from hardware.daq_worker import DAQWorker
@@ -115,7 +123,7 @@ class TrialAcquisition(QObject):
 
     Owns and coordinates a :class:`~hardware.daq_worker.DAQWorker`,
     :class:`~hardware.camera_worker.CameraWorker`, and
-    :class:`~acquisition.trial_saver.TrialHDF5Saver`.
+    :class:`~acquisition.trial_saver.TrialSaver`.
 
     Signals:
         started(): Emitted when the DAQ and camera workers are running.
@@ -143,7 +151,7 @@ class TrialAcquisition(QObject):
         _on_new_frame: Display callback for camera frames.
         _protocol (TrialProtocol | None): Active protocol.
         _trial_order (list[int]): Shuffled stimulus index sequence.
-        _saver (TrialHDF5Saver): HDF5 file writer.
+        _saver (TrialSaver): Trial data saver.
         _subject_metadata (dict): Subject info for the HDF5 file.
         _state (str): Current state machine state (one of ``_S_*`` constants).
         _trial_pos (int): Current position in ``_trial_order`` (0-based).
@@ -181,7 +189,7 @@ class TrialAcquisition(QObject):
 
         self._protocol:         TrialProtocol | None = None
         self._trial_order:      list[int]             = []
-        self._saver             = TrialHDF5Saver()
+        self._saver             = TrialSaver()
         self._subject_metadata: dict                  = {}
 
         self._state:          str                = _S_IDLE
@@ -196,6 +204,13 @@ class TrialAcquisition(QObject):
         self._buf_ptr:   int                        = 0
 
         self._cancel_requested = False
+
+        self._video_writer = None
+        self._video_path:   Path | None = None
+        self._video_folder: Path | None = None
+
+        self._metadata_path: Path | None = None
+        self._metadata:      dict | None = None
 
     # ------------------------------------------------------------------
     # Property accessors
@@ -285,6 +300,12 @@ class TrialAcquisition(QObject):
         if not self._is_running:
             return
 
+        if self._video_writer is not None:
+            self._video_writer.release()
+            self._video_writer = None
+
+        self._finalise_trial_metadata_json(self._trial_pos)
+
         if self._saver.is_open:
             self._saver.close()
         self._state = _S_IDLE
@@ -326,7 +347,7 @@ class TrialAcquisition(QObject):
                 defining stimuli, timing, and clamp mode.
             save_dir: Root directory for saving the HDF5 file.
             subject_metadata: Subject information dict (same keys as
-                :meth:`~acquisition.data_saver.HDF5Saver.open`).
+                :meth:`~acquisition.data_saver.ContinuousSaver.open`).
         """
         if not self._is_running or not protocol.stimuli:
             return
@@ -350,6 +371,8 @@ class TrialAcquisition(QObject):
             subject_metadata  = subject_metadata,
             channel_defs      = channel_defs,
         )
+        self._video_folder = self._saver.folder
+        self._write_trial_metadata_json(protocol, channel_defs)
 
         self._iti_samples = _ms_to_samples(protocol.iti_ms)
         self._enter_iti()
@@ -403,8 +426,21 @@ class TrialAcquisition(QObject):
         )
         self._buf_ptr = 0
 
+        # Prepare video writer for this trial (opened lazily on first frame)
+        self._video_writer = None
+        if self._video_folder is not None and self._saver.path is not None:
+            self._video_path = self._video_folder / f"{self._saver.path.stem}_{self._trial_pos + 1:03d}.avi"
+        else:
+            self._video_path = None
+
         if self._daq_worker is not None:
-            self._daq_worker.set_stimulus_waveform(waveform.reshape(1, -1))
+            # Baseline trials keep AO at 0 V — no waveform needed (AO is already
+            # silent from the previous trial's clear_stimulus_waveform call, or
+            # from the initial zero-output at DAQ startup).  Rebuilding the AO
+            # task with a zeros array is unnecessary and can interfere with the
+            # TTL counter start, so we skip it for baseline.
+            if stim_def.type != "baseline":
+                self._daq_worker.set_stimulus_waveform(waveform.reshape(1, -1))
             self._daq_worker.start_ttl()
 
         self._state          = _S_PRE
@@ -440,19 +476,25 @@ class TrialAcquisition(QObject):
             self._daq_worker.stop_ttl()
             self._daq_worker.clear_stimulus_waveform()
 
+        # Close the video writer for this trial before saving HDF5 metadata
+        if self._video_writer is not None:
+            self._video_writer.release()
+            self._video_writer = None
+
         stim_idx = self._trial_order[self._trial_pos]
         stim_def = self._protocol.stimuli[stim_idx]
         onset_iso = datetime.datetime.now().isoformat()
 
-        self._saver.begin_trial(
-            trial_index    = self._trial_pos,
-            stimulus_index = stim_idx,
-            stimulus_name  = stim_def.name,
-            onset_time     = onset_iso,
-            n_samples      = self._total_samples,
-        )
+        video_filename = self._video_path.name if self._video_path is not None else ""
         if self._trial_buf is not None:
-            self._saver.write_trial(self._trial_pos, self._trial_buf)
+            self._saver.write_trial(
+                trial_index    = self._trial_pos,
+                stimulus_index = stim_idx,
+                stimulus_name  = stim_def.name,
+                onset_time     = onset_iso,
+                data           = self._trial_buf,
+                video_filename = video_filename,
+            )
 
         total = len(self._trial_order)
         self.trial_finished.emit(self._trial_pos, total)
@@ -471,6 +513,7 @@ class TrialAcquisition(QObject):
 
         if self._cancel_requested or self._trial_pos >= total:
             self._state = _S_DONE
+            self._finalise_trial_metadata_json(self._trial_pos)
             path = self._saver.close()
             if self._cancel_requested:
                 self.protocol_cancelled.emit(self._trial_pos)
@@ -544,15 +587,53 @@ class TrialAcquisition(QObject):
     # ------------------------------------------------------------------
 
     def _on_camera_frame(self, frame: NDArray) -> None:
-        """Forward camera frames to the display callback.
+        """Write camera frames to the trial video file and forward for display.
 
-        Trial mode does not record video — frames are display-only.
+        Frames are written only during PRE and TRIAL states (i.e. while the
+        TTL is active and data is accumulating).  The video writer is opened
+        lazily on the first frame of each trial.
 
         Args:
             frame: ``(H, W)`` or ``(H, W, 3)`` camera frame array.
         """
+        if self._state in (_S_PRE, _S_TRIAL):
+            self._write_video_frame(frame)
         if self._on_new_frame is not None:
             self._on_new_frame(frame)
+
+    def _write_video_frame(self, frame: NDArray) -> None:
+        """Lazily open a cv2.VideoWriter on the first frame of a trial, then write.
+
+        ``uint16`` frames are downsampled to ``uint8`` by right-shifting 8 bits.
+        Colour frames are converted from RGB (Basler) to BGR (OpenCV).
+
+        Args:
+            frame: Camera frame array from the CameraWorker.
+        """
+        if not HAS_CV2 or self._video_path is None:
+            return
+
+        if self._video_writer is None:
+            h, w = frame.shape[:2]
+            is_color = frame.ndim == 3
+            fps = get_actual_frame_rate(self._frame_rate_hz)
+            fourcc = cv2.VideoWriter_fourcc(*"MJPG")
+            self._video_writer = cv2.VideoWriter(
+                str(self._video_path), fourcc, fps, (w, h), isColor=is_color
+            )
+
+        if not self._video_writer.isOpened():
+            return
+
+        if frame.dtype == np.uint16:
+            frame = (frame >> 8).astype(np.uint8)
+        elif frame.dtype != np.uint8:
+            frame = frame.astype(np.uint8)
+
+        if frame.ndim == 3:
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
+        self._video_writer.write(frame)
 
     # ------------------------------------------------------------------
     # Error handling
@@ -567,6 +648,10 @@ class TrialAcquisition(QObject):
         Args:
             msg: Human-readable error message from the DAQ worker.
         """
+        if self._video_writer is not None:
+            self._video_writer.release()
+            self._video_writer = None
+
         if self._saver.is_open:
             self._saver.close()
         self._state = _S_IDLE
@@ -589,6 +674,86 @@ class TrialAcquisition(QObject):
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # Metadata JSON sidecar
+    # ------------------------------------------------------------------
+
+    def _write_trial_metadata_json(
+        self,
+        protocol: TrialProtocol,
+        channel_defs: list,
+    ) -> None:
+        """Write the initial ``metadata.json`` sidecar for a trial protocol run.
+
+        Called once at the start of each protocol run.  ``end_time`` and
+        ``n_trials_completed`` are ``null`` and filled in by
+        :meth:`_finalise_trial_metadata_json` when the run ends.
+
+        Args:
+            protocol: The active :class:`~acquisition.trial_protocol.TrialProtocol`.
+            channel_defs: Channel definition list (CC or VC) used for this run.
+        """
+        if self._video_folder is None or self._saver.path is None:
+            return
+
+        self._metadata_path = self._video_folder / (self._saver.path.stem + "_metadata.json")
+
+        n_total = len(self._trial_order)
+        self._metadata = {
+            "subject": self._subject_metadata,
+            "protocol": {
+                "name":                 protocol.name,
+                "clamp_mode":           protocol.clamp_mode,
+                "pre_ms":               protocol.pre_ms,
+                "post_ms":              protocol.post_ms,
+                "iti_ms":               protocol.iti_ms,
+                "repeats_per_stimulus": protocol.repeats_per_stimulus,
+                "n_stimuli":            len(protocol.stimuli),
+                "n_trials_total":       n_total,
+            },
+            "start_time":        datetime.datetime.now().isoformat(),
+            "end_time":          None,
+            "n_trials_completed": None,
+            "sample_rate_hz":    SAMPLE_RATE,
+            "channels": [
+                {
+                    "name":             ch[0],
+                    "ni_channel":       ch[1],
+                    "terminal_config":  ch[2],
+                    "display_scale":    ch[3],
+                    "units":            ch[4],
+                }
+                for ch in channel_defs
+            ],
+            "camera": {
+                "frame_rate_hz": self._frame_rate_hz,
+                "exposure_ms":   self._exposure_ms,
+            },
+            "files": {
+                "ephys_h5":  self._saver.path.name,
+                "ephys_bin": self._saver.path.with_suffix(".bin").name,
+                "videos":    [f"{self._saver.path.stem}_{i + 1:03d}.avi" for i in range(n_total)],
+            },
+        }
+        self._metadata_path.write_text(json.dumps(self._metadata, indent=2))
+
+    def _finalise_trial_metadata_json(self, n_completed: int) -> None:
+        """Update ``metadata.json`` with the run end time and completed trial count.
+
+        Called just before the HDF5 file is closed at the end of a run
+        (whether completed or cancelled).
+
+        Args:
+            n_completed: Number of trials that were saved before the run ended.
+        """
+        if self._metadata is None or self._metadata_path is None:
+            return
+        self._metadata["end_time"]           = datetime.datetime.now().isoformat()
+        self._metadata["n_trials_completed"] = n_completed
+        self._metadata_path.write_text(json.dumps(self._metadata, indent=2))
+        self._metadata      = None
+        self._metadata_path = None
 
     def _teardown_camera(self) -> None:
         """Stop and destroy the camera worker, blocking up to 3 seconds."""

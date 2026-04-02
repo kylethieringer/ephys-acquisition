@@ -7,11 +7,12 @@ Layout::
     ├── Left:  LiveTracePanel  (5 rolling AI traces at 20 kHz)
     └── Right: QWidget (vertical)
                 ├── QTabWidget
-                │   ├── Tab "Acquisition": mode selector, start/stop,
-                │   │       data recording, TTL settings, channel toggles
-                │   └── Tab "Experiment":  camera preview, stimulus panel,
-                │           y-axis range controls
-                └── Recording bar (always visible): record/stop + status label
+                │   ├── Tab "Acquisition": mode selector, data recording,
+                │   │       TTL settings, channel toggles, Y-range controls
+                │   └── Tab "Experiment":  camera preview (top),
+                │           protocol controls + stimulus panel (bottom)
+                └── Recording bar (always visible): start/stop, record/stop,
+                        status label
 
 Signal wiring summary
 ---------------------
@@ -56,7 +57,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from config import AI_CHANNELS
+from config import AI_CHANNELS, AI_CHANNELS_VC, AI_Y_DEFAULTS, AI_Y_DEFAULTS_VC
 
 from acquisition.continuous_mode import ContinuousAcquisition
 from acquisition.trial_mode import TrialAcquisition
@@ -98,13 +99,25 @@ class MainWindow(QMainWindow):
 
         # --- Acquisition back-ends ---
         self._acq = ContinuousAcquisition(self)
+        self._trial_acq = TrialAcquisition(self)
+        self._active_mode       = "continuous"
+        self._pending_protocol: dict | None = None
+
+        # --- Panels ---
+        self._trace_panel  = LiveTracePanel()
+        self._camera_panel = CameraPanel()
+        self._stim_panel   = StimulusPanel()
+        self._ctrl_panel   = ControlPanel()
+
+        # --- Wire acquisition signals ---
         self._acq.started.connect(self._on_acq_started)
         self._acq.stopped.connect(self._on_acq_stopped)
         self._acq.error_occurred.connect(self._on_error)
         self._acq.recording_started.connect(self._on_recording_started)
         self._acq.recording_stopped.connect(self._on_recording_stopped)
+        self._acq.conversion_status.connect(self._ctrl_panel.set_status)
+        self._acq.protocol_finished.connect(self._on_continuous_protocol_finished)
 
-        self._trial_acq = TrialAcquisition(self)
         self._trial_acq.started.connect(self._on_acq_started)
         self._trial_acq.stopped.connect(self._on_acq_stopped)
         self._trial_acq.error_occurred.connect(self._on_error)
@@ -112,14 +125,6 @@ class MainWindow(QMainWindow):
         self._trial_acq.trial_finished.connect(self._on_trial_finished)
         self._trial_acq.protocol_finished.connect(self._on_protocol_finished)
         self._trial_acq.protocol_cancelled.connect(self._on_protocol_cancelled)
-
-        self._active_mode = "continuous"
-
-        # --- Panels ---
-        self._trace_panel  = LiveTracePanel()
-        self._camera_panel = CameraPanel()
-        self._stim_panel   = StimulusPanel()
-        self._ctrl_panel   = ControlPanel()
 
         # Ring buffer shared between both modes (trace panel always shows data)
         self._trace_panel.set_ring_buffer(self._acq.ring_buffer)
@@ -140,9 +145,14 @@ class MainWindow(QMainWindow):
         self._ctrl_panel.record_requested.connect(self._on_record)
         self._ctrl_panel.stop_record_requested.connect(self._on_stop_record)
         self._ctrl_panel.mode_changed.connect(self._on_mode_changed)
+        self._ctrl_panel.clamp_mode_changed.connect(self._on_clamp_mode_changed)
         self._ctrl_panel.open_protocol_builder_requested.connect(
             self._on_open_protocol_builder
         )
+        self._ctrl_panel.run_protocol_requested.connect(self._on_start_protocol)
+        self._ctrl_panel.stop_protocol_requested.connect(self._on_stop_protocol)
+        self._ctrl_panel.protocol_selected.connect(self._on_protocol_file_selected)
+        self._acq.protocol_cancelled.connect(self._on_continuous_protocol_cancelled)
 
         self._camera_panel.ttl_config_changed.connect(self._on_ttl_changed)
         self._stim_panel.stimulus_applied.connect(self._acq.apply_stimulus_waveform)
@@ -175,7 +185,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _build_acquisition_tab(self) -> QWidget:
-        """Build Tab 1: acquisition mode, start/stop, recording settings, channel toggles.
+        """Build Tab 1: acquisition mode, recording settings, channel toggles, Y-range controls.
 
         Returns:
             A :class:`QScrollArea` wrapping the tab content so it is
@@ -206,18 +216,6 @@ class MainWindow(QMainWindow):
         ch_layout.addStretch()
         layout.addWidget(channels_box)
 
-        layout.addStretch()
-
-        scroll.setWidget(container)
-        return scroll
-
-    def _build_experiment_tab(self) -> QWidget:
-        """Build Tab 2: camera preview, stimulus panel, y-axis range controls.
-
-        Returns:
-            A :class:`QSplitter` (vertical) so the user can resize the
-            camera preview, stimulus panel, and y-range sections.
-        """
         y_ranges_box = QGroupBox("Y Ranges")
         y_layout = QVBoxLayout(y_ranges_box)
         y_layout.setSpacing(2)
@@ -227,21 +225,36 @@ class MainWindow(QMainWindow):
             y_layout.addWidget(ctrl)
             self._y_controls.append(ctrl)
         y_layout.addStretch()
+        layout.addWidget(y_ranges_box)
 
-        bottom_widget = QWidget()
-        bottom_layout = QVBoxLayout(bottom_widget)
-        bottom_layout.setContentsMargins(4, 4, 4, 4)
-        bottom_layout.setSpacing(6)
-        bottom_layout.addWidget(y_ranges_box)
-        bottom_layout.addStretch()
+        layout.addStretch()
+
+        scroll.setWidget(container)
+        return scroll
+
+    def _build_experiment_tab(self) -> QWidget:
+        """Build Tab 2: camera preview, protocol controls, and stimulus panel.
+
+        The bottom section stacks protocol controls above the stimulus panel.
+
+        Returns:
+            A :class:`QSplitter` (vertical) so the user can resize the
+            camera preview and bottom sections.
+        """
+        # Bottom section: protocol controls (top) | stimulus params (bottom)
+        bottom = QWidget()
+        bottom_layout = QVBoxLayout(bottom)
+        bottom_layout.setContentsMargins(0, 0, 0, 0)
+        bottom_layout.setSpacing(4)
+
+        bottom_layout.addWidget(self._ctrl_panel.protocol_widget)
+        bottom_layout.addWidget(self._stim_panel)
 
         splitter = QSplitter(Qt.Vertical)
         splitter.addWidget(self._camera_panel.preview_widget)
-        splitter.addWidget(self._stim_panel)
-        splitter.addWidget(bottom_widget)
+        splitter.addWidget(bottom)
         splitter.setStretchFactor(0, 3)
         splitter.setStretchFactor(1, 2)
-        splitter.setStretchFactor(2, 0)
 
         return splitter
 
@@ -256,6 +269,28 @@ class MainWindow(QMainWindow):
             mode: ``"continuous"`` or ``"trial"``.
         """
         self._active_mode = mode
+
+    def _on_clamp_mode_changed(self, mode: str) -> None:
+        """Propagate a clamp mode change to the trace panel, channel list, and acquisition.
+
+        Updates axis labels and Y-range defaults on the live trace display,
+        renames the channel checkboxes and Y-range controls to match the new
+        channel definitions, and notifies the continuous acquisition back-end
+        so the correct channel info is written to metadata.
+
+        Args:
+            mode: ``"current_clamp"`` or ``"voltage_clamp"``.
+        """
+        channels   = AI_CHANNELS_VC  if mode == "voltage_clamp" else AI_CHANNELS
+        y_defaults = AI_Y_DEFAULTS_VC if mode == "voltage_clamp" else AI_Y_DEFAULTS
+        self._trace_panel.set_clamp_mode(mode)
+        for i, ((name, _, _, _, units), (y_min, y_max)) in enumerate(
+            zip(channels, y_defaults)
+        ):
+            self._channel_cbs[i].setText(f"{name} ({units})")
+            self._y_controls[i].update_channel(name, units, y_min, y_max)
+        self._stim_panel.set_clamp_mode(mode)
+        self._acq.set_clamp_mode(mode)
 
     # ------------------------------------------------------------------
     # Acquisition slots
@@ -335,32 +370,104 @@ class MainWindow(QMainWindow):
         self._protocol_builder.raise_()
         self._protocol_builder.activateWindow()
 
-    def _on_run_protocol(self, protocol_dict: dict) -> None:
-        """Receive a serialised protocol from the builder and start a trial run.
+    def _apply_channel_defs(self, mode: str) -> None:
+        """Switch the trace panel and Y-range controls to CC or VC channel definitions.
 
-        Deserialises the protocol, starts the trial acquisition back-end if
-        not already running, and calls ``run_protocol``.
+        Args:
+            mode: ``"current_clamp"`` or ``"voltage_clamp"``.
+        """
+        channel_defs = AI_CHANNELS_VC  if mode == "voltage_clamp" else AI_CHANNELS
+        y_defaults   = AI_Y_DEFAULTS_VC if mode == "voltage_clamp" else AI_Y_DEFAULTS
+        self._trace_panel.set_clamp_mode(mode)
+        for i, ctrl in enumerate(self._y_controls):
+            name, _, _, _, units = channel_defs[i]
+            y_min, y_max = y_defaults[i]
+            ctrl.update_channel(name, units, y_min, y_max)
+
+    def _on_run_protocol(self, protocol_dict: dict) -> None:
+        """Stage a protocol received from the builder dialog.
+
+        Stores the dict as the pending protocol and enables the
+        "Run Protocol" button in the main window.  Does *not* start
+        acquisition — the user clicks "Run Protocol" to do that.
 
         Args:
             protocol_dict: Dict from
                 :class:`~ui.protocol_builder.ProtocolBuilderDialog`, containing
                 the serialised protocol fields plus ``"save_dir"``.
         """
+        self._pending_protocol = dict(protocol_dict)
+        name = protocol_dict.get("name", "protocol")
+        self._ctrl_panel.enable_run_protocol_button(True)
+        self._ctrl_panel.set_status(
+            f"Protocol '{name}' ready — click 'Run Protocol' to start"
+        )
+
+    def _on_protocol_file_selected(self, path: str) -> None:
+        """Load a protocol JSON file selected from the dropdown and stage it.
+
+        Args:
+            path: Full path to the protocol JSON file.
+        """
+        import json as _json
         try:
+            with open(path) as f:
+                data = _json.load(f)
+            protocol = protocol_from_dict(data)
+            self._pending_protocol = {**data, "save_dir": self._ctrl_panel.save_dir}
+            self._ctrl_panel.enable_run_protocol_button(True)
+            self._ctrl_panel.set_status(
+                f"Protocol '{protocol.name}' loaded — click 'Run Protocol' to start"
+            )
+        except Exception as exc:
+            self._ctrl_panel.set_status(f"Failed to load protocol: {exc}")
+
+    def _on_start_protocol(self) -> None:
+        """Start the pending protocol run in the active acquisition mode.
+
+        In continuous mode: starts recording then runs the protocol as a
+        flat event timeline within the unbroken recording.
+        In trial mode: runs the protocol as discrete per-trial HDF5 groups.
+        """
+        if self._pending_protocol is None:
+            return
+        try:
+            protocol_dict = dict(self._pending_protocol)
             save_dir = protocol_dict.pop("save_dir", self._ctrl_panel.save_dir)
             protocol = protocol_from_dict(protocol_dict)
             metadata = self._ctrl_panel.get_metadata()
 
-            if not self._trial_acq.is_running:
-                self._trial_acq.start()
+            self._apply_channel_defs(protocol.clamp_mode)
 
-            self._trial_acq.run_protocol(protocol, save_dir, metadata)
-            n = len(protocol.stimuli) * protocol.repeats_per_stimulus
-            self._ctrl_panel.set_status(
-                f"Protocol '{protocol.name}' running — {n} trials total…"
-            )
+            if self._active_mode == "continuous":
+                if not self._acq.is_running:
+                    self._acq.start()
+                self._acq.start_recording(save_dir, metadata)
+                self._acq.start_protocol(protocol)
+                n = len(protocol.stimuli) * protocol.repeats_per_stimulus
+                self._ctrl_panel.set_status(
+                    f"Protocol '{protocol.name}' running (continuous) — {n} trials…"
+                )
+            else:
+                if not self._trial_acq.is_running:
+                    self._trial_acq.start()
+                self._trial_acq.run_protocol(protocol, save_dir, metadata)
+                n = len(protocol.stimuli) * protocol.repeats_per_stimulus
+                self._ctrl_panel.set_status(
+                    f"Protocol '{protocol.name}' running — {n} trials total…"
+                )
+            self._ctrl_panel.enable_run_protocol_button(False)
+            self._ctrl_panel.enable_stop_protocol_button(True)
         except Exception as exc:
             self._on_error(str(exc))
+
+    def _on_stop_protocol(self) -> None:
+        """Handle the Stop Protocol button: cancel the active protocol run."""
+        self._ctrl_panel.enable_stop_protocol_button(False)
+        if self._active_mode == "continuous":
+            self._acq.cancel_protocol()
+        else:
+            self._trial_acq.cancel_protocol()
 
     # ------------------------------------------------------------------
     # Acquisition state callbacks
@@ -381,6 +488,8 @@ class MainWindow(QMainWindow):
         """Handle the ``stopped`` signal: disable all acquisition UI controls."""
         self._ctrl_panel.set_running(False)
         self._ctrl_panel.enable_record_button(False)
+        self._ctrl_panel.enable_run_protocol_button(False)
+        self._ctrl_panel.enable_stop_protocol_button(False)
         self._ctrl_panel.set_status("Stopped.")
 
     def _on_recording_started(self, folder: Path) -> None:
@@ -438,7 +547,31 @@ class MainWindow(QMainWindow):
             path: Path to the completed HDF5 file.
         """
         self._ctrl_panel.set_status(f"Protocol complete. Saved: {path.name}")
+        self._ctrl_panel.enable_stop_protocol_button(False)
+        self._apply_channel_defs("current_clamp")
         self._trial_acq.stop()
+
+    def _on_continuous_protocol_finished(self) -> None:
+        """Handle protocol completion in continuous mode.
+
+        Recording has already been stopped by the runner.  Re-enable the
+        Run Protocol button and update the status label.
+        """
+        self._ctrl_panel.set_status("Continuous protocol complete — converting to HDF5…")
+        self._ctrl_panel.enable_stop_protocol_button(False)
+        if self._pending_protocol is not None:
+            self._ctrl_panel.enable_run_protocol_button(True)
+
+    def _on_continuous_protocol_cancelled(self) -> None:
+        """Handle early cancellation of a continuous protocol.
+
+        Recording continues; only the stimulus injections have been stopped.
+        Re-enable the Run Protocol button and update the status label.
+        """
+        self._ctrl_panel.set_status("Protocol cancelled — recording continues.")
+        self._ctrl_panel.enable_stop_protocol_button(False)
+        if self._pending_protocol is not None:
+            self._ctrl_panel.enable_run_protocol_button(True)
 
     def _on_protocol_cancelled(self, n_completed: int) -> None:
         """Handle ``protocol_cancelled``: show how many trials were completed.
@@ -447,6 +580,11 @@ class MainWindow(QMainWindow):
             n_completed: Number of trials saved before cancellation.
         """
         self._ctrl_panel.set_status(f"Protocol cancelled after {n_completed} trial(s).")
+        self._ctrl_panel.enable_stop_protocol_button(False)
+        self._apply_channel_defs("current_clamp")
+        # Re-enable Run Protocol so the user can restart the same protocol
+        if self._pending_protocol is not None:
+            self._ctrl_panel.enable_run_protocol_button(True)
 
     # ------------------------------------------------------------------
     # Error handling

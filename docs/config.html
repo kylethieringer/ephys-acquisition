@@ -11,7 +11,7 @@
     <style>/*! theme.css */:root{--pdoc-background:#fff;}.pdoc{--text:#212529;--muted:#6c757d;--link:#3660a5;--link-hover:#1659c5;--code:#f8f8f8;--active:#fff598;--accent:#eee;--accent2:#c1c1c1;--nav-hover:rgba(255, 255, 255, 0.5);--name:#0066BB;--def:#008800;--annotation:#007020;}</style>
     <style>/*! layout.css */html, body{width:100%;height:100%;}html, main{scroll-behavior:smooth;}body{background-color:var(--pdoc-background);}@media (max-width:769px){#navtoggle{cursor:pointer;position:absolute;width:50px;height:40px;top:1rem;right:1rem;border-color:var(--text);color:var(--text);display:flex;opacity:0.8;z-index:999;}#navtoggle:hover{opacity:1;}#togglestate + div{display:none;}#togglestate:checked + div{display:inherit;}main, header{padding:2rem 3vw;}header + main{margin-top:-3rem;}.git-button{display:none !important;}nav input[type="search"]{max-width:77%;}nav input[type="search"]:first-child{margin-top:-6px;}nav input[type="search"]:valid ~ *{display:none !important;}}@media (min-width:770px){:root{--sidebar-width:clamp(12.5rem, 28vw, 22rem);}nav{position:fixed;overflow:auto;height:100vh;width:var(--sidebar-width);}main, header{padding:3rem 2rem 3rem calc(var(--sidebar-width) + 3rem);width:calc(54rem + var(--sidebar-width));max-width:100%;}header + main{margin-top:-4rem;}#navtoggle{display:none;}}#togglestate{position:absolute;height:0;opacity:0;}nav.pdoc{--pad:clamp(0.5rem, 2vw, 1.75rem);--indent:1.5rem;background-color:var(--accent);border-right:1px solid var(--accent2);box-shadow:0 0 20px rgba(50, 50, 50, .2) inset;padding:0 0 0 var(--pad);overflow-wrap:anywhere;scrollbar-width:thin; scrollbar-color:var(--accent2) transparent; z-index:1}nav.pdoc::-webkit-scrollbar{width:.4rem; }nav.pdoc::-webkit-scrollbar-thumb{background-color:var(--accent2); }nav.pdoc > div{padding:var(--pad) 0;}nav.pdoc .module-list-button{display:inline-flex;align-items:center;color:var(--text);border-color:var(--muted);margin-bottom:1rem;}nav.pdoc .module-list-button:hover{border-color:var(--text);}nav.pdoc input[type=search]{display:block;outline-offset:0;width:calc(100% - var(--pad));}nav.pdoc .logo{max-width:calc(100% - var(--pad));max-height:35vh;display:block;margin:0 auto 1rem;transform:translate(calc(-.5 * var(--pad)), 0);}nav.pdoc ul{list-style:none;padding-left:0;}nav.pdoc > div > ul{margin-left:calc(0px - var(--pad));}nav.pdoc li a{padding:.2rem 0 .2rem calc(var(--pad) + var(--indent));}nav.pdoc > div > ul > li > a{padding-left:var(--pad);}nav.pdoc li{transition:all 100ms;}nav.pdoc li:hover{background-color:var(--nav-hover);}nav.pdoc a, nav.pdoc a:hover{color:var(--text);}nav.pdoc a{display:block;}nav.pdoc > h2:first-of-type{margin-top:1.5rem;}nav.pdoc .class:before{content:"class ";color:var(--muted);}nav.pdoc .function:after{content:"()";color:var(--muted);}nav.pdoc footer:before{content:"";display:block;width:calc(100% - var(--pad));border-top:solid var(--accent2) 1px;margin-top:1.5rem;padding-top:.5rem;}nav.pdoc footer{font-size:small;}</style>
     <style>/*! content.css */.pdoc{color:var(--text);box-sizing:border-box;line-height:1.5;background:none;}.pdoc .pdoc-button{cursor:pointer;display:inline-block;border:solid black 1px;border-radius:2px;font-size:.75rem;padding:calc(0.5em - 1px) 1em;transition:100ms all;}.pdoc .alert{padding:1rem 1rem 1rem calc(1.5rem + 24px);border:1px solid transparent;border-radius:.25rem;background-repeat:no-repeat;background-position:.75rem center;margin-bottom:1rem;}.pdoc .alert > em{display:none;}.pdoc .alert > *:last-child{margin-bottom:0;}.pdoc .alert.note{color:#084298;background-color:#cfe2ff;border-color:#b6d4fe;background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%23084298%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M8%2016A8%208%200%201%200%208%200a8%208%200%200%200%200%2016zm.93-9.412-1%204.705c-.07.34.029.533.304.533.194%200%20.487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703%200-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381%202.29-.287zM8%205.5a1%201%200%201%201%200-2%201%201%200%200%201%200%202z%22/%3E%3C/svg%3E");}.pdoc .alert.tip{color:#0a3622;background-color:#d1e7dd;border-color:#a3cfbb;background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%230a3622%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M2%206a6%206%200%201%201%2010.174%204.31c-.203.196-.359.4-.453.619l-.762%201.769A.5.5%200%200%201%2010.5%2013a.5.5%200%200%201%200%201%20.5.5%200%200%201%200%201l-.224.447a1%201%200%200%201-.894.553H6.618a1%201%200%200%201-.894-.553L5.5%2015a.5.5%200%200%201%200-1%20.5.5%200%200%201%200-1%20.5.5%200%200%201-.46-.302l-.761-1.77a2%202%200%200%200-.453-.618A5.98%205.98%200%200%201%202%206m6-5a5%205%200%200%200-3.479%208.592c.263.254.514.564.676.941L5.83%2012h4.342l.632-1.467c.162-.377.413-.687.676-.941A5%205%200%200%200%208%201%22/%3E%3C/svg%3E");}.pdoc .alert.important{color:#055160;background-color:#cff4fc;border-color:#9eeaf9;background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%23055160%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M2%200a2%202%200%200%200-2%202v12a2%202%200%200%200%202%202h12a2%202%200%200%200%202-2V2a2%202%200%200%200-2-2zm6%204c.535%200%20.954.462.9.995l-.35%203.507a.552.552%200%200%201-1.1%200L7.1%204.995A.905.905%200%200%201%208%204m.002%206a1%201%200%201%201%200%202%201%201%200%200%201%200-2%22/%3E%3C/svg%3E");}.pdoc .alert.warning{color:#664d03;background-color:#fff3cd;border-color:#ffecb5;background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%23664d03%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M8.982%201.566a1.13%201.13%200%200%200-1.96%200L.165%2013.233c-.457.778.091%201.767.98%201.767h13.713c.889%200%201.438-.99.98-1.767L8.982%201.566zM8%205c.535%200%20.954.462.9.995l-.35%203.507a.552.552%200%200%201-1.1%200L7.1%205.995A.905.905%200%200%201%208%205zm.002%206a1%201%200%201%201%200%202%201%201%200%200%201%200-2z%22/%3E%3C/svg%3E");}.pdoc .alert.caution{color:#842029;background-color:#f8d7da;border-color:#f5c2c7;background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%23842029%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M11.46.146A.5.5%200%200%200%2011.107%200H4.893a.5.5%200%200%200-.353.146L.146%204.54A.5.5%200%200%200%200%204.893v6.214a.5.5%200%200%200%20.146.353l4.394%204.394a.5.5%200%200%200%20.353.146h6.214a.5.5%200%200%200%20.353-.146l4.394-4.394a.5.5%200%200%200%20.146-.353V4.893a.5.5%200%200%200-.146-.353zM8%204c.535%200%20.954.462.9.995l-.35%203.507a.552.552%200%200%201-1.1%200L7.1%204.995A.905.905%200%200%201%208%204m.002%206a1%201%200%201%201%200%202%201%201%200%200%201%200-2%22/%3E%3C/svg%3E");}.pdoc .alert.danger{color:#842029;background-color:#f8d7da;border-color:#f5c2c7;background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%23842029%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M5.52.359A.5.5%200%200%201%206%200h4a.5.5%200%200%201%20.474.658L8.694%206H12.5a.5.5%200%200%201%20.395.807l-7%209a.5.5%200%200%201-.873-.454L6.823%209.5H3.5a.5.5%200%200%201-.48-.641l2.5-8.5z%22/%3E%3C/svg%3E");}.pdoc .visually-hidden{position:absolute !important;width:1px !important;height:1px !important;padding:0 !important;margin:-1px !important;overflow:hidden !important;clip:rect(0, 0, 0, 0) !important;white-space:nowrap !important;border:0 !important;}.pdoc h1, .pdoc h2, .pdoc h3{font-weight:300;margin:.3em 0;padding:.2em 0;}.pdoc > section:not(.module-info) h1{font-size:1.5rem;font-weight:500;}.pdoc > section:not(.module-info) h2{font-size:1.4rem;font-weight:500;}.pdoc > section:not(.module-info) h3{font-size:1.3rem;font-weight:500;}.pdoc > section:not(.module-info) h4{font-size:1.2rem;}.pdoc > section:not(.module-info) h5{font-size:1.1rem;}.pdoc a{text-decoration:none;color:var(--link);}.pdoc a:hover{color:var(--link-hover);}.pdoc blockquote{margin-left:2rem;}.pdoc pre{border-top:1px solid var(--accent2);border-bottom:1px solid var(--accent2);margin-top:0;margin-bottom:1em;padding:.5rem 0 .5rem .5rem;overflow-x:auto;background-color:var(--code);}.pdoc code{color:var(--text);padding:.2em .4em;margin:0;font-size:85%;background-color:var(--accent);border-radius:6px;}.pdoc a > code{color:inherit;}.pdoc pre > code{display:inline-block;font-size:inherit;background:none;border:none;padding:0;}.pdoc > section:not(.module-info){margin-bottom:1.5rem;}.pdoc .modulename{margin-top:0;font-weight:bold;}.pdoc .modulename a{color:var(--link);transition:100ms all;}.pdoc .git-button{float:right;border:solid var(--link) 1px;}.pdoc .git-button:hover{background-color:var(--link);color:var(--pdoc-background);}.view-source-toggle-state,.view-source-toggle-state ~ .pdoc-code{display:none;}.view-source-toggle-state:checked ~ .pdoc-code{display:block;}.view-source-button{display:inline-block;float:right;font-size:.75rem;line-height:1.5rem;color:var(--muted);padding:0 .4rem 0 1.3rem;cursor:pointer;text-indent:-2px;}.view-source-button > span{visibility:hidden;}.module-info .view-source-button{float:none;display:flex;justify-content:flex-end;margin:-1.2rem .4rem -.2rem 0;}.view-source-button::before{position:absolute;content:"View Source";display:list-item;list-style-type:disclosure-closed;}.view-source-toggle-state:checked ~ .attr .view-source-button::before,.view-source-toggle-state:checked ~ .view-source-button::before{list-style-type:disclosure-open;}.pdoc .docstring{margin-bottom:1.5rem;}.pdoc section:not(.module-info) .docstring{margin-left:clamp(0rem, 5vw - 2rem, 1rem);}.pdoc .docstring .pdoc-code{margin-left:1em;margin-right:1em;}.pdoc h1:target,.pdoc h2:target,.pdoc h3:target,.pdoc h4:target,.pdoc h5:target,.pdoc h6:target,.pdoc .pdoc-code > pre > span:target{background-color:var(--active);box-shadow:-1rem 0 0 0 var(--active);}.pdoc .pdoc-code > pre > span:target{display:block;}.pdoc div:target > .attr,.pdoc section:target > .attr,.pdoc dd:target > a{background-color:var(--active);}.pdoc *{scroll-margin:2rem;}.pdoc .pdoc-code .linenos{user-select:none;}.pdoc .attr:hover{filter:contrast(0.95);}.pdoc section, .pdoc .classattr{position:relative;}.pdoc .headerlink{--width:clamp(1rem, 3vw, 2rem);position:absolute;top:0;left:calc(0rem - var(--width));transition:all 100ms ease-in-out;opacity:0;}.pdoc .headerlink::before{content:"#";display:block;text-align:center;width:var(--width);height:2.3rem;line-height:2.3rem;font-size:1.5rem;}.pdoc .attr:hover ~ .headerlink,.pdoc *:target > .headerlink,.pdoc .headerlink:hover{opacity:1;}.pdoc .attr{display:block;margin:.5rem 0 .5rem;padding:.4rem .4rem .4rem 1rem;background-color:var(--accent);overflow-x:auto;}.pdoc .classattr{margin-left:2rem;}.pdoc .decorator-deprecated{color:#842029;}.pdoc .decorator-deprecated ~ span{filter:grayscale(1) opacity(0.8);}.pdoc .name{color:var(--name);font-weight:bold;}.pdoc .def{color:var(--def);font-weight:bold;}.pdoc .signature{background-color:transparent;}.pdoc .param, .pdoc .return-annotation{white-space:pre;}.pdoc .signature.multiline .param{display:block;}.pdoc .signature.condensed .param{display:inline-block;}.pdoc .annotation{color:var(--annotation);}.pdoc .view-value-toggle-state,.pdoc .view-value-toggle-state ~ .default_value{display:none;}.pdoc .view-value-toggle-state:checked ~ .default_value{display:inherit;}.pdoc .view-value-button{font-size:.5rem;vertical-align:middle;border-style:dashed;margin-top:-0.1rem;}.pdoc .view-value-button:hover{background:white;}.pdoc .view-value-button::before{content:"show";text-align:center;width:2.2em;display:inline-block;}.pdoc .view-value-toggle-state:checked ~ .view-value-button::before{content:"hide";}.pdoc .inherited{margin-left:2rem;}.pdoc .inherited dt{font-weight:700;}.pdoc .inherited dt, .pdoc .inherited dd{display:inline;margin-left:0;margin-bottom:.5rem;}.pdoc .inherited dd:not(:last-child):after{content:", ";}.pdoc .inherited .class:before{content:"class ";}.pdoc .inherited .function a:after{content:"()";}.pdoc .search-result .docstring{overflow:auto;max-height:25vh;}.pdoc .search-result.focused > .attr{background-color:var(--active);}.pdoc .attribution{margin-top:2rem;display:block;opacity:0.5;transition:all 200ms;filter:grayscale(100%);}.pdoc .attribution:hover{opacity:1;filter:grayscale(0%);}.pdoc .attribution img{margin-left:5px;height:27px;vertical-align:bottom;width:50px;transition:all 200ms;}.pdoc table{display:block;width:max-content;max-width:100%;overflow:auto;margin-bottom:1rem;}.pdoc table th{font-weight:600;}.pdoc table th, .pdoc table td{padding:6px 13px;border:1px solid var(--accent2);}</style>
-    <style>/*! custom.css */@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');:root{--dust-grey:#dad7cd;--dry-sage: #a3b18a;--fern: #588157;--hunter-green:#3a5a40;--pine-teal:#344e41;--pdoc-background:#f4f5f2;}.pdoc{--text:#1c2419;--muted:#6b7c64;--link:var(--fern);--link-hover:var(--hunter-green);--code:#edf0e8;--active:#c8d5be;--accent:#e4e8de;--accent2:#b5c2aa;--nav-hover:rgba(88, 129, 87, 0.14);--name:var(--fern);--def:var(--hunter-green);--annotation:#4a7c59;font-family:'Inter', system-ui, -apple-system, sans-serif;color:var(--text);}nav.pdoc{background:linear-gradient(180deg, var(--pine-teal) 0%, var(--hunter-green) 100%);border-right:none;box-shadow:2px 0 12px rgba(0,0,0,0.15);}nav.pdoc a,nav.pdoc h2,nav.pdoc .pdoc-button{color:var(--dust-grey) !important;}nav.pdoc a:hover{background:rgba(255,255,255,0.12);color:#fff !important;border-radius:6px;}nav.pdoc h2{font-size:0.7rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--dry-sage) !important;margin-top:1.5rem;}nav.pdoc input[type=search]{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;border-radius:8px;}nav.pdoc input[type=search]::placeholder{color:rgba(255,255,255,0.45);}main.pdoc{background:#fff;border-radius:16px;padding-top:2.5rem;padding-right:3rem;padding-bottom:2.5rem;box-shadow:0 1px 3px rgba(0,0,0,0.05), 0 4px 24px rgba(52, 78, 65, 0.08);}.pdoc h1{font-size:2rem;font-weight:700;color:var(--pine-teal);border-bottom:2px solid var(--dust-grey);padding-bottom:0.5rem;margin-bottom:1.5rem;}.pdoc h2{font-size:1.3rem;font-weight:600;color:var(--hunter-green);margin-top:2rem;}.pdoc h3{font-size:1.05rem;font-weight:600;color:var(--fern);}.pdoc code, .pdoc pre{font-family:'JetBrains Mono', 'Fira Code', monospace;font-size:0.875rem;}.pdoc .pdoc-code{background:#f6f8f3;border:1px solid #d5dccc;border-radius:8px;}.pdoc .def{background:linear-gradient(90deg, #edf1e7 0%, #f8faf5 100%);border-left:3px solid var(--fern);border-radius:0 8px 8px 0;padding:0.6rem 1rem;margin-bottom:0.25rem;}.pdoc dl.field-list{background:#f6f8f3;border:1px solid #d5dccc;border-radius:10px;padding:1rem 1.25rem;margin:0.75rem 0;}.pdoc dt{font-weight:600;color:var(--hunter-green);font-size:0.85rem;text-transform:uppercase;letter-spacing:0.05em;}.pdoc .label{border-radius:4px;font-size:0.7rem;font-weight:600;letter-spacing:0.05em;padding:0.15rem 0.5rem;}.pdoc section:not(:last-child){border-bottom:1px solid #e4e8de;margin-bottom:2rem;padding-bottom:1rem;}.pdoc-button.module-list-button{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:var(--dust-grey) !important;font-size:0.82rem;padding:0.4rem 0.75rem;transition:background 0.15s;}.pdoc-button.module-list-button:hover{background:rgba(255,255,255,0.22);}@media (max-width:700px){main.pdoc{padding-top:1.5rem;padding-right:1.25rem;padding-bottom:1.5rem;border-radius:10px;}}</style></head>
+    <style>/*! custom.css */</style></head>
 <body>
     <nav class="pdoc">
         <label id="navtoggle" for="togglestate" class="pdoc-button"><svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'><path stroke-linecap='round' stroke="currentColor" stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/></svg></label>
@@ -100,6 +100,9 @@
             </li>
             <li>
                     <a class="variable" href="#AI_Y_DEFAULTS">AI_Y_DEFAULTS</a>
+            </li>
+            <li>
+                    <a class="variable" href="#AI_Y_DEFAULTS_VC">AI_Y_DEFAULTS_VC</a>
             </li>
             <li>
                     <a class="variable" href="#TRACE_COLORS">TRACE_COLORS</a>
@@ -333,111 +336,124 @@ so they are importable as plain names without instantiating anything.</li>
 </span><span id="L-142"><a href="#L-142"><span class="linenos">142</span></a><span class="c1"># ---------------------------------------------------------------------------</span>
 </span><span id="L-143"><a href="#L-143"><span class="linenos">143</span></a>
 </span><span id="L-144"><a href="#L-144"><span class="linenos">144</span></a><span class="n">AI_CHANNELS_VC</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">ChannelDef</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="L-145"><a href="#L-145"><span class="linenos">145</span></a>    <span class="p">(</span><span class="s2">&quot;I_mem&quot;</span><span class="p">,</span>       <span class="s2">&quot;ai0&quot;</span><span class="p">,</span> <span class="s2">&quot;differential&quot;</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span>    <span class="s2">&quot;nA&quot;</span><span class="p">),</span>
+</span><span id="L-145"><a href="#L-145"><span class="linenos">145</span></a>    <span class="p">(</span><span class="s2">&quot;I_mem&quot;</span><span class="p">,</span>       <span class="s2">&quot;ai0&quot;</span><span class="p">,</span> <span class="s2">&quot;differential&quot;</span><span class="p">,</span> <span class="mf">100.0</span><span class="p">,</span>  <span class="s2">&quot;pA&quot;</span><span class="p">),</span>
 </span><span id="L-146"><a href="#L-146"><span class="linenos">146</span></a>    <span class="p">(</span><span class="s2">&quot;V_pip&quot;</span><span class="p">,</span>       <span class="s2">&quot;ai1&quot;</span><span class="p">,</span> <span class="s2">&quot;differential&quot;</span><span class="p">,</span> <span class="mf">1000.0</span><span class="p">,</span> <span class="s2">&quot;mV&quot;</span><span class="p">),</span>
-</span><span id="L-147"><a href="#L-147"><span class="linenos">147</span></a>    <span class="p">(</span><span class="s2">&quot;AmpCmd&quot;</span><span class="p">,</span>      <span class="s2">&quot;ai2&quot;</span><span class="p">,</span> <span class="s2">&quot;differential&quot;</span><span class="p">,</span> <span class="mf">400.0</span><span class="p">,</span>  <span class="s2">&quot;pA&quot;</span><span class="p">),</span>
-</span><span id="L-148"><a href="#L-148"><span class="linenos">148</span></a>    <span class="p">(</span><span class="s2">&quot;Camera&quot;</span><span class="p">,</span>      <span class="s2">&quot;ai3&quot;</span><span class="p">,</span> <span class="s2">&quot;rse&quot;</span><span class="p">,</span>          <span class="mf">1.0</span><span class="p">,</span>    <span class="s2">&quot;V&quot;</span><span class="p">),</span>
-</span><span id="L-149"><a href="#L-149"><span class="linenos">149</span></a>    <span class="p">(</span><span class="s2">&quot;TTLLoopback&quot;</span><span class="p">,</span> <span class="s2">&quot;ai4&quot;</span><span class="p">,</span> <span class="s2">&quot;differential&quot;</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span>    <span class="s2">&quot;V&quot;</span><span class="p">),</span>
+</span><span id="L-147"><a href="#L-147"><span class="linenos">147</span></a>    <span class="p">(</span><span class="s2">&quot;AmpCmd&quot;</span><span class="p">,</span>      <span class="s2">&quot;ai2&quot;</span><span class="p">,</span> <span class="s2">&quot;differential&quot;</span><span class="p">,</span>  <span class="mf">20.0</span><span class="p">,</span>  <span class="s2">&quot;mV&quot;</span><span class="p">),</span>
+</span><span id="L-148"><a href="#L-148"><span class="linenos">148</span></a>    <span class="p">(</span><span class="s2">&quot;Camera&quot;</span><span class="p">,</span>      <span class="s2">&quot;ai3&quot;</span><span class="p">,</span> <span class="s2">&quot;rse&quot;</span><span class="p">,</span>           <span class="mf">1.0</span><span class="p">,</span>   <span class="s2">&quot;V&quot;</span><span class="p">),</span>
+</span><span id="L-149"><a href="#L-149"><span class="linenos">149</span></a>    <span class="p">(</span><span class="s2">&quot;TTLLoopback&quot;</span><span class="p">,</span> <span class="s2">&quot;ai4&quot;</span><span class="p">,</span> <span class="s2">&quot;differential&quot;</span><span class="p">,</span>  <span class="mf">1.0</span><span class="p">,</span>   <span class="s2">&quot;V&quot;</span><span class="p">),</span>
 </span><span id="L-150"><a href="#L-150"><span class="linenos">150</span></a><span class="p">]</span>
 </span><span id="L-151"><a href="#L-151"><span class="linenos">151</span></a><span class="sd">&quot;&quot;&quot;Analog input channel definitions for voltage-clamp (VC) mode.</span>
 </span><span id="L-152"><a href="#L-152"><span class="linenos">152</span></a>
 </span><span id="L-153"><a href="#L-153"><span class="linenos">153</span></a><span class="sd">The physical channels are the same (ai0–ai4), but the amplifier output</span>
 </span><span id="L-154"><a href="#L-154"><span class="linenos">154</span></a><span class="sd">interpretation changes:</span>
 </span><span id="L-155"><a href="#L-155"><span class="linenos">155</span></a>
-</span><span id="L-156"><a href="#L-156"><span class="linenos">156</span></a><span class="sd">- ai0 (I_mem):   10 V/nA amplifier gain  → display_scale = 0.1 nA/V</span>
+</span><span id="L-156"><a href="#L-156"><span class="linenos">156</span></a><span class="sd">- ai0 (I_mem):   10 V/nA = 10,000 V/pA → 0.1 nA/V × 1000 pA/nA = 100.0 pA/V</span>
 </span><span id="L-157"><a href="#L-157"><span class="linenos">157</span></a><span class="sd">- ai1 (V_pip):   1 V/V  pipette voltage  → display_scale = 1000.0 mV/V</span>
-</span><span id="L-158"><a href="#L-158"><span class="linenos">158</span></a><span class="sd">- ai2–ai4: identical to :data:`AI_CHANNELS`.</span>
-</span><span id="L-159"><a href="#L-159"><span class="linenos">159</span></a><span class="sd">&quot;&quot;&quot;</span>
-</span><span id="L-160"><a href="#L-160"><span class="linenos">160</span></a>
-</span><span id="L-161"><a href="#L-161"><span class="linenos">161</span></a><span class="c1"># ---------------------------------------------------------------------------</span>
-</span><span id="L-162"><a href="#L-162"><span class="linenos">162</span></a><span class="c1"># Analog output</span>
-</span><span id="L-163"><a href="#L-163"><span class="linenos">163</span></a><span class="c1"># ---------------------------------------------------------------------------</span>
-</span><span id="L-164"><a href="#L-164"><span class="linenos">164</span></a>
-</span><span id="L-165"><a href="#L-165"><span class="linenos">165</span></a><span class="n">AO_COMMAND_CH</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;ao0&quot;</span>
-</span><span id="L-166"><a href="#L-166"><span class="linenos">166</span></a><span class="sd">&quot;&quot;&quot;NI analog output channel used for amplifier command current/voltage.&quot;&quot;&quot;</span>
-</span><span id="L-167"><a href="#L-167"><span class="linenos">167</span></a>
-</span><span id="L-168"><a href="#L-168"><span class="linenos">168</span></a><span class="n">AO_PA_PER_VOLT</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">400.0</span>
-</span><span id="L-169"><a href="#L-169"><span class="linenos">169</span></a><span class="sd">&quot;&quot;&quot;Amplifier command sensitivity in current-clamp mode: 400 pA per Volt.</span>
-</span><span id="L-170"><a href="#L-170"><span class="linenos">170</span></a>
-</span><span id="L-171"><a href="#L-171"><span class="linenos">171</span></a><span class="sd">To inject *X* pA: write ``X / AO_PA_PER_VOLT`` Volts to ao0.</span>
-</span><span id="L-172"><a href="#L-172"><span class="linenos">172</span></a><span class="sd">&quot;&quot;&quot;</span>
-</span><span id="L-173"><a href="#L-173"><span class="linenos">173</span></a>
-</span><span id="L-174"><a href="#L-174"><span class="linenos">174</span></a><span class="n">AO_MV_PER_VOLT</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">20.0</span>
-</span><span id="L-175"><a href="#L-175"><span class="linenos">175</span></a><span class="sd">&quot;&quot;&quot;Amplifier command sensitivity in voltage-clamp mode: 20 mV per Volt.</span>
-</span><span id="L-176"><a href="#L-176"><span class="linenos">176</span></a>
-</span><span id="L-177"><a href="#L-177"><span class="linenos">177</span></a><span class="sd">To step the holding potential by *X* mV: write ``X / AO_MV_PER_VOLT`` Volts to ao0.</span>
-</span><span id="L-178"><a href="#L-178"><span class="linenos">178</span></a><span class="sd">This value matches the Axopatch 200B VC external command sensitivity.</span>
-</span><span id="L-179"><a href="#L-179"><span class="linenos">179</span></a><span class="sd">Override via ``TrialProtocol.ao_mv_per_volt`` for other amplifiers.</span>
-</span><span id="L-180"><a href="#L-180"><span class="linenos">180</span></a><span class="sd">&quot;&quot;&quot;</span>
-</span><span id="L-181"><a href="#L-181"><span class="linenos">181</span></a>
-</span><span id="L-182"><a href="#L-182"><span class="linenos">182</span></a><span class="c1"># ---------------------------------------------------------------------------</span>
-</span><span id="L-183"><a href="#L-183"><span class="linenos">183</span></a><span class="c1"># Counter / TTL output for camera triggering</span>
-</span><span id="L-184"><a href="#L-184"><span class="linenos">184</span></a><span class="c1"># ---------------------------------------------------------------------------</span>
-</span><span id="L-185"><a href="#L-185"><span class="linenos">185</span></a>
-</span><span id="L-186"><a href="#L-186"><span class="linenos">186</span></a><span class="n">CTR_CHANNEL</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;ctr0&quot;</span>
-</span><span id="L-187"><a href="#L-187"><span class="linenos">187</span></a><span class="sd">&quot;&quot;&quot;NI counter channel used to generate the camera TTL pulse train.&quot;&quot;&quot;</span>
-</span><span id="L-188"><a href="#L-188"><span class="linenos">188</span></a>
-</span><span id="L-189"><a href="#L-189"><span class="linenos">189</span></a><span class="n">CTR_OUT_TERMINAL</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;PFI12&quot;</span>
-</span><span id="L-190"><a href="#L-190"><span class="linenos">190</span></a><span class="sd">&quot;&quot;&quot;Physical output terminal for CTR0 on the PCIe-6323 (default mapping).</span>
-</span><span id="L-191"><a href="#L-191"><span class="linenos">191</span></a>
-</span><span id="L-192"><a href="#L-192"><span class="linenos">192</span></a><span class="sd">Connect this BNC/pin to the camera&#39;s external trigger input.</span>
-</span><span id="L-193"><a href="#L-193"><span class="linenos">193</span></a><span class="sd">&quot;&quot;&quot;</span>
-</span><span id="L-194"><a href="#L-194"><span class="linenos">194</span></a>
-</span><span id="L-195"><a href="#L-195"><span class="linenos">195</span></a><span class="n">TTL_HIGH_V</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">5.0</span>
-</span><span id="L-196"><a href="#L-196"><span class="linenos">196</span></a><span class="sd">&quot;&quot;&quot;TTL logic-high voltage in Volts (camera trigger active state).&quot;&quot;&quot;</span>
-</span><span id="L-197"><a href="#L-197"><span class="linenos">197</span></a>
-</span><span id="L-198"><a href="#L-198"><span class="linenos">198</span></a><span class="n">TTL_LOW_V</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
-</span><span id="L-199"><a href="#L-199"><span class="linenos">199</span></a><span class="sd">&quot;&quot;&quot;TTL logic-low voltage in Volts (camera trigger inactive state).&quot;&quot;&quot;</span>
-</span><span id="L-200"><a href="#L-200"><span class="linenos">200</span></a>
-</span><span id="L-201"><a href="#L-201"><span class="linenos">201</span></a><span class="n">DEFAULT_FRAME_RATE_HZ</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">100.0</span>
-</span><span id="L-202"><a href="#L-202"><span class="linenos">202</span></a><span class="sd">&quot;&quot;&quot;Default camera frame rate in Hz.</span>
-</span><span id="L-203"><a href="#L-203"><span class="linenos">203</span></a>
-</span><span id="L-204"><a href="#L-204"><span class="linenos">204</span></a><span class="sd">100 Hz divides evenly into 20 kHz (period = 200 samples), so no integer</span>
-</span><span id="L-205"><a href="#L-205"><span class="linenos">205</span></a><span class="sd">rounding error occurs at the default setting.</span>
-</span><span id="L-206"><a href="#L-206"><span class="linenos">206</span></a><span class="sd">&quot;&quot;&quot;</span>
-</span><span id="L-207"><a href="#L-207"><span class="linenos">207</span></a>
-</span><span id="L-208"><a href="#L-208"><span class="linenos">208</span></a><span class="n">DEFAULT_EXPOSURE_MS</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">5.0</span>
-</span><span id="L-209"><a href="#L-209"><span class="linenos">209</span></a><span class="sd">&quot;&quot;&quot;Default camera exposure duration in ms.</span>
-</span><span id="L-210"><a href="#L-210"><span class="linenos">210</span></a>
-</span><span id="L-211"><a href="#L-211"><span class="linenos">211</span></a><span class="sd">Must be less than the TTL period (1000 / frame_rate_hz ms) to avoid</span>
-</span><span id="L-212"><a href="#L-212"><span class="linenos">212</span></a><span class="sd">overlap between consecutive trigger pulses.</span>
-</span><span id="L-213"><a href="#L-213"><span class="linenos">213</span></a><span class="sd">&quot;&quot;&quot;</span>
-</span><span id="L-214"><a href="#L-214"><span class="linenos">214</span></a>
-</span><span id="L-215"><a href="#L-215"><span class="linenos">215</span></a><span class="n">CAMERA_GUARD_DELAY_MS</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2000</span>
-</span><span id="L-216"><a href="#L-216"><span class="linenos">216</span></a><span class="sd">&quot;&quot;&quot;Guard delay in ms applied after stopping the camera TTL.</span>
-</span><span id="L-217"><a href="#L-217"><span class="linenos">217</span></a>
-</span><span id="L-218"><a href="#L-218"><span class="linenos">218</span></a><span class="sd">After ``stop_ttl()`` is called, the HDF5 file remains open for this</span>
-</span><span id="L-219"><a href="#L-219"><span class="linenos">219</span></a><span class="sd">duration so that any trailing exposure-signal transients on ai3 (Camera)</span>
-</span><span id="L-220"><a href="#L-220"><span class="linenos">220</span></a><span class="sd">are captured before the file is closed.</span>
-</span><span id="L-221"><a href="#L-221"><span class="linenos">221</span></a><span class="sd">&quot;&quot;&quot;</span>
-</span><span id="L-222"><a href="#L-222"><span class="linenos">222</span></a>
-</span><span id="L-223"><a href="#L-223"><span class="linenos">223</span></a><span class="c1"># ---------------------------------------------------------------------------</span>
-</span><span id="L-224"><a href="#L-224"><span class="linenos">224</span></a><span class="c1"># Display defaults</span>
-</span><span id="L-225"><a href="#L-225"><span class="linenos">225</span></a><span class="c1"># ---------------------------------------------------------------------------</span>
-</span><span id="L-226"><a href="#L-226"><span class="linenos">226</span></a>
-</span><span id="L-227"><a href="#L-227"><span class="linenos">227</span></a><span class="n">AI_Y_DEFAULTS</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="L-228"><a href="#L-228"><span class="linenos">228</span></a>    <span class="p">(</span><span class="o">-</span><span class="mf">100.0</span><span class="p">,</span>  <span class="mf">100.0</span><span class="p">),</span>   <span class="c1"># ScAmpOut  (mV)</span>
-</span><span id="L-229"><a href="#L-229"><span class="linenos">229</span></a>    <span class="p">(</span> <span class="o">-</span><span class="mf">10.0</span><span class="p">,</span>   <span class="mf">10.0</span><span class="p">),</span>   <span class="c1"># RawAmpOut (nA)</span>
-</span><span id="L-230"><a href="#L-230"><span class="linenos">230</span></a>    <span class="p">(</span><span class="o">-</span><span class="mf">500.0</span><span class="p">,</span>  <span class="mf">500.0</span><span class="p">),</span>   <span class="c1"># AmpCmd    (pA)</span>
-</span><span id="L-231"><a href="#L-231"><span class="linenos">231</span></a>    <span class="p">(</span>  <span class="o">-</span><span class="mf">0.5</span><span class="p">,</span>    <span class="mf">5.5</span><span class="p">),</span>   <span class="c1"># Camera    (V)</span>
-</span><span id="L-232"><a href="#L-232"><span class="linenos">232</span></a>    <span class="p">(</span>  <span class="o">-</span><span class="mf">0.5</span><span class="p">,</span>    <span class="mf">5.5</span><span class="p">),</span>   <span class="c1"># TTLLoopback (V)</span>
-</span><span id="L-233"><a href="#L-233"><span class="linenos">233</span></a><span class="p">]</span>
-</span><span id="L-234"><a href="#L-234"><span class="linenos">234</span></a><span class="sd">&quot;&quot;&quot;Default Y-axis (min, max) ranges in display units for each AI channel.</span>
-</span><span id="L-235"><a href="#L-235"><span class="linenos">235</span></a>
-</span><span id="L-236"><a href="#L-236"><span class="linenos">236</span></a><span class="sd">Indices correspond to :data:`AI_CHANNELS` row order.</span>
-</span><span id="L-237"><a href="#L-237"><span class="linenos">237</span></a><span class="sd">&quot;&quot;&quot;</span>
-</span><span id="L-238"><a href="#L-238"><span class="linenos">238</span></a>
-</span><span id="L-239"><a href="#L-239"><span class="linenos">239</span></a><span class="n">TRACE_COLORS</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="L-240"><a href="#L-240"><span class="linenos">240</span></a>    <span class="s2">&quot;#00BFFF&quot;</span><span class="p">,</span>   <span class="c1"># ScAmpOut    — sky blue</span>
-</span><span id="L-241"><a href="#L-241"><span class="linenos">241</span></a>    <span class="s2">&quot;#FF6B6B&quot;</span><span class="p">,</span>   <span class="c1"># RawAmpOut   — coral</span>
-</span><span id="L-242"><a href="#L-242"><span class="linenos">242</span></a>    <span class="s2">&quot;#98FF98&quot;</span><span class="p">,</span>   <span class="c1"># AmpCmd      — mint green</span>
-</span><span id="L-243"><a href="#L-243"><span class="linenos">243</span></a>    <span class="s2">&quot;#FFD700&quot;</span><span class="p">,</span>   <span class="c1"># Camera      — gold</span>
-</span><span id="L-244"><a href="#L-244"><span class="linenos">244</span></a>    <span class="s2">&quot;#DA70D6&quot;</span><span class="p">,</span>   <span class="c1"># TTLLoopback — orchid</span>
-</span><span id="L-245"><a href="#L-245"><span class="linenos">245</span></a><span class="p">]</span>
-</span><span id="L-246"><a href="#L-246"><span class="linenos">246</span></a><span class="sd">&quot;&quot;&quot;Hex color strings for each channel&#39;s trace in the live display.</span>
-</span><span id="L-247"><a href="#L-247"><span class="linenos">247</span></a>
-</span><span id="L-248"><a href="#L-248"><span class="linenos">248</span></a><span class="sd">Indices correspond to :data:`AI_CHANNELS` row order.</span>
-</span><span id="L-249"><a href="#L-249"><span class="linenos">249</span></a><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-158"><a href="#L-158"><span class="linenos">158</span></a><span class="sd">- ai2 (AmpCmd):  Axopatch 200B VC external command 20 mV/V → display_scale = 20.0 mV/V</span>
+</span><span id="L-159"><a href="#L-159"><span class="linenos">159</span></a><span class="sd">- ai3–ai4: identical to :data:`AI_CHANNELS`.</span>
+</span><span id="L-160"><a href="#L-160"><span class="linenos">160</span></a><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-161"><a href="#L-161"><span class="linenos">161</span></a>
+</span><span id="L-162"><a href="#L-162"><span class="linenos">162</span></a><span class="c1"># ---------------------------------------------------------------------------</span>
+</span><span id="L-163"><a href="#L-163"><span class="linenos">163</span></a><span class="c1"># Analog output</span>
+</span><span id="L-164"><a href="#L-164"><span class="linenos">164</span></a><span class="c1"># ---------------------------------------------------------------------------</span>
+</span><span id="L-165"><a href="#L-165"><span class="linenos">165</span></a>
+</span><span id="L-166"><a href="#L-166"><span class="linenos">166</span></a><span class="n">AO_COMMAND_CH</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;ao0&quot;</span>
+</span><span id="L-167"><a href="#L-167"><span class="linenos">167</span></a><span class="sd">&quot;&quot;&quot;NI analog output channel used for amplifier command current/voltage.&quot;&quot;&quot;</span>
+</span><span id="L-168"><a href="#L-168"><span class="linenos">168</span></a>
+</span><span id="L-169"><a href="#L-169"><span class="linenos">169</span></a><span class="n">AO_PA_PER_VOLT</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">400.0</span>
+</span><span id="L-170"><a href="#L-170"><span class="linenos">170</span></a><span class="sd">&quot;&quot;&quot;Amplifier command sensitivity in current-clamp mode: 400 pA per Volt.</span>
+</span><span id="L-171"><a href="#L-171"><span class="linenos">171</span></a>
+</span><span id="L-172"><a href="#L-172"><span class="linenos">172</span></a><span class="sd">To inject *X* pA: write ``X / AO_PA_PER_VOLT`` Volts to ao0.</span>
+</span><span id="L-173"><a href="#L-173"><span class="linenos">173</span></a><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-174"><a href="#L-174"><span class="linenos">174</span></a>
+</span><span id="L-175"><a href="#L-175"><span class="linenos">175</span></a><span class="n">AO_MV_PER_VOLT</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">20.0</span>
+</span><span id="L-176"><a href="#L-176"><span class="linenos">176</span></a><span class="sd">&quot;&quot;&quot;Amplifier command sensitivity in voltage-clamp mode: 20 mV per Volt.</span>
+</span><span id="L-177"><a href="#L-177"><span class="linenos">177</span></a>
+</span><span id="L-178"><a href="#L-178"><span class="linenos">178</span></a><span class="sd">To step the holding potential by *X* mV: write ``X / AO_MV_PER_VOLT`` Volts to ao0.</span>
+</span><span id="L-179"><a href="#L-179"><span class="linenos">179</span></a><span class="sd">This value matches the Axopatch 200B VC external command sensitivity.</span>
+</span><span id="L-180"><a href="#L-180"><span class="linenos">180</span></a><span class="sd">Override via ``TrialProtocol.ao_mv_per_volt`` for other amplifiers.</span>
+</span><span id="L-181"><a href="#L-181"><span class="linenos">181</span></a><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-182"><a href="#L-182"><span class="linenos">182</span></a>
+</span><span id="L-183"><a href="#L-183"><span class="linenos">183</span></a><span class="c1"># ---------------------------------------------------------------------------</span>
+</span><span id="L-184"><a href="#L-184"><span class="linenos">184</span></a><span class="c1"># Counter / TTL output for camera triggering</span>
+</span><span id="L-185"><a href="#L-185"><span class="linenos">185</span></a><span class="c1"># ---------------------------------------------------------------------------</span>
+</span><span id="L-186"><a href="#L-186"><span class="linenos">186</span></a>
+</span><span id="L-187"><a href="#L-187"><span class="linenos">187</span></a><span class="n">CTR_CHANNEL</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;ctr0&quot;</span>
+</span><span id="L-188"><a href="#L-188"><span class="linenos">188</span></a><span class="sd">&quot;&quot;&quot;NI counter channel used to generate the camera TTL pulse train.&quot;&quot;&quot;</span>
+</span><span id="L-189"><a href="#L-189"><span class="linenos">189</span></a>
+</span><span id="L-190"><a href="#L-190"><span class="linenos">190</span></a><span class="n">CTR_OUT_TERMINAL</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;PFI12&quot;</span>
+</span><span id="L-191"><a href="#L-191"><span class="linenos">191</span></a><span class="sd">&quot;&quot;&quot;Physical output terminal for CTR0 on the PCIe-6323 (default mapping).</span>
+</span><span id="L-192"><a href="#L-192"><span class="linenos">192</span></a>
+</span><span id="L-193"><a href="#L-193"><span class="linenos">193</span></a><span class="sd">Connect this BNC/pin to the camera&#39;s external trigger input.</span>
+</span><span id="L-194"><a href="#L-194"><span class="linenos">194</span></a><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-195"><a href="#L-195"><span class="linenos">195</span></a>
+</span><span id="L-196"><a href="#L-196"><span class="linenos">196</span></a><span class="n">TTL_HIGH_V</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">5.0</span>
+</span><span id="L-197"><a href="#L-197"><span class="linenos">197</span></a><span class="sd">&quot;&quot;&quot;TTL logic-high voltage in Volts (camera trigger active state).&quot;&quot;&quot;</span>
+</span><span id="L-198"><a href="#L-198"><span class="linenos">198</span></a>
+</span><span id="L-199"><a href="#L-199"><span class="linenos">199</span></a><span class="n">TTL_LOW_V</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+</span><span id="L-200"><a href="#L-200"><span class="linenos">200</span></a><span class="sd">&quot;&quot;&quot;TTL logic-low voltage in Volts (camera trigger inactive state).&quot;&quot;&quot;</span>
+</span><span id="L-201"><a href="#L-201"><span class="linenos">201</span></a>
+</span><span id="L-202"><a href="#L-202"><span class="linenos">202</span></a><span class="n">DEFAULT_FRAME_RATE_HZ</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">100.0</span>
+</span><span id="L-203"><a href="#L-203"><span class="linenos">203</span></a><span class="sd">&quot;&quot;&quot;Default camera frame rate in Hz.</span>
+</span><span id="L-204"><a href="#L-204"><span class="linenos">204</span></a>
+</span><span id="L-205"><a href="#L-205"><span class="linenos">205</span></a><span class="sd">100 Hz divides evenly into 20 kHz (period = 200 samples), so no integer</span>
+</span><span id="L-206"><a href="#L-206"><span class="linenos">206</span></a><span class="sd">rounding error occurs at the default setting.</span>
+</span><span id="L-207"><a href="#L-207"><span class="linenos">207</span></a><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-208"><a href="#L-208"><span class="linenos">208</span></a>
+</span><span id="L-209"><a href="#L-209"><span class="linenos">209</span></a><span class="n">DEFAULT_EXPOSURE_MS</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">5.0</span>
+</span><span id="L-210"><a href="#L-210"><span class="linenos">210</span></a><span class="sd">&quot;&quot;&quot;Default camera exposure duration in ms.</span>
+</span><span id="L-211"><a href="#L-211"><span class="linenos">211</span></a>
+</span><span id="L-212"><a href="#L-212"><span class="linenos">212</span></a><span class="sd">Must be less than the TTL period (1000 / frame_rate_hz ms) to avoid</span>
+</span><span id="L-213"><a href="#L-213"><span class="linenos">213</span></a><span class="sd">overlap between consecutive trigger pulses.</span>
+</span><span id="L-214"><a href="#L-214"><span class="linenos">214</span></a><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-215"><a href="#L-215"><span class="linenos">215</span></a>
+</span><span id="L-216"><a href="#L-216"><span class="linenos">216</span></a><span class="n">CAMERA_GUARD_DELAY_MS</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2000</span>
+</span><span id="L-217"><a href="#L-217"><span class="linenos">217</span></a><span class="sd">&quot;&quot;&quot;Guard delay in ms applied after stopping the camera TTL.</span>
+</span><span id="L-218"><a href="#L-218"><span class="linenos">218</span></a>
+</span><span id="L-219"><a href="#L-219"><span class="linenos">219</span></a><span class="sd">After ``stop_ttl()`` is called, the HDF5 file remains open for this</span>
+</span><span id="L-220"><a href="#L-220"><span class="linenos">220</span></a><span class="sd">duration so that any trailing exposure-signal transients on ai3 (Camera)</span>
+</span><span id="L-221"><a href="#L-221"><span class="linenos">221</span></a><span class="sd">are captured before the file is closed.</span>
+</span><span id="L-222"><a href="#L-222"><span class="linenos">222</span></a><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-223"><a href="#L-223"><span class="linenos">223</span></a>
+</span><span id="L-224"><a href="#L-224"><span class="linenos">224</span></a><span class="c1"># ---------------------------------------------------------------------------</span>
+</span><span id="L-225"><a href="#L-225"><span class="linenos">225</span></a><span class="c1"># Display defaults</span>
+</span><span id="L-226"><a href="#L-226"><span class="linenos">226</span></a><span class="c1"># ---------------------------------------------------------------------------</span>
+</span><span id="L-227"><a href="#L-227"><span class="linenos">227</span></a>
+</span><span id="L-228"><a href="#L-228"><span class="linenos">228</span></a><span class="n">AI_Y_DEFAULTS</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="L-229"><a href="#L-229"><span class="linenos">229</span></a>    <span class="p">(</span><span class="o">-</span><span class="mf">100.0</span><span class="p">,</span>  <span class="mf">100.0</span><span class="p">),</span>   <span class="c1"># ScAmpOut  (mV)</span>
+</span><span id="L-230"><a href="#L-230"><span class="linenos">230</span></a>    <span class="p">(</span> <span class="o">-</span><span class="mf">10.0</span><span class="p">,</span>   <span class="mf">10.0</span><span class="p">),</span>   <span class="c1"># RawAmpOut (nA)</span>
+</span><span id="L-231"><a href="#L-231"><span class="linenos">231</span></a>    <span class="p">(</span><span class="o">-</span><span class="mf">500.0</span><span class="p">,</span>  <span class="mf">500.0</span><span class="p">),</span>   <span class="c1"># AmpCmd    (pA)</span>
+</span><span id="L-232"><a href="#L-232"><span class="linenos">232</span></a>    <span class="p">(</span>  <span class="o">-</span><span class="mf">0.5</span><span class="p">,</span>    <span class="mf">5.5</span><span class="p">),</span>   <span class="c1"># Camera    (V)</span>
+</span><span id="L-233"><a href="#L-233"><span class="linenos">233</span></a>    <span class="p">(</span>  <span class="o">-</span><span class="mf">0.5</span><span class="p">,</span>    <span class="mf">5.5</span><span class="p">),</span>   <span class="c1"># TTLLoopback (V)</span>
+</span><span id="L-234"><a href="#L-234"><span class="linenos">234</span></a><span class="p">]</span>
+</span><span id="L-235"><a href="#L-235"><span class="linenos">235</span></a><span class="sd">&quot;&quot;&quot;Default Y-axis (min, max) ranges in display units for each AI channel.</span>
+</span><span id="L-236"><a href="#L-236"><span class="linenos">236</span></a>
+</span><span id="L-237"><a href="#L-237"><span class="linenos">237</span></a><span class="sd">Indices correspond to :data:`AI_CHANNELS` row order.</span>
+</span><span id="L-238"><a href="#L-238"><span class="linenos">238</span></a><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-239"><a href="#L-239"><span class="linenos">239</span></a>
+</span><span id="L-240"><a href="#L-240"><span class="linenos">240</span></a><span class="n">AI_Y_DEFAULTS_VC</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="L-241"><a href="#L-241"><span class="linenos">241</span></a>    <span class="p">(</span><span class="o">-</span><span class="mf">2000.0</span><span class="p">,</span> <span class="mf">2000.0</span><span class="p">),</span>   <span class="c1"># I_mem  (pA)</span>
+</span><span id="L-242"><a href="#L-242"><span class="linenos">242</span></a>    <span class="p">(</span> <span class="o">-</span><span class="mf">100.0</span><span class="p">,</span>  <span class="mf">100.0</span><span class="p">),</span>   <span class="c1"># V_pip  (mV)</span>
+</span><span id="L-243"><a href="#L-243"><span class="linenos">243</span></a>    <span class="p">(</span> <span class="o">-</span><span class="mf">200.0</span><span class="p">,</span>  <span class="mf">200.0</span><span class="p">),</span>   <span class="c1"># AmpCmd (mV, ±10 V DAQ × 20 mV/V)</span>
+</span><span id="L-244"><a href="#L-244"><span class="linenos">244</span></a>    <span class="p">(</span>   <span class="o">-</span><span class="mf">0.5</span><span class="p">,</span>    <span class="mf">5.5</span><span class="p">),</span>   <span class="c1"># Camera (V)</span>
+</span><span id="L-245"><a href="#L-245"><span class="linenos">245</span></a>    <span class="p">(</span>   <span class="o">-</span><span class="mf">0.5</span><span class="p">,</span>    <span class="mf">5.5</span><span class="p">),</span>   <span class="c1"># TTLLoopback (V)</span>
+</span><span id="L-246"><a href="#L-246"><span class="linenos">246</span></a><span class="p">]</span>
+</span><span id="L-247"><a href="#L-247"><span class="linenos">247</span></a><span class="sd">&quot;&quot;&quot;Default Y-axis (min, max) ranges in display units for each AI channel in VC mode.</span>
+</span><span id="L-248"><a href="#L-248"><span class="linenos">248</span></a>
+</span><span id="L-249"><a href="#L-249"><span class="linenos">249</span></a><span class="sd">Indices correspond to :data:`AI_CHANNELS_VC` row order.</span>
+</span><span id="L-250"><a href="#L-250"><span class="linenos">250</span></a><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-251"><a href="#L-251"><span class="linenos">251</span></a>
+</span><span id="L-252"><a href="#L-252"><span class="linenos">252</span></a><span class="n">TRACE_COLORS</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="L-253"><a href="#L-253"><span class="linenos">253</span></a>    <span class="s2">&quot;#00BFFF&quot;</span><span class="p">,</span>   <span class="c1"># ScAmpOut    — sky blue</span>
+</span><span id="L-254"><a href="#L-254"><span class="linenos">254</span></a>    <span class="s2">&quot;#FF6B6B&quot;</span><span class="p">,</span>   <span class="c1"># RawAmpOut   — coral</span>
+</span><span id="L-255"><a href="#L-255"><span class="linenos">255</span></a>    <span class="s2">&quot;#98FF98&quot;</span><span class="p">,</span>   <span class="c1"># AmpCmd      — mint green</span>
+</span><span id="L-256"><a href="#L-256"><span class="linenos">256</span></a>    <span class="s2">&quot;#FFD700&quot;</span><span class="p">,</span>   <span class="c1"># Camera      — gold</span>
+</span><span id="L-257"><a href="#L-257"><span class="linenos">257</span></a>    <span class="s2">&quot;#DA70D6&quot;</span><span class="p">,</span>   <span class="c1"># TTLLoopback — orchid</span>
+</span><span id="L-258"><a href="#L-258"><span class="linenos">258</span></a><span class="p">]</span>
+</span><span id="L-259"><a href="#L-259"><span class="linenos">259</span></a><span class="sd">&quot;&quot;&quot;Hex color strings for each channel&#39;s trace in the live display.</span>
+</span><span id="L-260"><a href="#L-260"><span class="linenos">260</span></a>
+</span><span id="L-261"><a href="#L-261"><span class="linenos">261</span></a><span class="sd">Indices correspond to :data:`AI_CHANNELS` row order.</span>
+</span><span id="L-262"><a href="#L-262"><span class="linenos">262</span></a><span class="sd">&quot;&quot;&quot;</span>
 </span></pre></div>
 
 
@@ -453,15 +469,12 @@ so they are importable as plain names without instantiating anything.</li>
     
             <div class="docstring"><p>A 5-tuple describing one analog input channel.</p>
 
-<h6 id="fields">Fields:</h6>
-
-<blockquote>
-  <p>display_name (str):   Human-readable label shown in the trace panel.
-  ni_channel (str):     NI channel string, e.g. <code>"ai0"</code>.
-  terminal_config (str): <code>"differential"</code> or <code>"rse"</code>.
-  display_scale (float): Multiply raw Volts by this to get display units.
-  units (str):           Display unit label, e.g. <code>"mV"</code>, <code>"pA"</code>.</p>
-</blockquote>
+<p>Fields:
+    display_name (str):   Human-readable label shown in the trace panel.
+    ni_channel (str):     NI channel string, e.g. <code>"ai0"</code>.
+    terminal_config (str): <code>"differential"</code> or <code>"rse"</code>.
+    display_scale (float): Multiply raw Volts by this to get display units.
+    units (str):           Display unit label, e.g. <code>"mV"</code>, <code>"pA"</code>.</p>
 </div>
 
 
@@ -559,17 +572,12 @@ CPU overhead.</p>
 <p>The channel order here determines the row order of all data arrays throughout
 the codebase (row 0 = ScAmpOut, row 4 = TTLLoopback).</p>
 
-<h6 id="scaling">Scaling:</h6>
-
-<blockquote>
-  <ul>
-  <li>ai0 (ScAmpOut):    0.1 V/mV amplifier gain → display_scale = 10.0 mV/V</li>
-  <li>ai1 (RawAmpOut):   0.5 V/nA amplifier gain → display_scale = 2.0 nA/V</li>
-  <li>ai2 (AmpCmd):      400 pA/V command sens.  → display_scale = 400.0 pA/V</li>
-  <li>ai3 (Camera):      direct TTL readback      → display_scale = 1.0 V/V</li>
-  <li>ai4 (TTLLoopback): direct TTL readback      → display_scale = 1.0 V/V</li>
-  </ul>
-</blockquote>
+<p>Scaling:
+    - ai0 (ScAmpOut):    0.1 V/mV amplifier gain → display_scale = 10.0 mV/V
+    - ai1 (RawAmpOut):   0.5 V/nA amplifier gain → display_scale = 2.0 nA/V
+    - ai2 (AmpCmd):      400 pA/V command sens.  → display_scale = 400.0 pA/V
+    - ai3 (Camera):      direct TTL readback      → display_scale = 1.0 V/V
+    - ai4 (TTLLoopback): direct TTL readback      → display_scale = 1.0 V/V</p>
 </div>
 
 
@@ -592,7 +600,7 @@ the codebase (row 0 = ScAmpOut, row 4 = TTLLoopback).</p>
                     <div class="attr variable">
             <span class="name">AI_CHANNELS_VC</span><span class="annotation">: list[tuple[str, str, str, float, str]]</span>        =
 <input id="AI_CHANNELS_VC-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-            <label class="view-value-button pdoc-button" for="AI_CHANNELS_VC-view-value"></label><span class="default_value">[(&#39;I_mem&#39;, &#39;ai0&#39;, &#39;differential&#39;, 0.1, &#39;nA&#39;), (&#39;V_pip&#39;, &#39;ai1&#39;, &#39;differential&#39;, 1000.0, &#39;mV&#39;), (&#39;AmpCmd&#39;, &#39;ai2&#39;, &#39;differential&#39;, 400.0, &#39;pA&#39;), (&#39;Camera&#39;, &#39;ai3&#39;, &#39;rse&#39;, 1.0, &#39;V&#39;), (&#39;TTLLoopback&#39;, &#39;ai4&#39;, &#39;differential&#39;, 1.0, &#39;V&#39;)]</span>
+            <label class="view-value-button pdoc-button" for="AI_CHANNELS_VC-view-value"></label><span class="default_value">[(&#39;I_mem&#39;, &#39;ai0&#39;, &#39;differential&#39;, 100.0, &#39;pA&#39;), (&#39;V_pip&#39;, &#39;ai1&#39;, &#39;differential&#39;, 1000.0, &#39;mV&#39;), (&#39;AmpCmd&#39;, &#39;ai2&#39;, &#39;differential&#39;, 20.0, &#39;mV&#39;), (&#39;Camera&#39;, &#39;ai3&#39;, &#39;rse&#39;, 1.0, &#39;V&#39;), (&#39;TTLLoopback&#39;, &#39;ai4&#39;, &#39;differential&#39;, 1.0, &#39;V&#39;)]</span>
 
         
     </div>
@@ -604,9 +612,10 @@ the codebase (row 0 = ScAmpOut, row 4 = TTLLoopback).</p>
 interpretation changes:</p>
 
 <ul>
-<li>ai0 (I_mem):   10 V/nA amplifier gain  → display_scale = 0.1 nA/V</li>
+<li>ai0 (I_mem):   10 V/nA = 10,000 V/pA → 0.1 nA/V × 1000 pA/nA = 100.0 pA/V</li>
 <li>ai1 (V_pip):   1 V/V  pipette voltage  → display_scale = 1000.0 mV/V</li>
-<li>ai2–ai4: identical to <code><a href="#AI_CHANNELS">AI_CHANNELS</a></code>.</li>
+<li>ai2 (AmpCmd):  Axopatch 200B VC external command 20 mV/V → display_scale = 20.0 mV/V</li>
+<li>ai3–ai4: identical to <code><a href="#AI_CHANNELS">AI_CHANNELS</a></code>.</li>
 </ul>
 </div>
 
@@ -786,6 +795,22 @@ are captured before the file is closed.</p>
 
 
                 </section>
+                <section id="AI_Y_DEFAULTS_VC">
+                    <div class="attr variable">
+            <span class="name">AI_Y_DEFAULTS_VC</span><span class="annotation">: list[tuple[float, float]]</span>        =
+<span class="default_value">[(-2000.0, 2000.0), (-100.0, 100.0), (-200.0, 200.0), (-0.5, 5.5), (-0.5, 5.5)]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#AI_Y_DEFAULTS_VC"></a>
+    
+            <div class="docstring"><p>Default Y-axis (min, max) ranges in display units for each AI channel in VC mode.</p>
+
+<p>Indices correspond to <code><a href="#AI_CHANNELS_VC">AI_CHANNELS_VC</a></code> row order.</p>
+</div>
+
+
+                </section>
                 <section id="TRACE_COLORS">
                     <div class="attr variable">
             <span class="name">TRACE_COLORS</span><span class="annotation">: list[str]</span>        =
@@ -831,31 +856,16 @@ are captured before the file is closed.</p>
     }
 
     const searchBox = document.querySelector(".pdoc input[type=search]");
-
-    // Debounce: wait 300 ms after the user stops typing before searching.
-    // Also require at least 2 characters so single letters don't trigger results.
-    let _searchDebounceTimer = null;
     searchBox.addEventListener("input", function () {
-        clearTimeout(_searchDebounceTimer);
-        const value = searchBox.value.trim();
-
-        if (!value) {
-            // Immediately clear results when the box is emptied.
-            let url = new URL(window.location);
-            url.searchParams.delete("search");
-            history.replaceState("", "", url.toString());
-            onInput();
-            return;
-        }
-
-        _searchDebounceTimer = setTimeout(function () {
-            if (searchBox.value.trim().length < 2) return;
-            let url = new URL(window.location);
+        let url = new URL(window.location);
+        if (searchBox.value.trim()) {
             url.hash = "";
             url.searchParams.set("search", searchBox.value);
-            history.replaceState("", "", url.toString());
-            onInput();
-        }, 300);
+        } else {
+            url.searchParams.delete("search");
+        }
+        history.replaceState("", "", url.toString());
+        onInput();
     });
     window.addEventListener("popstate", onInput);
 

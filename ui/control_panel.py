@@ -1,13 +1,15 @@
 """
 ControlPanel — acquisition mode selector, start/stop, and recording controls.
 
-The panel is split into two separately-placeable sub-widgets so
+The panel is split into three separately-placeable sub-widgets so
 :class:`~ui.main_window.MainWindow` can position them independently:
 
-- :attr:`ControlPanel.settings_widget`: mode toggle, Start/Stop buttons,
-  save directory browser, and subject metadata form.
-- :attr:`ControlPanel.recording_bar`: Record / Stop Recording buttons plus
-  a status label (always visible at the bottom of the window).
+- :attr:`ControlPanel.settings_widget`: mode toggle, save directory browser,
+  and subject metadata form.
+- :attr:`ControlPanel.protocol_widget`: protocol dropdown, builder button,
+  Run Protocol, and Stop Protocol buttons.
+- :attr:`ControlPanel.recording_bar`: Start/Stop, Record/Stop Recording buttons
+  and a status label (always visible at the bottom of the window).
 
 Developer notes
 ---------------
@@ -62,15 +64,22 @@ class ControlPanel(QWidget):
     record_requested                = Signal(str, dict)   # save_dir, metadata
     stop_record_requested           = Signal()
     mode_changed                    = Signal(str)
+    clamp_mode_changed              = Signal(str)         # "current_clamp" or "voltage_clamp"
     open_protocol_builder_requested = Signal()
+    run_protocol_requested          = Signal()
+    stop_protocol_requested         = Signal()
+    protocol_selected               = Signal(str)         # full file path
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self._save_dir = "E:/data"
+        self._save_dir       = "E:/data"
+        self._protocol_folder = "E:/protocols"
 
-        self._settings_widget = QWidget()
-        self._recording_bar   = QWidget()
+        self._settings_widget  = QWidget()
+        self._protocol_widget  = QWidget()
+        self._recording_bar    = QWidget()
         self._build_settings()
+        self._build_protocol_widget()
         self._build_recording_bar()
 
         layout = QVBoxLayout(self)
@@ -82,12 +91,17 @@ class ControlPanel(QWidget):
 
     @property
     def settings_widget(self) -> QWidget:
-        """Sub-widget containing mode selector, Start/Stop, save dir, metadata."""
+        """Sub-widget containing mode selector, save dir, and metadata."""
         return self._settings_widget
 
     @property
+    def protocol_widget(self) -> QWidget:
+        """Sub-widget containing the protocol dropdown, builder, and run/stop buttons."""
+        return self._protocol_widget
+
+    @property
     def recording_bar(self) -> QWidget:
-        """Sub-widget containing Record/Stop Recording buttons and status label."""
+        """Sub-widget containing Start/Stop, Record/Stop Recording buttons and status label."""
         return self._recording_bar
 
     # ------------------------------------------------------------------
@@ -105,10 +119,10 @@ class ControlPanel(QWidget):
         Returns:
             Dict with keys: ``"expt_id"``, ``"genotype"``, ``"age"``,
             ``"sex"``, ``"targeted_cell_type"``.  ``expt_id`` falls back
-            to ``"ephys"`` if the field is empty.
+            to ``"expt_xx"`` if the field is empty.
         """
         return {
-            "expt_id":            self._expt_id_edit.text().strip() or "ephys",
+            "expt_id":            self._expt_id_edit.text().strip() or "expt_xx",
             "genotype":           self._genotype_edit.text().strip(),
             "age":                self._age_edit.text().strip(),
             "sex":                self._sex_combo.currentText(),
@@ -155,6 +169,17 @@ class ControlPanel(QWidget):
         """
         self._status_lbl.setText(msg)
 
+    def enable_run_protocol_button(self, enabled: bool) -> None:
+        """Enable or disable the Run Protocol button.
+
+        Enabled by :class:`~ui.main_window.MainWindow` once a protocol has
+        been staged via "Use This Protocol" in the builder dialog.
+
+        Args:
+            enabled: ``True`` to enable the button.
+        """
+        self._run_protocol_btn.setEnabled(enabled)
+
     def enable_record_button(self, enabled: bool) -> None:
         """Enable or disable the Record button independently of recording state.
 
@@ -166,12 +191,23 @@ class ControlPanel(QWidget):
         """
         self._record_btn.setEnabled(enabled)
 
+    def enable_stop_protocol_button(self, enabled: bool) -> None:
+        """Enable or disable the Stop Protocol button.
+
+        Enabled by :class:`~ui.main_window.MainWindow` once a protocol is
+        actively running; disabled again when it finishes or is cancelled.
+
+        Args:
+            enabled: ``True`` to enable the button.
+        """
+        self._stop_protocol_btn.setEnabled(enabled)
+
     # ------------------------------------------------------------------
     # UI construction — settings widget
     # ------------------------------------------------------------------
 
     def _build_settings(self) -> None:
-        """Build the settings sub-widget: mode, start/stop, save dir, metadata."""
+        """Build the settings sub-widget: mode, clamp mode, protocol buttons, save dir, metadata."""
         root = QVBoxLayout(self._settings_widget)
         root.setContentsMargins(4, 4, 4, 4)
         root.setSpacing(8)
@@ -192,26 +228,24 @@ class ControlPanel(QWidget):
         mode_layout.addWidget(self._trial_rb)
         root.addWidget(mode_box)
 
-        # Protocol builder button — shown only in trial mode
-        self._open_builder_btn = QPushButton("Open Protocol Builder…")
-        self._open_builder_btn.setVisible(False)
-        self._open_builder_btn.clicked.connect(self.open_protocol_builder_requested)
-        self._trial_rb.toggled.connect(self._open_builder_btn.setVisible)
-        root.addWidget(self._open_builder_btn)
-
-        # --- Start / Stop ---
-        acq_box = QGroupBox("Acquisition")
-        acq_layout = QHBoxLayout(acq_box)
-        self._start_btn = QPushButton("Start")
-        self._stop_btn  = QPushButton("Stop")
-        self._start_btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self._stop_btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self._stop_btn.setEnabled(False)
-        self._start_btn.clicked.connect(self.start_requested)
-        self._stop_btn.clicked.connect(self.stop_requested)
-        acq_layout.addWidget(self._start_btn)
-        acq_layout.addWidget(self._stop_btn)
-        root.addWidget(acq_box)
+        # --- Clamp Mode selector (continuous mode only) ---
+        self._clamp_mode_box = QGroupBox("Clamp Mode")
+        clamp_layout = QHBoxLayout(self._clamp_mode_box)
+        self._cc_clamp_rb = QRadioButton("Current clamp")
+        self._vc_clamp_rb = QRadioButton("Voltage clamp")
+        self._cc_clamp_rb.setChecked(True)
+        self._cc_clamp_rb.toggled.connect(
+            lambda checked: self.clamp_mode_changed.emit("current_clamp") if checked else None
+        )
+        self._vc_clamp_rb.toggled.connect(
+            lambda checked: self.clamp_mode_changed.emit("voltage_clamp") if checked else None
+        )
+        clamp_layout.addWidget(self._cc_clamp_rb)
+        clamp_layout.addWidget(self._vc_clamp_rb)
+        self._trial_rb.toggled.connect(
+            lambda checked: self._clamp_mode_box.setVisible(not checked)
+        )
+        root.addWidget(self._clamp_mode_box)
 
         # --- Save settings (directory) ---
         save_box = QGroupBox("Data Recording")
@@ -236,15 +270,15 @@ class ControlPanel(QWidget):
         meta_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
         self._expt_id_edit       = QLineEdit()
-        self._expt_id_edit.setPlaceholderText("e.g. 20260330_001")
+        self._expt_id_edit.setPlaceholderText("e.g. frexxx")
         self._genotype_edit      = QLineEdit()
-        self._genotype_edit.setPlaceholderText("e.g. Ai14xSst-Cre")
+        self._genotype_edit.setPlaceholderText("e.g. gal4-uas")
         self._age_edit           = QLineEdit()
-        self._age_edit.setPlaceholderText("e.g. P30")
+        self._age_edit.setPlaceholderText("e.g. 4")
         self._sex_combo          = QComboBox()
-        self._sex_combo.addItems(["Unknown", "M", "F"])
+        self._sex_combo.addItems(["not specified", "M", "F"])
         self._cell_type_edit     = QLineEdit()
-        self._cell_type_edit.setPlaceholderText("e.g. SST interneuron")
+        self._cell_type_edit.setPlaceholderText("e.g. dvmn")
 
         meta_layout.addRow("Experiment ID:", self._expt_id_edit)
         meta_layout.addRow("Genotype:",      self._genotype_edit)
@@ -256,14 +290,75 @@ class ControlPanel(QWidget):
         root.addStretch()
 
     # ------------------------------------------------------------------
+    # UI construction — protocol widget
+    # ------------------------------------------------------------------
+
+    def _build_protocol_widget(self) -> None:
+        """Build the protocol sub-widget: dropdown, builder, run, and stop buttons."""
+        root = QVBoxLayout(self._protocol_widget)
+        root.setContentsMargins(4, 4, 4, 4)
+        root.setSpacing(6)
+
+        proto_box = QGroupBox("Protocol")
+        proto_layout = QVBoxLayout(proto_box)
+
+        # Dropdown + refresh + builder row
+        proto_row = QHBoxLayout()
+        self._protocol_combo = QComboBox()
+        self._protocol_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self._protocol_combo.setPlaceholderText("Select saved protocol…")
+        self._protocol_combo.activated.connect(self._on_protocol_selected)
+
+        self._refresh_protocols_btn = QPushButton("↻")
+        self._refresh_protocols_btn.setFixedWidth(30)
+        self._refresh_protocols_btn.setToolTip("Refresh protocol list")
+        self._refresh_protocols_btn.clicked.connect(self._scan_protocol_folder)
+
+        self._open_builder_btn = QPushButton("Open Protocol Builder…")
+        self._open_builder_btn.clicked.connect(self.open_protocol_builder_requested)
+
+        proto_row.addWidget(self._protocol_combo, stretch=1)
+        proto_row.addWidget(self._refresh_protocols_btn)
+        proto_row.addWidget(self._open_builder_btn)
+        proto_layout.addLayout(proto_row)
+
+        # Run / Stop Protocol buttons
+        run_stop_row = QHBoxLayout()
+        self._run_protocol_btn = QPushButton("Run Protocol")
+        self._run_protocol_btn.setEnabled(False)
+        self._run_protocol_btn.clicked.connect(self.run_protocol_requested)
+
+        self._stop_protocol_btn = QPushButton("Stop Protocol")
+        self._stop_protocol_btn.setEnabled(False)
+        self._stop_protocol_btn.clicked.connect(self.stop_protocol_requested)
+
+        run_stop_row.addWidget(self._run_protocol_btn)
+        run_stop_row.addWidget(self._stop_protocol_btn)
+        proto_layout.addLayout(run_stop_row)
+
+        root.addWidget(proto_box)
+        root.addStretch()
+
+        # Populate the protocol dropdown on startup
+        self._scan_protocol_folder()
+
+    # ------------------------------------------------------------------
     # UI construction — recording bar
     # ------------------------------------------------------------------
 
     def _build_recording_bar(self) -> None:
-        """Build the recording bar: Record/Stop buttons and status label."""
+        """Build the recording bar: Start/Stop, Record/Stop Recording, and status label."""
         root = QHBoxLayout(self._recording_bar)
         root.setContentsMargins(4, 4, 4, 4)
         root.setSpacing(8)
+
+        self._start_btn = QPushButton("Start")
+        self._stop_btn  = QPushButton("Stop")
+        self._start_btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self._stop_btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self._stop_btn.setEnabled(False)
+        self._start_btn.clicked.connect(self.start_requested)
+        self._stop_btn.clicked.connect(self.stop_requested)
 
         self._record_btn   = QPushButton("Record")
         self._stop_rec_btn = QPushButton("Stop Recording")
@@ -275,6 +370,8 @@ class ControlPanel(QWidget):
         self._status_lbl = QLabel("Ready")
         self._status_lbl.setWordWrap(True)
 
+        root.addWidget(self._start_btn)
+        root.addWidget(self._stop_btn)
         root.addWidget(self._record_btn)
         root.addWidget(self._stop_rec_btn)
         root.addWidget(self._status_lbl, stretch=1)
@@ -282,6 +379,21 @@ class ControlPanel(QWidget):
     # ------------------------------------------------------------------
     # Slots
     # ------------------------------------------------------------------
+
+    def _scan_protocol_folder(self) -> None:
+        """Scan the protocol folder and populate the dropdown with .json files."""
+        from pathlib import Path as _Path
+        self._protocol_combo.clear()
+        folder = _Path(self._protocol_folder)
+        if folder.exists():
+            for p in sorted(folder.glob("*.json")):
+                self._protocol_combo.addItem(p.stem, userData=str(p))
+
+    def _on_protocol_selected(self, index: int) -> None:
+        """Emit ``protocol_selected`` with the full path of the chosen file."""
+        path = self._protocol_combo.itemData(index)
+        if path:
+            self.protocol_selected.emit(path)
 
     def _browse_dir(self) -> None:
         """Open a directory chooser and update the save directory."""

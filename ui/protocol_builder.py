@@ -112,7 +112,7 @@ class ProtocolBuilderDialog(QDialog):
             self.windowFlags() | Qt.WindowMaximizeButtonHint
         )
 
-        self._save_dir = "E:/data"
+        self._save_dir = "E:/protocols"
         self._stimuli: list[StimulusDefinition] = []
 
         self._build_ui()
@@ -244,17 +244,21 @@ class ProtocolBuilderDialog(QDialog):
         top_form = QFormLayout()
         top_form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
         self._stim_name_edit = QLineEdit()
-        self._stim_name_edit.setPlaceholderText("e.g. 0-400 pA staircase")
+        self._stim_name_edit.setPlaceholderText("e.g. 0-50 pA staircase")
         self._stim_name_edit.textChanged.connect(self._on_stim_name_changed)
         top_form.addRow("Stimulus name:", self._stim_name_edit)
 
         type_row = QHBoxLayout()
         self._sc_type_rb = QRadioButton("Staircase (CC)")
         self._vc_type_rb = QRadioButton("Voltage step (VC)")
+        self._bl_type_rb = QRadioButton("Baseline")
         self._sc_type_rb.setChecked(True)
         self._sc_type_rb.toggled.connect(self._on_stim_type_changed)
+        self._vc_type_rb.toggled.connect(self._on_stim_type_changed)
+        self._bl_type_rb.toggled.connect(self._on_stim_type_changed)
         type_row.addWidget(self._sc_type_rb)
         type_row.addWidget(self._vc_type_rb)
+        type_row.addWidget(self._bl_type_rb)
         type_row.addStretch()
         top_form.addRow("Type:", type_row)
         outer.addLayout(top_form)
@@ -262,6 +266,7 @@ class ProtocolBuilderDialog(QDialog):
         self._stim_stack = QStackedWidget()
         self._stim_stack.addWidget(self._build_staircase_page())   # page 0
         self._stim_stack.addWidget(self._build_vstep_page())       # page 1
+        self._stim_stack.addWidget(self._build_baseline_page())    # page 2
         outer.addWidget(self._stim_stack)
         outer.addStretch()
 
@@ -283,9 +288,9 @@ class ProtocolBuilderDialog(QDialog):
             sb.valueChanged.connect(self._update_estimated_time)
             return sb
 
-        self._sc_min   = _dbl(-2000, 2000, 0.0,   1, "pA")
-        self._sc_max   = _dbl(-2000, 2000, 400.0,  1, "pA")
-        self._sc_step  = _dbl(0.1,   2000, 100.0,  1, "pA")
+        self._sc_min   = _dbl(-2000, 2000, -50.0,   1, "pA")
+        self._sc_max   = _dbl(-2000, 2000, 50.0,  1, "pA")
+        self._sc_step  = _dbl(0.1,   2000, 10.0,  1, "pA")
         self._sc_width = _dbl(1,    10000, 500.0,  0, "ms")
         self._sc_gap   = _dbl(0,    10000, 100.0,  0, "ms")
         self._sc_reps  = QSpinBox()
@@ -322,6 +327,20 @@ class ProtocolBuilderDialog(QDialog):
 
         form.addRow("Step voltage:", self._vs_step_mv)
         form.addRow("Duration:",     self._vs_duration)
+        return w
+
+    def _build_baseline_page(self) -> QWidget:
+        """Build the baseline stimulus page (page 2) — no parameters needed."""
+        w = QWidget()
+        layout = QVBoxLayout(w)
+        lbl = QLabel(
+            "Baseline trial: AO output is 0 V throughout.\n"
+            "Duration = pre + post from global timing settings.\n"
+            "Camera TTL fires as normal."
+        )
+        lbl.setWordWrap(True)
+        layout.addWidget(lbl)
+        layout.addStretch()
         return w
 
     def _build_global_settings(self) -> QWidget:
@@ -409,7 +428,7 @@ class ProtocolBuilderDialog(QDialog):
         self._time_lbl = QLabel("Estimated run time: —")
         layout.addWidget(self._time_lbl)
 
-        self._run_btn = QPushButton("Run Protocol")
+        self._run_btn = QPushButton("Use This Protocol")
         self._run_btn.setFixedHeight(36)
         font = self._run_btn.font()
         font.setBold(True)
@@ -528,9 +547,17 @@ class ProtocolBuilderDialog(QDialog):
         row = self._stim_list.currentRow()
         if row < 0:
             return
-        new_type = "staircase" if self._sc_type_rb.isChecked() else "voltage_step"
+        if self._sc_type_rb.isChecked():
+            new_type = "staircase"
+            page = 0
+        elif self._vc_type_rb.isChecked():
+            new_type = "voltage_step"
+            page = 1
+        else:
+            new_type = "baseline"
+            page = 2
         self._stimuli[row].type = new_type
-        self._stim_stack.setCurrentIndex(0 if new_type == "staircase" else 1)
+        self._stim_stack.setCurrentIndex(page)
         self._update_estimated_time()
 
     # ------------------------------------------------------------------
@@ -550,23 +577,25 @@ class ProtocolBuilderDialog(QDialog):
         self._stim_name_edit.setText(stim.name)
         self._stim_name_edit.blockSignals(False)
 
-        is_sc = stim.type == "staircase"
-        self._sc_type_rb.blockSignals(True)
-        self._vc_type_rb.blockSignals(True)
-        self._sc_type_rb.setChecked(is_sc)
-        self._vc_type_rb.setChecked(not is_sc)
-        self._sc_type_rb.blockSignals(False)
-        self._vc_type_rb.blockSignals(False)
-        self._stim_stack.setCurrentIndex(0 if is_sc else 1)
+        for rb in (self._sc_type_rb, self._vc_type_rb, self._bl_type_rb):
+            rb.blockSignals(True)
+        self._sc_type_rb.setChecked(stim.type == "staircase")
+        self._vc_type_rb.setChecked(stim.type == "voltage_step")
+        self._bl_type_rb.setChecked(stim.type == "baseline")
+        for rb in (self._sc_type_rb, self._vc_type_rb, self._bl_type_rb):
+            rb.blockSignals(False)
 
-        if is_sc:
-            self._sc_min.setValue(stim.min_pA or 0.0)
-            self._sc_max.setValue(stim.max_pA or 400.0)
-            self._sc_step.setValue(stim.step_pA or 100.0)
+        page = {"staircase": 0, "voltage_step": 1, "baseline": 2}.get(stim.type, 0)
+        self._stim_stack.setCurrentIndex(page)
+
+        if stim.type == "staircase":
+            self._sc_min.setValue(stim.min_pA or -50.0)
+            self._sc_max.setValue(stim.max_pA or 50.0)
+            self._sc_step.setValue(stim.step_pA or 10.0)
             self._sc_width.setValue(stim.step_width_ms or 500.0)
-            self._sc_gap.setValue(stim.gap_ms or 100.0)
+            self._sc_gap.setValue(stim.gap_ms or 500.0)
             self._sc_reps.setValue(stim.staircase_repeats or 1)
-        else:
+        elif stim.type == "voltage_step":
             self._vs_step_mv.setValue(stim.step_mV or -40.0)
             self._vs_duration.setValue(stim.duration_ms or 500.0)
 
@@ -581,7 +610,12 @@ class ProtocolBuilderDialog(QDialog):
             return
         stim = self._stimuli[row]
         stim.name = self._stim_name_edit.text()
-        stim.type = "staircase" if self._sc_type_rb.isChecked() else "voltage_step"
+        if self._sc_type_rb.isChecked():
+            stim.type = "staircase"
+        elif self._vc_type_rb.isChecked():
+            stim.type = "voltage_step"
+        else:
+            stim.type = "baseline"
 
         if stim.type == "staircase":
             stim.min_pA            = self._sc_min.value()
@@ -590,7 +624,7 @@ class ProtocolBuilderDialog(QDialog):
             stim.step_width_ms     = self._sc_width.value()
             stim.gap_ms            = self._sc_gap.value()
             stim.staircase_repeats = self._sc_reps.value()
-        else:
+        elif stim.type == "voltage_step":
             stim.step_mV     = self._vs_step_mv.value()
             stim.duration_ms = self._vs_duration.value()
 
@@ -700,7 +734,7 @@ class ProtocolBuilderDialog(QDialog):
     def _on_load(self) -> None:
         """Open a file dialog and load a protocol JSON into the dialog."""
         path, _ = QFileDialog.getOpenFileName(
-            self, "Load Protocol", self._save_dir, "Protocol files (*.json)"
+            self, "Load Protocol", "E:/protocols", "Protocol files (*.json)"
         )
         if path:
             self.load_protocol_from_file(path)
@@ -714,7 +748,9 @@ class ProtocolBuilderDialog(QDialog):
 
         Shows a warning if no stimuli are defined.  Otherwise serialises
         the protocol to a dict (adding ``"save_dir"``), hides the dialog,
-        and emits ``protocol_run_requested``.
+        and emits ``protocol_run_requested``.  The main window stores the
+        protocol as pending; the user starts the run by clicking
+        "Run Protocol" in the main window.
         """
         self._sync_editor_to_stim()
         p = self._read_protocol()
