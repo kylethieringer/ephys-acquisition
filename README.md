@@ -1,171 +1,191 @@
 # Ephys Acquisition
 
-A real-time electrophysiology data acquisition system with integrated camera triggering and live visualization. Built with PySide6 and NI DAQ hardware.
+A real-time electrophysiology data acquisition system with integrated camera triggering, live visualization, and protocol-driven stimulation. Built with PySide6 and NI DAQ hardware (NI PCIe-6323).
 
 ## Features
 
 - **Real-Time Data Acquisition**: Continuous analog input sampling via NI DAQ at 20 kHz
 - **Live Visualization**: 5-second rolling window display of all analog input channels
 - **Camera Integration**: Basler Pylon camera with TTL triggering and exposure control
-- **Data Recording**: HDF5-based data storage with metadata
-- **TTL Synchronization**: Configurable TTL pulses for camera triggering and external stimulus control
-- **Multi-Channel Support**: 5 analog input channels with configurable scaling and units
-- **Dark UI**: Easy-on-the-eyes Qt interface optimized for lab environments
+- **Current Clamp & Voltage Clamp Modes**: Switch between CC and VC with automatic channel relabelling and scaling
+- **Protocol Builder**: Design staircase (CC) and voltage-step (VC) stimulus protocols with a GUI editor
+- **Protocol Dropdown**: Load saved protocols from `E:/protocols` directly from the main window
+- **Continuous Protocol Mode**: Run a stimulus protocol within a single unbroken recording; stimulus timing is saved as sample-accurate events in the HDF5 file for post-processing
+- **Trial-Based Mode**: Per-trial HDF5 recording with pre-allocated datasets for fast sequential reads
+- **Binary-First Save**: Raw data is written to a `.bin` file during acquisition for minimal overhead; converted to HDF5 in a background thread when recording stops. The `.bin` file is always preserved as a backup
+- **Dark UI**: Easy-on-the-eyes Qt interface optimised for lab environments
 
 ## System Requirements
 
-- **Hardware**:
-  - NI DAQ device (e.g., NI USB-6001)
-  - Basler camera (or other Pylon SDK compatible camera)
-  - Analog input signals for electrophysiology recordings
+**Hardware**
+- NI PCIe-6323 (or compatible NI DAQ)
+- Basler Pylon camera
 
-- **Software**:
-  - Python 3.8+
-  - Windows or Linux
+**Software**
+- Python 3.10+
+- Windows
 
 ## Installation
 
-1. Clone or download the repository
+1. Clone the repository
 2. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
-
-3. Configure your hardware in `config.py`:
-   - Set `DEVICE_NAME` to your NI DAQ device name (check NI MAX)
-   - Adjust `SAMPLE_RATE` and `CHUNK_SIZE` as needed (default: 20 kHz, 200 samples)
-   - Configure `AI_CHANNELS` with your channel mappings and scaling factors
+3. Hardware is configured in `config.py` — channel names, scaling factors, sample rate, and TTL parameters are all defined there.
 
 ## Usage
 
-Run the application:
 ```bash
 python main.py
 ```
 
-### Main Window
+### Main Window Layout
 
-The interface is split into two panels:
-
-**Left Panel** — Live Trace Display
-- Real-time plots of all 5 analog input channels
-- Configurable Y-axis ranges per channel
-- Scrolling window showing the last 5 seconds of data
-
-**Right Panel** — Controls
-- **Acquisition Tab**: 
-  - Start/Stop data acquisition
-  - Select continuous acquisition mode
-  - Record/Stop recording to HDF5
-  - Configure TTL delay before/after recording
-
-- **Experiment Tab**:
-  - Camera preview and controls
-  - Frame rate and exposure settings
-  - Y-axis range adjustment for each channel
-  - Channel visibility toggles
-
-### Channel Configuration
-
-Channels are defined in `config.py`:
-
-```python
-AI_CHANNELS = [
-    ("ScAmpOut",    "ai0", "differential", 10.0,  "mV"),     # Scaled amp output
-    ("RawAmpOut",   "ai1", "differential",  2.0,  "nA"),     # Raw amp output
-    ("AmpCmd",      "ai2", "differential", 400.0, "pA"),     # Amp command signal
-    ("Camera",      "ai3", "rse",           1.0,  "V"),      # Camera feedback
-    ("TTLLoopback", "ai4", "differential",  1.0,  "V"),      # TTL verification
-]
+```
+┌────────────────────────────────────────────────────────────────┐
+│  Live Traces (left, 65%)          │  Controls (right, 35%)     │
+│                                   │  ┌──────────────────────┐  │
+│  5 rolling AI traces at 20 kHz    │  │  Acquisition Tab     │  │
+│                                   │  │  Experiment Tab      │  │
+│                                   │  └──────────────────────┘  │
+├───────────────────────────────────────────────────────────────-┤
+│  Bottom bar:  [Start] [Stop] [Record] [Stop Recording] Status  │
+└────────────────────────────────────────────────────────────────┘
 ```
 
-Each entry specifies:
-- Display name
-- NI channel (ai0–ai4)
-- Terminal configuration (differential/rse)
-- Display scale (raw voltage multiplier)
-- Units
+**Acquisition Tab**
+- Acquisition mode (Continuous / Trial-based)
+- Clamp mode (Current clamp / Voltage clamp)
+- Protocol dropdown — select a `.json` from `E:/protocols`; click **↻** to refresh
+- Open Protocol Builder button — design new protocols
+- **Run Protocol** button — starts the protocol in whichever mode is active
+- Save directory and subject metadata
+- Camera TTL settings
+- Channel visibility toggles
+- Per-channel Y-range controls
+
+**Experiment Tab**
+- Camera preview
+- Stimulus panel (ad-hoc staircase stimulus for continuous mode)
+  - Labels and ranges switch between pA (CC) and mV (VC) automatically
+
+### Continuous Protocol Mode
+
+1. Select **Continuous** mode and set the clamp mode
+2. Load a protocol from the dropdown (or build one with the builder)
+3. Click **Run Protocol**
+   - Recording starts automatically
+   - Stimulus waveforms are applied at the correct sample offsets
+   - Each stimulus onset and offset is logged to `/stimulus_events/` in the HDF5 file
+   - Recording stops automatically when the protocol finishes
+
+The resulting file can be sliced into pseudo-trials in post-processing using the `sample_index` values in `/stimulus_events/`.
+
+### Trial-Based Mode
+
+1. Select **Trial-based** mode
+2. Load or build a protocol
+3. Click **Run Protocol**
+   - Each trial is saved as a separate group (`/trial_001/`, `/trial_002/`, …)
+   - Per-trial video files are recorded alongside the HDF5
+
+### Clamp Modes
+
+| Channel | CC scale | VC scale |
+|---------|----------|----------|
+| ai0 (amp out) | 10.0 mV/V → mV | 100.0 pA/V → pA |
+| ai1 (raw out) | 2.0 nA/V → nA | 1000.0 mV/V → mV |
+| ai2 (AmpCmd) | 400.0 pA/V → pA | 20.0 mV/V → mV |
+| ai3 (Camera TTL) | 1.0 V/V | 1.0 V/V |
+| ai4 (TTL loopback) | 1.0 V/V | 1.0 V/V |
 
 ## Project Structure
 
 ```
 ephys_acquisition/
-├── main.py                      # Application entry point
-├── config.py                    # Hardware constants and channel definitions
-├── requirements.txt             # Python dependencies
+├── main.py                               # Application entry point
+├── config.py                             # Hardware constants and channel definitions
+├── requirements.txt
 │
-├── ui/                          # User interface
-│   ├── main_window.py          # Top-level Qt window
-│   ├── control_panel.py        # Acquisition controls tab
-│   ├── camera_panel.py         # Camera settings tab
-│   ├── stimulus_panel.py       # Stimulus controls
-│   ├── trace_panel.py          # Real-time trace visualization
+├── ui/
+│   ├── main_window.py                   # Top-level Qt window
+│   ├── control_panel.py                 # Mode selector, protocol dropdown, recording bar
+│   ├── camera_panel.py                  # Camera preview and TTL settings
+│   ├── stimulus_panel.py                # Ad-hoc staircase stimulus (continuous mode)
+│   ├── trace_panel.py                   # Rolling trace display and Y-range controls
+│   ├── protocol_builder.py              # Protocol editor dialog
 │   └── __init__.py
 │
-├── hardware/                    # Hardware interface layer
-│   ├── daq_worker.py           # NI DAQ reader (QThread)
-│   ├── daq_config.py           # DAQ task configuration
-│   ├── camera_worker.py        # Basler camera interface (QThread)
-│   ├── camera_config.py        # Camera settings
+├── hardware/
+│   ├── daq_worker.py                    # NI DAQ AI/AO/CTR worker (QThread)
+│   ├── daq_config.py                    # DAQ task configuration helpers
+│   ├── camera_worker.py                 # Basler camera worker (QThread)
+│   ├── camera_config.py                 # Camera settings
 │   └── __init__.py
 │
-├── acquisition/                 # Data acquisition logic
-│   ├── continuous_mode.py      # Main acquisition controller
-│   ├── data_buffer.py          # Ring buffer for streaming data
-│   ├── data_saver.py           # HDF5 file writing
+├── acquisition/
+│   ├── continuous_mode.py               # Continuous acquisition controller
+│   ├── continuous_protocol_runner.py    # Flat event timeline for continuous protocols
+│   ├── trial_mode.py                    # Trial-based acquisition state machine
+│   ├── trial_protocol.py               # TrialProtocol dataclasses + JSON serialization
+│   ├── trial_waveforms.py              # AO waveform builders (CC and VC)
+│   ├── data_buffer.py                   # Ring buffer for live display
+│   ├── data_saver.py                    # ContinuousSaver (binary → HDF5)
+│   ├── trial_saver.py                   # TrialSaver (binary → per-trial HDF5)
 │   └── __init__.py
 │
-└── utils/                       # Utilities
-    ├── stimulus_generator.py    # TTL stimulus pattern generation
+└── utils/
+    ├── stimulus_generator.py            # Waveform generation utilities
+    ├── data_loader.py                   # Load saved HDF5 files
     └── __init__.py
 ```
 
-### Key Components
+## Data Format
 
-**DAQWorker** (`hardware/daq_worker.py`)
-- Runs in a separate QThread
-- Continuously reads analog inputs and emits data signals
-- Handles TTL output for triggering
+### Continuous Recording (`.h5`)
 
-**CameraWorker** (`hardware/camera_worker.py`)
-- Independent QThread for camera frame grabbing
-- Triggered via TTL pulse from DAQ
-- Emits frame timestamps and metadata
+```
+/metadata/
+    sample_rate      int
+    start_time       ISO-8601 string
+    channel_names    string array
+    display_scales   float64 array
+    units            string array
+/subject/            (attributes: expt_id, genotype, age, sex, targeted_cell_type)
+/data/
+    analog_input     float64 (N_channels × N_samples), LZF compressed
+/stimulus_events/    (present when a protocol was run in continuous mode)
+    sample_index     int64
+    event_type       string  ("apply" or "clear")
+    stimulus_name    string
+    stimulus_index   int32
+```
 
-**ContinuousAcquisition** (`acquisition/continuous_mode.py`)
-- Orchestrates DAQ, camera, and data saving
-- Manages acquisition lifecycle (start → record → stop)
-- Handles guard delays for clean signal recording
+A companion `.bin` file (raw float64 data) and `metadata.json` sidecar are always written alongside the `.h5`.
 
-**RingBuffer** (`acquisition/data_buffer.py`)
-- Fixed-size circular buffer for streaming data
-- Efficient memory usage for real-time display
+### Trial Recording (`_trials.h5`)
 
-**HDF5Saver** (`acquisition/data_saver.py`)
-- Writes incoming data to HDF5 files
-- Stores metadata (channel info, timestamps, settings)
-- Handles recording start/stop events
-
-## Workflow
-
-1. **Start Acquisition**: DAQ begins sampling at configured rate; traces appear in left panel
-2. **Adjust Settings**: Configure camera frame rate, exposure, Y-axis ranges in Experiment tab
-3. **Start Recording**: 
-   - Guard delay begins (baseline capture)
-   - Camera triggers via TTL pulse after delay
-   - Data stream written to timestamped HDF5 file
-4. **Stop Recording**: Camera stops, final guard period captured, HDF5 file closed
-5. **Stop Acquisition**: DAQ shuts down
+```
+/metadata/
+    protocol         full JSON protocol definition
+    trial_order      int32 array
+    ...
+/subject/
+/trial_001/
+    analog_input     float64 (N_channels × N_samples)
+    attrs: stimulus_name, stimulus_index, trial_index, onset_time, video_file
+/trial_002/ ...
+```
 
 ## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
-| "Device not found" error | Check device name in `config.py` using NI MAX; update `DEVICE_NAME` to match |
-| Noisy traces | Reduce `SAMPLE_RATE` or check cable shielding |
-| Camera not triggering | Verify TTL voltage levels in `config.py` (`TTL_HIGH_V`, `TTL_LOW_V`) |
-| Files not saved | Check disk space and file permissions; verify `DEVICE_NAME` |
-| UI freezes during recording | Ensure DAQWorker and CameraWorker are running in separate threads |
+| "Device not found" | Check device name in NI MAX; update `DEVICE_NAME` in `config.py` |
+| Camera not triggering | Verify TTL levels (`TTL_HIGH_V`, `TTL_LOW_V`) and PFI12 wiring |
+| HDF5 conversion failed | Raw `.bin` file preserved — re-run conversion manually using `np.fromfile` |
+| Protocol not in dropdown | Place `.json` protocol files in `E:/protocols`; click **↻** to refresh |
 
 ## Dependencies
 
@@ -174,28 +194,9 @@ ephys_acquisition/
 - **nidaqmx** — NI DAQ hardware interface
 - **pypylon** — Basler camera SDK
 - **numpy** — Numerical computing
-- **scipy** — Signal processing
 - **h5py** — HDF5 file I/O
-
-## Data Format
-
-Recorded data is stored in HDF5 with the following structure:
-
-```
-/data                  # Main data group
-  /ai0, /ai1, ...     # Channel datasets (dtype: float32)
-  /timestamps         # Sample timestamps
-  /metadata
-    /channel_info     # Channel names, units, scaling factors
-    /acquisition_settings  # Sample rate, recording start/stop times
-```
-
-## Performance Notes
-
-- **Latency**: ~50 ms at 20 kHz sample rate with 200-sample chunk size
-- **CPU**: Single-threaded DAQ reader + separate camera thread keeps UI responsive
-- **Memory**: Ring buffer holds ~5 seconds of 5-channel data (~4 MB)
+- **opencv-python** (optional) — Video recording
 
 ## Contact
 
-For questions or issues, contact me, kyle thieringer
+Kyle Thieringer

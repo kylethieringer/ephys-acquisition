@@ -11,7 +11,7 @@
     <style>/*! theme.css */:root{--pdoc-background:#fff;}.pdoc{--text:#212529;--muted:#6c757d;--link:#3660a5;--link-hover:#1659c5;--code:#f8f8f8;--active:#fff598;--accent:#eee;--accent2:#c1c1c1;--nav-hover:rgba(255, 255, 255, 0.5);--name:#0066BB;--def:#008800;--annotation:#007020;}</style>
     <style>/*! layout.css */html, body{width:100%;height:100%;}html, main{scroll-behavior:smooth;}body{background-color:var(--pdoc-background);}@media (max-width:769px){#navtoggle{cursor:pointer;position:absolute;width:50px;height:40px;top:1rem;right:1rem;border-color:var(--text);color:var(--text);display:flex;opacity:0.8;z-index:999;}#navtoggle:hover{opacity:1;}#togglestate + div{display:none;}#togglestate:checked + div{display:inherit;}main, header{padding:2rem 3vw;}header + main{margin-top:-3rem;}.git-button{display:none !important;}nav input[type="search"]{max-width:77%;}nav input[type="search"]:first-child{margin-top:-6px;}nav input[type="search"]:valid ~ *{display:none !important;}}@media (min-width:770px){:root{--sidebar-width:clamp(12.5rem, 28vw, 22rem);}nav{position:fixed;overflow:auto;height:100vh;width:var(--sidebar-width);}main, header{padding:3rem 2rem 3rem calc(var(--sidebar-width) + 3rem);width:calc(54rem + var(--sidebar-width));max-width:100%;}header + main{margin-top:-4rem;}#navtoggle{display:none;}}#togglestate{position:absolute;height:0;opacity:0;}nav.pdoc{--pad:clamp(0.5rem, 2vw, 1.75rem);--indent:1.5rem;background-color:var(--accent);border-right:1px solid var(--accent2);box-shadow:0 0 20px rgba(50, 50, 50, .2) inset;padding:0 0 0 var(--pad);overflow-wrap:anywhere;scrollbar-width:thin; scrollbar-color:var(--accent2) transparent; z-index:1}nav.pdoc::-webkit-scrollbar{width:.4rem; }nav.pdoc::-webkit-scrollbar-thumb{background-color:var(--accent2); }nav.pdoc > div{padding:var(--pad) 0;}nav.pdoc .module-list-button{display:inline-flex;align-items:center;color:var(--text);border-color:var(--muted);margin-bottom:1rem;}nav.pdoc .module-list-button:hover{border-color:var(--text);}nav.pdoc input[type=search]{display:block;outline-offset:0;width:calc(100% - var(--pad));}nav.pdoc .logo{max-width:calc(100% - var(--pad));max-height:35vh;display:block;margin:0 auto 1rem;transform:translate(calc(-.5 * var(--pad)), 0);}nav.pdoc ul{list-style:none;padding-left:0;}nav.pdoc > div > ul{margin-left:calc(0px - var(--pad));}nav.pdoc li a{padding:.2rem 0 .2rem calc(var(--pad) + var(--indent));}nav.pdoc > div > ul > li > a{padding-left:var(--pad);}nav.pdoc li{transition:all 100ms;}nav.pdoc li:hover{background-color:var(--nav-hover);}nav.pdoc a, nav.pdoc a:hover{color:var(--text);}nav.pdoc a{display:block;}nav.pdoc > h2:first-of-type{margin-top:1.5rem;}nav.pdoc .class:before{content:"class ";color:var(--muted);}nav.pdoc .function:after{content:"()";color:var(--muted);}nav.pdoc footer:before{content:"";display:block;width:calc(100% - var(--pad));border-top:solid var(--accent2) 1px;margin-top:1.5rem;padding-top:.5rem;}nav.pdoc footer{font-size:small;}</style>
     <style>/*! content.css */.pdoc{color:var(--text);box-sizing:border-box;line-height:1.5;background:none;}.pdoc .pdoc-button{cursor:pointer;display:inline-block;border:solid black 1px;border-radius:2px;font-size:.75rem;padding:calc(0.5em - 1px) 1em;transition:100ms all;}.pdoc .alert{padding:1rem 1rem 1rem calc(1.5rem + 24px);border:1px solid transparent;border-radius:.25rem;background-repeat:no-repeat;background-position:.75rem center;margin-bottom:1rem;}.pdoc .alert > em{display:none;}.pdoc .alert > *:last-child{margin-bottom:0;}.pdoc .alert.note{color:#084298;background-color:#cfe2ff;border-color:#b6d4fe;background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%23084298%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M8%2016A8%208%200%201%200%208%200a8%208%200%200%200%200%2016zm.93-9.412-1%204.705c-.07.34.029.533.304.533.194%200%20.487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703%200-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381%202.29-.287zM8%205.5a1%201%200%201%201%200-2%201%201%200%200%201%200%202z%22/%3E%3C/svg%3E");}.pdoc .alert.tip{color:#0a3622;background-color:#d1e7dd;border-color:#a3cfbb;background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%230a3622%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M2%206a6%206%200%201%201%2010.174%204.31c-.203.196-.359.4-.453.619l-.762%201.769A.5.5%200%200%201%2010.5%2013a.5.5%200%200%201%200%201%20.5.5%200%200%201%200%201l-.224.447a1%201%200%200%201-.894.553H6.618a1%201%200%200%201-.894-.553L5.5%2015a.5.5%200%200%201%200-1%20.5.5%200%200%201%200-1%20.5.5%200%200%201-.46-.302l-.761-1.77a2%202%200%200%200-.453-.618A5.98%205.98%200%200%201%202%206m6-5a5%205%200%200%200-3.479%208.592c.263.254.514.564.676.941L5.83%2012h4.342l.632-1.467c.162-.377.413-.687.676-.941A5%205%200%200%200%208%201%22/%3E%3C/svg%3E");}.pdoc .alert.important{color:#055160;background-color:#cff4fc;border-color:#9eeaf9;background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%23055160%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M2%200a2%202%200%200%200-2%202v12a2%202%200%200%200%202%202h12a2%202%200%200%200%202-2V2a2%202%200%200%200-2-2zm6%204c.535%200%20.954.462.9.995l-.35%203.507a.552.552%200%200%201-1.1%200L7.1%204.995A.905.905%200%200%201%208%204m.002%206a1%201%200%201%201%200%202%201%201%200%200%201%200-2%22/%3E%3C/svg%3E");}.pdoc .alert.warning{color:#664d03;background-color:#fff3cd;border-color:#ffecb5;background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%23664d03%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M8.982%201.566a1.13%201.13%200%200%200-1.96%200L.165%2013.233c-.457.778.091%201.767.98%201.767h13.713c.889%200%201.438-.99.98-1.767L8.982%201.566zM8%205c.535%200%20.954.462.9.995l-.35%203.507a.552.552%200%200%201-1.1%200L7.1%205.995A.905.905%200%200%201%208%205zm.002%206a1%201%200%201%201%200%202%201%201%200%200%201%200-2z%22/%3E%3C/svg%3E");}.pdoc .alert.caution{color:#842029;background-color:#f8d7da;border-color:#f5c2c7;background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%23842029%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M11.46.146A.5.5%200%200%200%2011.107%200H4.893a.5.5%200%200%200-.353.146L.146%204.54A.5.5%200%200%200%200%204.893v6.214a.5.5%200%200%200%20.146.353l4.394%204.394a.5.5%200%200%200%20.353.146h6.214a.5.5%200%200%200%20.353-.146l4.394-4.394a.5.5%200%200%200%20.146-.353V4.893a.5.5%200%200%200-.146-.353zM8%204c.535%200%20.954.462.9.995l-.35%203.507a.552.552%200%200%201-1.1%200L7.1%204.995A.905.905%200%200%201%208%204m.002%206a1%201%200%201%201%200%202%201%201%200%200%201%200-2%22/%3E%3C/svg%3E");}.pdoc .alert.danger{color:#842029;background-color:#f8d7da;border-color:#f5c2c7;background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%23842029%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M5.52.359A.5.5%200%200%201%206%200h4a.5.5%200%200%201%20.474.658L8.694%206H12.5a.5.5%200%200%201%20.395.807l-7%209a.5.5%200%200%201-.873-.454L6.823%209.5H3.5a.5.5%200%200%201-.48-.641l2.5-8.5z%22/%3E%3C/svg%3E");}.pdoc .visually-hidden{position:absolute !important;width:1px !important;height:1px !important;padding:0 !important;margin:-1px !important;overflow:hidden !important;clip:rect(0, 0, 0, 0) !important;white-space:nowrap !important;border:0 !important;}.pdoc h1, .pdoc h2, .pdoc h3{font-weight:300;margin:.3em 0;padding:.2em 0;}.pdoc > section:not(.module-info) h1{font-size:1.5rem;font-weight:500;}.pdoc > section:not(.module-info) h2{font-size:1.4rem;font-weight:500;}.pdoc > section:not(.module-info) h3{font-size:1.3rem;font-weight:500;}.pdoc > section:not(.module-info) h4{font-size:1.2rem;}.pdoc > section:not(.module-info) h5{font-size:1.1rem;}.pdoc a{text-decoration:none;color:var(--link);}.pdoc a:hover{color:var(--link-hover);}.pdoc blockquote{margin-left:2rem;}.pdoc pre{border-top:1px solid var(--accent2);border-bottom:1px solid var(--accent2);margin-top:0;margin-bottom:1em;padding:.5rem 0 .5rem .5rem;overflow-x:auto;background-color:var(--code);}.pdoc code{color:var(--text);padding:.2em .4em;margin:0;font-size:85%;background-color:var(--accent);border-radius:6px;}.pdoc a > code{color:inherit;}.pdoc pre > code{display:inline-block;font-size:inherit;background:none;border:none;padding:0;}.pdoc > section:not(.module-info){margin-bottom:1.5rem;}.pdoc .modulename{margin-top:0;font-weight:bold;}.pdoc .modulename a{color:var(--link);transition:100ms all;}.pdoc .git-button{float:right;border:solid var(--link) 1px;}.pdoc .git-button:hover{background-color:var(--link);color:var(--pdoc-background);}.view-source-toggle-state,.view-source-toggle-state ~ .pdoc-code{display:none;}.view-source-toggle-state:checked ~ .pdoc-code{display:block;}.view-source-button{display:inline-block;float:right;font-size:.75rem;line-height:1.5rem;color:var(--muted);padding:0 .4rem 0 1.3rem;cursor:pointer;text-indent:-2px;}.view-source-button > span{visibility:hidden;}.module-info .view-source-button{float:none;display:flex;justify-content:flex-end;margin:-1.2rem .4rem -.2rem 0;}.view-source-button::before{position:absolute;content:"View Source";display:list-item;list-style-type:disclosure-closed;}.view-source-toggle-state:checked ~ .attr .view-source-button::before,.view-source-toggle-state:checked ~ .view-source-button::before{list-style-type:disclosure-open;}.pdoc .docstring{margin-bottom:1.5rem;}.pdoc section:not(.module-info) .docstring{margin-left:clamp(0rem, 5vw - 2rem, 1rem);}.pdoc .docstring .pdoc-code{margin-left:1em;margin-right:1em;}.pdoc h1:target,.pdoc h2:target,.pdoc h3:target,.pdoc h4:target,.pdoc h5:target,.pdoc h6:target,.pdoc .pdoc-code > pre > span:target{background-color:var(--active);box-shadow:-1rem 0 0 0 var(--active);}.pdoc .pdoc-code > pre > span:target{display:block;}.pdoc div:target > .attr,.pdoc section:target > .attr,.pdoc dd:target > a{background-color:var(--active);}.pdoc *{scroll-margin:2rem;}.pdoc .pdoc-code .linenos{user-select:none;}.pdoc .attr:hover{filter:contrast(0.95);}.pdoc section, .pdoc .classattr{position:relative;}.pdoc .headerlink{--width:clamp(1rem, 3vw, 2rem);position:absolute;top:0;left:calc(0rem - var(--width));transition:all 100ms ease-in-out;opacity:0;}.pdoc .headerlink::before{content:"#";display:block;text-align:center;width:var(--width);height:2.3rem;line-height:2.3rem;font-size:1.5rem;}.pdoc .attr:hover ~ .headerlink,.pdoc *:target > .headerlink,.pdoc .headerlink:hover{opacity:1;}.pdoc .attr{display:block;margin:.5rem 0 .5rem;padding:.4rem .4rem .4rem 1rem;background-color:var(--accent);overflow-x:auto;}.pdoc .classattr{margin-left:2rem;}.pdoc .decorator-deprecated{color:#842029;}.pdoc .decorator-deprecated ~ span{filter:grayscale(1) opacity(0.8);}.pdoc .name{color:var(--name);font-weight:bold;}.pdoc .def{color:var(--def);font-weight:bold;}.pdoc .signature{background-color:transparent;}.pdoc .param, .pdoc .return-annotation{white-space:pre;}.pdoc .signature.multiline .param{display:block;}.pdoc .signature.condensed .param{display:inline-block;}.pdoc .annotation{color:var(--annotation);}.pdoc .view-value-toggle-state,.pdoc .view-value-toggle-state ~ .default_value{display:none;}.pdoc .view-value-toggle-state:checked ~ .default_value{display:inherit;}.pdoc .view-value-button{font-size:.5rem;vertical-align:middle;border-style:dashed;margin-top:-0.1rem;}.pdoc .view-value-button:hover{background:white;}.pdoc .view-value-button::before{content:"show";text-align:center;width:2.2em;display:inline-block;}.pdoc .view-value-toggle-state:checked ~ .view-value-button::before{content:"hide";}.pdoc .inherited{margin-left:2rem;}.pdoc .inherited dt{font-weight:700;}.pdoc .inherited dt, .pdoc .inherited dd{display:inline;margin-left:0;margin-bottom:.5rem;}.pdoc .inherited dd:not(:last-child):after{content:", ";}.pdoc .inherited .class:before{content:"class ";}.pdoc .inherited .function a:after{content:"()";}.pdoc .search-result .docstring{overflow:auto;max-height:25vh;}.pdoc .search-result.focused > .attr{background-color:var(--active);}.pdoc .attribution{margin-top:2rem;display:block;opacity:0.5;transition:all 200ms;filter:grayscale(100%);}.pdoc .attribution:hover{opacity:1;filter:grayscale(0%);}.pdoc .attribution img{margin-left:5px;height:27px;vertical-align:bottom;width:50px;transition:all 200ms;}.pdoc table{display:block;width:max-content;max-width:100%;overflow:auto;margin-bottom:1rem;}.pdoc table th{font-weight:600;}.pdoc table th, .pdoc table td{padding:6px 13px;border:1px solid var(--accent2);}</style>
-    <style>/*! custom.css */@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');:root{--dust-grey:#dad7cd;--dry-sage: #a3b18a;--fern: #588157;--hunter-green:#3a5a40;--pine-teal:#344e41;--pdoc-background:#f4f5f2;}.pdoc{--text:#1c2419;--muted:#6b7c64;--link:var(--fern);--link-hover:var(--hunter-green);--code:#edf0e8;--active:#c8d5be;--accent:#e4e8de;--accent2:#b5c2aa;--nav-hover:rgba(88, 129, 87, 0.14);--name:var(--fern);--def:var(--hunter-green);--annotation:#4a7c59;font-family:'Inter', system-ui, -apple-system, sans-serif;color:var(--text);}nav.pdoc{background:linear-gradient(180deg, var(--pine-teal) 0%, var(--hunter-green) 100%);border-right:none;box-shadow:2px 0 12px rgba(0,0,0,0.15);}nav.pdoc a,nav.pdoc h2,nav.pdoc .pdoc-button{color:var(--dust-grey) !important;}nav.pdoc a:hover{background:rgba(255,255,255,0.12);color:#fff !important;border-radius:6px;}nav.pdoc h2{font-size:0.7rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--dry-sage) !important;margin-top:1.5rem;}nav.pdoc input[type=search]{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;border-radius:8px;}nav.pdoc input[type=search]::placeholder{color:rgba(255,255,255,0.45);}main.pdoc{background:#fff;border-radius:16px;padding-top:2.5rem;padding-right:3rem;padding-bottom:2.5rem;box-shadow:0 1px 3px rgba(0,0,0,0.05), 0 4px 24px rgba(52, 78, 65, 0.08);}.pdoc h1{font-size:2rem;font-weight:700;color:var(--pine-teal);border-bottom:2px solid var(--dust-grey);padding-bottom:0.5rem;margin-bottom:1.5rem;}.pdoc h2{font-size:1.3rem;font-weight:600;color:var(--hunter-green);margin-top:2rem;}.pdoc h3{font-size:1.05rem;font-weight:600;color:var(--fern);}.pdoc code, .pdoc pre{font-family:'JetBrains Mono', 'Fira Code', monospace;font-size:0.875rem;}.pdoc .pdoc-code{background:#f6f8f3;border:1px solid #d5dccc;border-radius:8px;}.pdoc .def{background:linear-gradient(90deg, #edf1e7 0%, #f8faf5 100%);border-left:3px solid var(--fern);border-radius:0 8px 8px 0;padding:0.6rem 1rem;margin-bottom:0.25rem;}.pdoc dl.field-list{background:#f6f8f3;border:1px solid #d5dccc;border-radius:10px;padding:1rem 1.25rem;margin:0.75rem 0;}.pdoc dt{font-weight:600;color:var(--hunter-green);font-size:0.85rem;text-transform:uppercase;letter-spacing:0.05em;}.pdoc .label{border-radius:4px;font-size:0.7rem;font-weight:600;letter-spacing:0.05em;padding:0.15rem 0.5rem;}.pdoc section:not(:last-child){border-bottom:1px solid #e4e8de;margin-bottom:2rem;padding-bottom:1rem;}.pdoc-button.module-list-button{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:var(--dust-grey) !important;font-size:0.82rem;padding:0.4rem 0.75rem;transition:background 0.15s;}.pdoc-button.module-list-button:hover{background:rgba(255,255,255,0.22);}@media (max-width:700px){main.pdoc{padding-top:1.5rem;padding-right:1.25rem;padding-bottom:1.5rem;border-radius:10px;}}</style></head>
+    <style>/*! custom.css */</style></head>
 <body>
     <nav class="pdoc">
         <label id="navtoggle" for="togglestate" class="pdoc-button"><svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'><path stroke-linecap='round' stroke="currentColor" stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/></svg></label>
@@ -553,31 +553,33 @@ so saved files document their own parameters.</p>
 </span><span id="L-336"><a href="#L-336"><span class="linenos">336</span></a>        <span class="k">return</span> <span class="n">hyperpol_dur</span> <span class="o">+</span> <span class="n">gap_dur</span> <span class="o">+</span> <span class="n">_staircase_duration_ms</span><span class="p">(</span><span class="n">stim</span><span class="p">)</span>
 </span><span id="L-337"><a href="#L-337"><span class="linenos">337</span></a>    <span class="k">elif</span> <span class="n">stim</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="s2">&quot;voltage_step&quot;</span><span class="p">:</span>
 </span><span id="L-338"><a href="#L-338"><span class="linenos">338</span></a>        <span class="k">return</span> <span class="n">stim</span><span class="o">.</span><span class="n">duration_ms</span> <span class="ow">or</span> <span class="mf">0.0</span>
-</span><span id="L-339"><a href="#L-339"><span class="linenos">339</span></a>    <span class="k">return</span> <span class="mf">0.0</span>
-</span><span id="L-340"><a href="#L-340"><span class="linenos">340</span></a>
-</span><span id="L-341"><a href="#L-341"><span class="linenos">341</span></a>
-</span><span id="L-342"><a href="#L-342"><span class="linenos">342</span></a><span class="k">def</span><span class="w"> </span><span class="nf">estimated_total_duration_s</span><span class="p">(</span><span class="n">p</span><span class="p">:</span> <span class="n">TrialProtocol</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-</span><span id="L-343"><a href="#L-343"><span class="linenos">343</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Estimate the total wall-clock duration of a protocol run in seconds.</span>
-</span><span id="L-344"><a href="#L-344"><span class="linenos">344</span></a>
-</span><span id="L-345"><a href="#L-345"><span class="linenos">345</span></a><span class="sd">    Uses the average per-trial duration across all stimuli (stimuli may</span>
-</span><span id="L-346"><a href="#L-346"><span class="linenos">346</span></a><span class="sd">    differ in length) plus the ITI, multiplied by the total trial count.</span>
-</span><span id="L-347"><a href="#L-347"><span class="linenos">347</span></a>
-</span><span id="L-348"><a href="#L-348"><span class="linenos">348</span></a><span class="sd">    Args:</span>
-</span><span id="L-349"><a href="#L-349"><span class="linenos">349</span></a><span class="sd">        p: Protocol to estimate.</span>
-</span><span id="L-350"><a href="#L-350"><span class="linenos">350</span></a>
-</span><span id="L-351"><a href="#L-351"><span class="linenos">351</span></a><span class="sd">    Returns:</span>
-</span><span id="L-352"><a href="#L-352"><span class="linenos">352</span></a><span class="sd">        Estimated run time in seconds.  Returns 0.0 if ``p.stimuli`` is</span>
-</span><span id="L-353"><a href="#L-353"><span class="linenos">353</span></a><span class="sd">        empty.</span>
-</span><span id="L-354"><a href="#L-354"><span class="linenos">354</span></a><span class="sd">    &quot;&quot;&quot;</span>
-</span><span id="L-355"><a href="#L-355"><span class="linenos">355</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">p</span><span class="o">.</span><span class="n">stimuli</span><span class="p">:</span>
-</span><span id="L-356"><a href="#L-356"><span class="linenos">356</span></a>        <span class="k">return</span> <span class="mf">0.0</span>
-</span><span id="L-357"><a href="#L-357"><span class="linenos">357</span></a>    <span class="n">n_trials</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">stimuli</span><span class="p">)</span> <span class="o">*</span> <span class="n">p</span><span class="o">.</span><span class="n">repeats_per_stimulus</span>
-</span><span id="L-358"><a href="#L-358"><span class="linenos">358</span></a>    <span class="n">avg_trial_ms</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
-</span><span id="L-359"><a href="#L-359"><span class="linenos">359</span></a>        <span class="n">p</span><span class="o">.</span><span class="n">pre_ms</span> <span class="o">+</span> <span class="n">_stim_duration_ms</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">hyperpolarization</span><span class="p">)</span> <span class="o">+</span> <span class="n">p</span><span class="o">.</span><span class="n">post_ms</span>
-</span><span id="L-360"><a href="#L-360"><span class="linenos">360</span></a>        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">p</span><span class="o">.</span><span class="n">stimuli</span>
-</span><span id="L-361"><a href="#L-361"><span class="linenos">361</span></a>    <span class="p">)</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">stimuli</span><span class="p">)</span>
-</span><span id="L-362"><a href="#L-362"><span class="linenos">362</span></a>    <span class="n">total_ms</span> <span class="o">=</span> <span class="n">n_trials</span> <span class="o">*</span> <span class="p">(</span><span class="n">avg_trial_ms</span> <span class="o">+</span> <span class="n">p</span><span class="o">.</span><span class="n">iti_ms</span><span class="p">)</span>
-</span><span id="L-363"><a href="#L-363"><span class="linenos">363</span></a>    <span class="k">return</span> <span class="n">total_ms</span> <span class="o">/</span> <span class="mf">1000.0</span>
+</span><span id="L-339"><a href="#L-339"><span class="linenos">339</span></a>    <span class="k">elif</span> <span class="n">stim</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="s2">&quot;baseline&quot;</span><span class="p">:</span>
+</span><span id="L-340"><a href="#L-340"><span class="linenos">340</span></a>        <span class="k">return</span> <span class="mf">0.0</span>   <span class="c1"># no stim window; trial = pre + post only</span>
+</span><span id="L-341"><a href="#L-341"><span class="linenos">341</span></a>    <span class="k">return</span> <span class="mf">0.0</span>
+</span><span id="L-342"><a href="#L-342"><span class="linenos">342</span></a>
+</span><span id="L-343"><a href="#L-343"><span class="linenos">343</span></a>
+</span><span id="L-344"><a href="#L-344"><span class="linenos">344</span></a><span class="k">def</span><span class="w"> </span><span class="nf">estimated_total_duration_s</span><span class="p">(</span><span class="n">p</span><span class="p">:</span> <span class="n">TrialProtocol</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+</span><span id="L-345"><a href="#L-345"><span class="linenos">345</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Estimate the total wall-clock duration of a protocol run in seconds.</span>
+</span><span id="L-346"><a href="#L-346"><span class="linenos">346</span></a>
+</span><span id="L-347"><a href="#L-347"><span class="linenos">347</span></a><span class="sd">    Uses the average per-trial duration across all stimuli (stimuli may</span>
+</span><span id="L-348"><a href="#L-348"><span class="linenos">348</span></a><span class="sd">    differ in length) plus the ITI, multiplied by the total trial count.</span>
+</span><span id="L-349"><a href="#L-349"><span class="linenos">349</span></a>
+</span><span id="L-350"><a href="#L-350"><span class="linenos">350</span></a><span class="sd">    Args:</span>
+</span><span id="L-351"><a href="#L-351"><span class="linenos">351</span></a><span class="sd">        p: Protocol to estimate.</span>
+</span><span id="L-352"><a href="#L-352"><span class="linenos">352</span></a>
+</span><span id="L-353"><a href="#L-353"><span class="linenos">353</span></a><span class="sd">    Returns:</span>
+</span><span id="L-354"><a href="#L-354"><span class="linenos">354</span></a><span class="sd">        Estimated run time in seconds.  Returns 0.0 if ``p.stimuli`` is</span>
+</span><span id="L-355"><a href="#L-355"><span class="linenos">355</span></a><span class="sd">        empty.</span>
+</span><span id="L-356"><a href="#L-356"><span class="linenos">356</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="L-357"><a href="#L-357"><span class="linenos">357</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">p</span><span class="o">.</span><span class="n">stimuli</span><span class="p">:</span>
+</span><span id="L-358"><a href="#L-358"><span class="linenos">358</span></a>        <span class="k">return</span> <span class="mf">0.0</span>
+</span><span id="L-359"><a href="#L-359"><span class="linenos">359</span></a>    <span class="n">n_trials</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">stimuli</span><span class="p">)</span> <span class="o">*</span> <span class="n">p</span><span class="o">.</span><span class="n">repeats_per_stimulus</span>
+</span><span id="L-360"><a href="#L-360"><span class="linenos">360</span></a>    <span class="n">avg_trial_ms</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+</span><span id="L-361"><a href="#L-361"><span class="linenos">361</span></a>        <span class="n">p</span><span class="o">.</span><span class="n">pre_ms</span> <span class="o">+</span> <span class="n">_stim_duration_ms</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">hyperpolarization</span><span class="p">)</span> <span class="o">+</span> <span class="n">p</span><span class="o">.</span><span class="n">post_ms</span>
+</span><span id="L-362"><a href="#L-362"><span class="linenos">362</span></a>        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">p</span><span class="o">.</span><span class="n">stimuli</span>
+</span><span id="L-363"><a href="#L-363"><span class="linenos">363</span></a>    <span class="p">)</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">stimuli</span><span class="p">)</span>
+</span><span id="L-364"><a href="#L-364"><span class="linenos">364</span></a>    <span class="n">total_ms</span> <span class="o">=</span> <span class="n">n_trials</span> <span class="o">*</span> <span class="p">(</span><span class="n">avg_trial_ms</span> <span class="o">+</span> <span class="n">p</span><span class="o">.</span><span class="n">iti_ms</span><span class="p">)</span>
+</span><span id="L-365"><a href="#L-365"><span class="linenos">365</span></a>    <span class="k">return</span> <span class="n">total_ms</span> <span class="o">/</span> <span class="mf">1000.0</span>
 </span></pre></div>
 
 
@@ -628,14 +630,11 @@ estimate of the cell's access resistance (Ra = ΔV / ΔI).</p>
 followed by <code>gap_ms</code> of silence (taken from the stimulus definition)
 before the staircase steps begin.</p>
 
-<h6 id="attributes">Attributes:</h6>
-
-<ul>
-<li><strong>amplitude_pA:</strong>  Hyperpolarization current amplitude in pA.  Must be
-negative (sub-threshold).  Typical value: −50 pA.</li>
-<li><strong>duration_ms:</strong>  Duration of the hyperpolarization pulse in ms.
-Typical value: 100 ms.</li>
-</ul>
+<p>Attributes:
+    amplitude_pA: Hyperpolarization current amplitude in pA.  Must be
+        negative (sub-threshold).  Typical value: −50 pA.
+    duration_ms: Duration of the hyperpolarization pulse in ms.
+        Typical value: 100 ms.</p>
 </div>
 
 
@@ -752,28 +751,25 @@ Typical value: 100 ms.</li>
 the AO command is 0 V during pre/post windows.</li>
 </ul>
 
-<h6 id="attributes">Attributes:</h6>
-
-<ul>
-<li><strong>type:</strong>  Stimulus type — <code>"staircase"</code> or <code>"voltage_step"</code>.</li>
-<li><strong>name:</strong>  Human-readable label shown in the protocol builder and
-stored in the HDF5 file.</li>
-<li><strong>min_pA:</strong>  Lowest current step amplitude in pA (staircase only).</li>
-<li><strong>max_pA:</strong>  Highest current step amplitude in pA (staircase only).</li>
-<li><strong>step_pA:</strong>  Step size between amplitudes in pA (staircase only).
-Must be positive.</li>
-<li><strong>step_width_ms:</strong>  Duration each current step is held in ms
-(staircase only).</li>
-<li><strong>gap_ms:</strong>  Silent gap between current steps in ms (staircase only).
-Also used as the gap after the hyperpolarization pulse when
-<code><a href="#HyperpolarizationParams">HyperpolarizationParams</a></code> is present.</li>
-<li><strong>staircase_repeats:</strong>  Number of times the full staircase pattern
-(all steps from min to max) is repeated within one trial
-(staircase only).</li>
-<li><strong>step_mV:</strong>  Voltage step amplitude in mV (voltage step only).
-Relative to the holding potential set on the amplifier.</li>
-<li><strong>duration_ms:</strong>  Duration of the voltage step in ms (voltage step only).</li>
-</ul>
+<p>Attributes:
+    type: Stimulus type — <code>"staircase"</code> or <code>"voltage_step"</code>.
+    name: Human-readable label shown in the protocol builder and
+        stored in the HDF5 file.
+    min_pA: Lowest current step amplitude in pA (staircase only).
+    max_pA: Highest current step amplitude in pA (staircase only).
+    step_pA: Step size between amplitudes in pA (staircase only).
+        Must be positive.
+    step_width_ms: Duration each current step is held in ms
+        (staircase only).
+    gap_ms: Silent gap between current steps in ms (staircase only).
+        Also used as the gap after the hyperpolarization pulse when
+        <code><a href="#HyperpolarizationParams">HyperpolarizationParams</a></code> is present.
+    staircase_repeats: Number of times the full staircase pattern
+        (all steps from min to max) is repeated within one trial
+        (staircase only).
+    step_mV: Voltage step amplitude in mV (voltage step only).
+        Relative to the holding potential set on the amplifier.
+    duration_ms: Duration of the voltage step in ms (voltage step only).</p>
 </div>
 
 
@@ -974,31 +970,28 @@ Relative to the holding potential set on the amplifier.</li>
 <code>~<a href="trial_mode.html#TrialAcquisition">acquisition.trial_mode.TrialAcquisition</a></code> to start a run.
 It is also serialised to JSON for saving and loading between sessions.</p>
 
-<h6 id="attributes">Attributes:</h6>
-
-<ul>
-<li><strong>name:</strong>  Human-readable protocol name stored in the HDF5 file.</li>
-<li><strong>clamp_mode:</strong>  Recording mode — <code>"current_clamp"</code> or
-<code>"voltage_clamp"</code>.  Determines which AI channel definitions
-and AO scaling are used.</li>
-<li><strong>pre_ms:</strong>  Duration of the silent baseline window <em>before</em> each
-stimulus in ms.  Camera TTL is active during this window.</li>
-<li><strong>post_ms:</strong>  Duration of the silent tail window <em>after</em> each stimulus
-in ms.  Camera TTL remains active.</li>
-<li><strong>iti_ms:</strong>  Inter-trial interval in ms.  The DAQ AO is silent (0 V)
-and the camera TTL is off during the ITI.</li>
-<li><strong>repeats_per_stimulus:</strong>  Number of times each stimulus is presented.
-The total number of trials = <code>len(stimuli) × repeats_per_stimulus</code>.</li>
-<li><strong>ao_mv_per_volt:</strong>  Amplifier command sensitivity in mV/V
-(voltage-clamp only).  Default: 20 mV/V (Axopatch 200B).
-Ignored in current-clamp mode.</li>
-<li><strong>hyperpolarization:</strong>  Optional access-resistance pulse prepended to
-each current-clamp trial.  Set to <code>None</code> to disable.
-Ignored in voltage-clamp mode.</li>
-<li><strong>stimuli:</strong>  Ordered list of stimuli.  The run order is randomised by
-<code><a href="#build_trial_order">build_trial_order()</a></code>; this list defines <em>which</em> stimuli
-are included, not the playback order.</li>
-</ul>
+<p>Attributes:
+    name: Human-readable protocol name stored in the HDF5 file.
+    clamp_mode: Recording mode — <code>"current_clamp"</code> or
+        <code>"voltage_clamp"</code>.  Determines which AI channel definitions
+        and AO scaling are used.
+    pre_ms: Duration of the silent baseline window <em>before</em> each
+        stimulus in ms.  Camera TTL is active during this window.
+    post_ms: Duration of the silent tail window <em>after</em> each stimulus
+        in ms.  Camera TTL remains active.
+    iti_ms: Inter-trial interval in ms.  The DAQ AO is silent (0 V)
+        and the camera TTL is off during the ITI.
+    repeats_per_stimulus: Number of times each stimulus is presented.
+        The total number of trials = <code>len(stimuli) × repeats_per_stimulus</code>.
+    ao_mv_per_volt: Amplifier command sensitivity in mV/V
+        (voltage-clamp only).  Default: 20 mV/V (Axopatch 200B).
+        Ignored in current-clamp mode.
+    hyperpolarization: Optional access-resistance pulse prepended to
+        each current-clamp trial.  Set to <code>None</code> to disable.
+        Ignored in voltage-clamp mode.
+    stimuli: Ordered list of stimuli.  The run order is randomised by
+        <code><a href="#build_trial_order">build_trial_order()</a></code>; this list defines <em>which</em> stimuli
+        are included, not the playback order.</p>
 </div>
 
 
@@ -1157,19 +1150,13 @@ are included, not the playback order.</li>
 <p>The returned dict includes a <code>"version"</code> key (currently 1) so that
 future format changes can be detected and migrated.</p>
 
-<h6 id="arguments">Arguments:</h6>
+<p>Args:
+    p: Protocol to serialise.</p>
 
-<ul>
-<li><strong>p:</strong>  Protocol to serialise.</li>
-</ul>
-
-<h6 id="returns">Returns:</h6>
-
-<blockquote>
-  <p>A dict suitable for <code>json.dumps</code>.  All nested dataclasses
-  (<code><a href="#HyperpolarizationParams">HyperpolarizationParams</a></code>, <code><a href="#StimulusDefinition">StimulusDefinition</a></code>) are
-  converted to plain dicts via <code>dataclasses.asdict()</code>.</p>
-</blockquote>
+<p>Returns:
+    A dict suitable for <code>json.dumps</code>.  All nested dataclasses
+    (<code><a href="#HyperpolarizationParams">HyperpolarizationParams</a></code>, <code><a href="#StimulusDefinition">StimulusDefinition</a></code>) are
+    converted to plain dicts via <code>dataclasses.asdict()</code>.</p>
 </div>
 
 
@@ -1220,18 +1207,12 @@ future format changes can be detected and migrated.</p>
 <p>Handles the nested <code>hyperpolarization</code> and <code>stimuli</code> fields and
 strips the <code>"version"</code> key before construction.</p>
 
-<h6 id="arguments">Arguments:</h6>
+<p>Args:
+    d: Dict as produced by <code><a href="#protocol_to_dict">protocol_to_dict()</a></code> or loaded from
+        a JSON file with <code><a href="#load_protocol">load_protocol()</a></code>.</p>
 
-<ul>
-<li><strong>d:</strong>  Dict as produced by <code><a href="#protocol_to_dict">protocol_to_dict()</a></code> or loaded from
-a JSON file with <code><a href="#load_protocol">load_protocol()</a></code>.</li>
-</ul>
-
-<h6 id="returns">Returns:</h6>
-
-<blockquote>
-  <p>A fully initialised <code><a href="#TrialProtocol">TrialProtocol</a></code>.</p>
-</blockquote>
+<p>Returns:
+    A fully initialised <code><a href="#TrialProtocol">TrialProtocol</a></code>.</p>
 </div>
 
 
@@ -1261,13 +1242,10 @@ a JSON file with <code><a href="#load_protocol">load_protocol()</a></code>.</li>
 
             <div class="docstring"><p>Write a protocol to a JSON file.</p>
 
-<h6 id="arguments">Arguments:</h6>
-
-<ul>
-<li><strong>p:</strong>  Protocol to save.</li>
-<li><strong>path:</strong>  Destination file path.  The file is overwritten if it exists.
-A <code>.json</code> extension is conventional but not enforced.</li>
-</ul>
+<p>Args:
+    p: Protocol to save.
+    path: Destination file path.  The file is overwritten if it exists.
+        A <code>.json</code> extension is conventional but not enforced.</p>
 </div>
 
 
@@ -1303,25 +1281,16 @@ A <code>.json</code> extension is conventional but not enforced.</li>
 
             <div class="docstring"><p>Load a protocol from a JSON file.</p>
 
-<h6 id="arguments">Arguments:</h6>
+<p>Args:
+    path: Path to the JSON file produced by <code><a href="#save_protocol">save_protocol()</a></code>.</p>
 
-<ul>
-<li><strong>path:</strong>  Path to the JSON file produced by <code><a href="#save_protocol">save_protocol()</a></code>.</li>
-</ul>
+<p>Returns:
+    A fully initialised <code><a href="#TrialProtocol">TrialProtocol</a></code>.</p>
 
-<h6 id="returns">Returns:</h6>
-
-<blockquote>
-  <p>A fully initialised <code><a href="#TrialProtocol">TrialProtocol</a></code>.</p>
-</blockquote>
-
-<h6 id="raises">Raises:</h6>
-
-<ul>
-<li><strong>FileNotFoundError:</strong>  If <code>path</code> does not exist.</li>
-<li><strong>json.JSONDecodeError:</strong>  If the file is not valid JSON.</li>
-<li><strong>TypeError:</strong>  If the JSON structure does not match the dataclass fields.</li>
-</ul>
+<p>Raises:
+    FileNotFoundError: If <code>path</code> does not exist.
+    json.JSONDecodeError: If the file is not valid JSON.
+    TypeError: If the JSON structure does not match the dataclass fields.</p>
 </div>
 
 
@@ -1366,19 +1335,13 @@ A <code>.json</code> extension is conventional but not enforced.</li>
 <code>p.repeats_per_stimulus</code> times.  The list is shuffled in-place using
 Python's built-in random module.</p>
 
-<h6 id="arguments">Arguments:</h6>
+<p>Args:
+    p: Protocol whose stimuli and repeat count define the order.</p>
 
-<ul>
-<li><strong>p:</strong>  Protocol whose stimuli and repeat count define the order.</li>
-</ul>
-
-<h6 id="returns">Returns:</h6>
-
-<blockquote>
-  <p>A list of integer stimulus indices, length =
-  <code>len(p.stimuli) × p.repeats_per_stimulus</code>.
-  Returns an empty list if <code>p.stimuli</code> is empty.</p>
-</blockquote>
+<p>Returns:
+    A list of integer stimulus indices, length =
+    <code>len(p.stimuli) × p.repeats_per_stimulus</code>.
+    Returns an empty list if <code>p.stimuli</code> is empty.</p>
 </div>
 
 
@@ -1394,28 +1357,28 @@ Python's built-in random module.</p>
 
     </div>
     <a class="headerlink" href="#estimated_total_duration_s"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="estimated_total_duration_s-343"><a href="#estimated_total_duration_s-343"><span class="linenos">343</span></a><span class="k">def</span><span class="w"> </span><span class="nf">estimated_total_duration_s</span><span class="p">(</span><span class="n">p</span><span class="p">:</span> <span class="n">TrialProtocol</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-</span><span id="estimated_total_duration_s-344"><a href="#estimated_total_duration_s-344"><span class="linenos">344</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Estimate the total wall-clock duration of a protocol run in seconds.</span>
-</span><span id="estimated_total_duration_s-345"><a href="#estimated_total_duration_s-345"><span class="linenos">345</span></a>
-</span><span id="estimated_total_duration_s-346"><a href="#estimated_total_duration_s-346"><span class="linenos">346</span></a><span class="sd">    Uses the average per-trial duration across all stimuli (stimuli may</span>
-</span><span id="estimated_total_duration_s-347"><a href="#estimated_total_duration_s-347"><span class="linenos">347</span></a><span class="sd">    differ in length) plus the ITI, multiplied by the total trial count.</span>
-</span><span id="estimated_total_duration_s-348"><a href="#estimated_total_duration_s-348"><span class="linenos">348</span></a>
-</span><span id="estimated_total_duration_s-349"><a href="#estimated_total_duration_s-349"><span class="linenos">349</span></a><span class="sd">    Args:</span>
-</span><span id="estimated_total_duration_s-350"><a href="#estimated_total_duration_s-350"><span class="linenos">350</span></a><span class="sd">        p: Protocol to estimate.</span>
-</span><span id="estimated_total_duration_s-351"><a href="#estimated_total_duration_s-351"><span class="linenos">351</span></a>
-</span><span id="estimated_total_duration_s-352"><a href="#estimated_total_duration_s-352"><span class="linenos">352</span></a><span class="sd">    Returns:</span>
-</span><span id="estimated_total_duration_s-353"><a href="#estimated_total_duration_s-353"><span class="linenos">353</span></a><span class="sd">        Estimated run time in seconds.  Returns 0.0 if ``p.stimuli`` is</span>
-</span><span id="estimated_total_duration_s-354"><a href="#estimated_total_duration_s-354"><span class="linenos">354</span></a><span class="sd">        empty.</span>
-</span><span id="estimated_total_duration_s-355"><a href="#estimated_total_duration_s-355"><span class="linenos">355</span></a><span class="sd">    &quot;&quot;&quot;</span>
-</span><span id="estimated_total_duration_s-356"><a href="#estimated_total_duration_s-356"><span class="linenos">356</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">p</span><span class="o">.</span><span class="n">stimuli</span><span class="p">:</span>
-</span><span id="estimated_total_duration_s-357"><a href="#estimated_total_duration_s-357"><span class="linenos">357</span></a>        <span class="k">return</span> <span class="mf">0.0</span>
-</span><span id="estimated_total_duration_s-358"><a href="#estimated_total_duration_s-358"><span class="linenos">358</span></a>    <span class="n">n_trials</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">stimuli</span><span class="p">)</span> <span class="o">*</span> <span class="n">p</span><span class="o">.</span><span class="n">repeats_per_stimulus</span>
-</span><span id="estimated_total_duration_s-359"><a href="#estimated_total_duration_s-359"><span class="linenos">359</span></a>    <span class="n">avg_trial_ms</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
-</span><span id="estimated_total_duration_s-360"><a href="#estimated_total_duration_s-360"><span class="linenos">360</span></a>        <span class="n">p</span><span class="o">.</span><span class="n">pre_ms</span> <span class="o">+</span> <span class="n">_stim_duration_ms</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">hyperpolarization</span><span class="p">)</span> <span class="o">+</span> <span class="n">p</span><span class="o">.</span><span class="n">post_ms</span>
-</span><span id="estimated_total_duration_s-361"><a href="#estimated_total_duration_s-361"><span class="linenos">361</span></a>        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">p</span><span class="o">.</span><span class="n">stimuli</span>
-</span><span id="estimated_total_duration_s-362"><a href="#estimated_total_duration_s-362"><span class="linenos">362</span></a>    <span class="p">)</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">stimuli</span><span class="p">)</span>
-</span><span id="estimated_total_duration_s-363"><a href="#estimated_total_duration_s-363"><span class="linenos">363</span></a>    <span class="n">total_ms</span> <span class="o">=</span> <span class="n">n_trials</span> <span class="o">*</span> <span class="p">(</span><span class="n">avg_trial_ms</span> <span class="o">+</span> <span class="n">p</span><span class="o">.</span><span class="n">iti_ms</span><span class="p">)</span>
-</span><span id="estimated_total_duration_s-364"><a href="#estimated_total_duration_s-364"><span class="linenos">364</span></a>    <span class="k">return</span> <span class="n">total_ms</span> <span class="o">/</span> <span class="mf">1000.0</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="estimated_total_duration_s-345"><a href="#estimated_total_duration_s-345"><span class="linenos">345</span></a><span class="k">def</span><span class="w"> </span><span class="nf">estimated_total_duration_s</span><span class="p">(</span><span class="n">p</span><span class="p">:</span> <span class="n">TrialProtocol</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+</span><span id="estimated_total_duration_s-346"><a href="#estimated_total_duration_s-346"><span class="linenos">346</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Estimate the total wall-clock duration of a protocol run in seconds.</span>
+</span><span id="estimated_total_duration_s-347"><a href="#estimated_total_duration_s-347"><span class="linenos">347</span></a>
+</span><span id="estimated_total_duration_s-348"><a href="#estimated_total_duration_s-348"><span class="linenos">348</span></a><span class="sd">    Uses the average per-trial duration across all stimuli (stimuli may</span>
+</span><span id="estimated_total_duration_s-349"><a href="#estimated_total_duration_s-349"><span class="linenos">349</span></a><span class="sd">    differ in length) plus the ITI, multiplied by the total trial count.</span>
+</span><span id="estimated_total_duration_s-350"><a href="#estimated_total_duration_s-350"><span class="linenos">350</span></a>
+</span><span id="estimated_total_duration_s-351"><a href="#estimated_total_duration_s-351"><span class="linenos">351</span></a><span class="sd">    Args:</span>
+</span><span id="estimated_total_duration_s-352"><a href="#estimated_total_duration_s-352"><span class="linenos">352</span></a><span class="sd">        p: Protocol to estimate.</span>
+</span><span id="estimated_total_duration_s-353"><a href="#estimated_total_duration_s-353"><span class="linenos">353</span></a>
+</span><span id="estimated_total_duration_s-354"><a href="#estimated_total_duration_s-354"><span class="linenos">354</span></a><span class="sd">    Returns:</span>
+</span><span id="estimated_total_duration_s-355"><a href="#estimated_total_duration_s-355"><span class="linenos">355</span></a><span class="sd">        Estimated run time in seconds.  Returns 0.0 if ``p.stimuli`` is</span>
+</span><span id="estimated_total_duration_s-356"><a href="#estimated_total_duration_s-356"><span class="linenos">356</span></a><span class="sd">        empty.</span>
+</span><span id="estimated_total_duration_s-357"><a href="#estimated_total_duration_s-357"><span class="linenos">357</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="estimated_total_duration_s-358"><a href="#estimated_total_duration_s-358"><span class="linenos">358</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">p</span><span class="o">.</span><span class="n">stimuli</span><span class="p">:</span>
+</span><span id="estimated_total_duration_s-359"><a href="#estimated_total_duration_s-359"><span class="linenos">359</span></a>        <span class="k">return</span> <span class="mf">0.0</span>
+</span><span id="estimated_total_duration_s-360"><a href="#estimated_total_duration_s-360"><span class="linenos">360</span></a>    <span class="n">n_trials</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">stimuli</span><span class="p">)</span> <span class="o">*</span> <span class="n">p</span><span class="o">.</span><span class="n">repeats_per_stimulus</span>
+</span><span id="estimated_total_duration_s-361"><a href="#estimated_total_duration_s-361"><span class="linenos">361</span></a>    <span class="n">avg_trial_ms</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+</span><span id="estimated_total_duration_s-362"><a href="#estimated_total_duration_s-362"><span class="linenos">362</span></a>        <span class="n">p</span><span class="o">.</span><span class="n">pre_ms</span> <span class="o">+</span> <span class="n">_stim_duration_ms</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">hyperpolarization</span><span class="p">)</span> <span class="o">+</span> <span class="n">p</span><span class="o">.</span><span class="n">post_ms</span>
+</span><span id="estimated_total_duration_s-363"><a href="#estimated_total_duration_s-363"><span class="linenos">363</span></a>        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">p</span><span class="o">.</span><span class="n">stimuli</span>
+</span><span id="estimated_total_duration_s-364"><a href="#estimated_total_duration_s-364"><span class="linenos">364</span></a>    <span class="p">)</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">stimuli</span><span class="p">)</span>
+</span><span id="estimated_total_duration_s-365"><a href="#estimated_total_duration_s-365"><span class="linenos">365</span></a>    <span class="n">total_ms</span> <span class="o">=</span> <span class="n">n_trials</span> <span class="o">*</span> <span class="p">(</span><span class="n">avg_trial_ms</span> <span class="o">+</span> <span class="n">p</span><span class="o">.</span><span class="n">iti_ms</span><span class="p">)</span>
+</span><span id="estimated_total_duration_s-366"><a href="#estimated_total_duration_s-366"><span class="linenos">366</span></a>    <span class="k">return</span> <span class="n">total_ms</span> <span class="o">/</span> <span class="mf">1000.0</span>
 </span></pre></div>
 
 
@@ -1424,18 +1387,12 @@ Python's built-in random module.</p>
 <p>Uses the average per-trial duration across all stimuli (stimuli may
 differ in length) plus the ITI, multiplied by the total trial count.</p>
 
-<h6 id="arguments">Arguments:</h6>
+<p>Args:
+    p: Protocol to estimate.</p>
 
-<ul>
-<li><strong>p:</strong>  Protocol to estimate.</li>
-</ul>
-
-<h6 id="returns">Returns:</h6>
-
-<blockquote>
-  <p>Estimated run time in seconds.  Returns 0.0 if <code>p.stimuli</code> is
-  empty.</p>
-</blockquote>
+<p>Returns:
+    Estimated run time in seconds.  Returns 0.0 if <code>p.stimuli</code> is
+    empty.</p>
 </div>
 
 
@@ -1469,31 +1426,16 @@ differ in length) plus the ITI, multiplied by the total trial count.</p>
     }
 
     const searchBox = document.querySelector(".pdoc input[type=search]");
-
-    // Debounce: wait 300 ms after the user stops typing before searching.
-    // Also require at least 2 characters so single letters don't trigger results.
-    let _searchDebounceTimer = null;
     searchBox.addEventListener("input", function () {
-        clearTimeout(_searchDebounceTimer);
-        const value = searchBox.value.trim();
-
-        if (!value) {
-            // Immediately clear results when the box is emptied.
-            let url = new URL(window.location);
-            url.searchParams.delete("search");
-            history.replaceState("", "", url.toString());
-            onInput();
-            return;
-        }
-
-        _searchDebounceTimer = setTimeout(function () {
-            if (searchBox.value.trim().length < 2) return;
-            let url = new URL(window.location);
+        let url = new URL(window.location);
+        if (searchBox.value.trim()) {
             url.hash = "";
             url.searchParams.set("search", searchBox.value);
-            history.replaceState("", "", url.toString());
-            onInput();
-        }, 300);
+        } else {
+            url.searchParams.delete("search");
+        }
+        history.replaceState("", "", url.toString());
+        onInput();
     });
     window.addEventListener("popstate", onInput);
 

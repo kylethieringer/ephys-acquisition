@@ -156,20 +156,25 @@ def generate_ao0_waveform(
     step_pa: float,
     width_ms: float,
     gap_ms: float,
+    scale_pa_per_v: float = AO_PA_PER_VOLT,
 ) -> NDArray[np.float64]:
     """Generate a staircase ao0 command waveform in Volts for direct AO output.
 
-    Converts pA → Volts using :data:`~config.AO_PA_PER_VOLT` (400 pA/V).
+    Converts user-unit values → Volts using ``scale_pa_per_v``.  Defaults to
+    :data:`~config.AO_PA_PER_VOLT` for current-clamp; pass
+    :data:`~config.AO_MV_PER_VOLT` for voltage-clamp.
     Used by :class:`~ui.stimulus_panel.StimulusPanel` for single-pass
     quick stimulation.  For trial-based protocols use
     :func:`~acquisition.trial_waveforms.build_cc_trial_waveform` instead.
 
     Args:
-        min_pa: Minimum current amplitude in pA.
-        max_pa: Maximum current amplitude in pA.
-        step_pa: Step size in pA.  Must be positive.
+        min_pa: Minimum amplitude in user units (pA in CC, mV in VC).
+        max_pa: Maximum amplitude in user units.
+        step_pa: Step size in user units.  Must be positive.
         width_ms: Duration each step is held in ms.
         gap_ms: Silent gap between steps in ms.
+        scale_pa_per_v: Amplifier sensitivity in user-units per Volt.
+            Defaults to :data:`~config.AO_PA_PER_VOLT`.
 
     Returns:
         1-D float64 array of ao0 voltages in V.  Length =
@@ -181,9 +186,9 @@ def generate_ao0_waveform(
     step_samples  = width_samples + gap_samples
 
     waveform = np.zeros(len(amplitudes) * step_samples, dtype=np.float64)
-    for i, amp_pa in enumerate(amplitudes):
+    for i, amp in enumerate(amplitudes):
         start = i * step_samples
-        waveform[start : start + width_samples] = amp_pa / AO_PA_PER_VOLT
+        waveform[start : start + width_samples] = amp / scale_pa_per_v
     return waveform
 
 

@@ -428,9 +428,8 @@ class TrialAcquisition(QObject):
 
         # Prepare video writer for this trial (opened lazily on first frame)
         self._video_writer = None
-        if self._video_folder is not None:
-            group_name = f"trial_{self._trial_pos + 1:03d}"
-            self._video_path = self._video_folder / f"{group_name}.avi"
+        if self._video_folder is not None and self._saver.path is not None:
+            self._video_path = self._video_folder / f"{self._saver.path.stem}_{self._trial_pos + 1:03d}.avi"
         else:
             self._video_path = None
 
@@ -618,7 +617,7 @@ class TrialAcquisition(QObject):
             h, w = frame.shape[:2]
             is_color = frame.ndim == 3
             fps = get_actual_frame_rate(self._frame_rate_hz)
-            fourcc = cv2.VideoWriter_fourcc(*"XVID")
+            fourcc = cv2.VideoWriter_fourcc(*"MJPG")
             self._video_writer = cv2.VideoWriter(
                 str(self._video_path), fourcc, fps, (w, h), isColor=is_color
             )
@@ -698,7 +697,7 @@ class TrialAcquisition(QObject):
         if self._video_folder is None or self._saver.path is None:
             return
 
-        self._metadata_path = self._video_folder / "metadata.json"
+        self._metadata_path = self._video_folder / (self._saver.path.stem + "_metadata.json")
 
         n_total = len(self._trial_order)
         self._metadata = {
@@ -732,8 +731,9 @@ class TrialAcquisition(QObject):
                 "exposure_ms":   self._exposure_ms,
             },
             "files": {
-                "ephys_h5": self._saver.path.name,
-                "videos":   [f"trial_{i + 1:03d}.avi" for i in range(n_total)],
+                "ephys_h5":  self._saver.path.name,
+                "ephys_bin": self._saver.path.with_suffix(".bin").name,
+                "videos":    [f"{self._saver.path.stem}_{i + 1:03d}.avi" for i in range(n_total)],
             },
         }
         self._metadata_path.write_text(json.dumps(self._metadata, indent=2))

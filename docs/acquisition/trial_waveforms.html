@@ -11,7 +11,7 @@
     <style>/*! theme.css */:root{--pdoc-background:#fff;}.pdoc{--text:#212529;--muted:#6c757d;--link:#3660a5;--link-hover:#1659c5;--code:#f8f8f8;--active:#fff598;--accent:#eee;--accent2:#c1c1c1;--nav-hover:rgba(255, 255, 255, 0.5);--name:#0066BB;--def:#008800;--annotation:#007020;}</style>
     <style>/*! layout.css */html, body{width:100%;height:100%;}html, main{scroll-behavior:smooth;}body{background-color:var(--pdoc-background);}@media (max-width:769px){#navtoggle{cursor:pointer;position:absolute;width:50px;height:40px;top:1rem;right:1rem;border-color:var(--text);color:var(--text);display:flex;opacity:0.8;z-index:999;}#navtoggle:hover{opacity:1;}#togglestate + div{display:none;}#togglestate:checked + div{display:inherit;}main, header{padding:2rem 3vw;}header + main{margin-top:-3rem;}.git-button{display:none !important;}nav input[type="search"]{max-width:77%;}nav input[type="search"]:first-child{margin-top:-6px;}nav input[type="search"]:valid ~ *{display:none !important;}}@media (min-width:770px){:root{--sidebar-width:clamp(12.5rem, 28vw, 22rem);}nav{position:fixed;overflow:auto;height:100vh;width:var(--sidebar-width);}main, header{padding:3rem 2rem 3rem calc(var(--sidebar-width) + 3rem);width:calc(54rem + var(--sidebar-width));max-width:100%;}header + main{margin-top:-4rem;}#navtoggle{display:none;}}#togglestate{position:absolute;height:0;opacity:0;}nav.pdoc{--pad:clamp(0.5rem, 2vw, 1.75rem);--indent:1.5rem;background-color:var(--accent);border-right:1px solid var(--accent2);box-shadow:0 0 20px rgba(50, 50, 50, .2) inset;padding:0 0 0 var(--pad);overflow-wrap:anywhere;scrollbar-width:thin; scrollbar-color:var(--accent2) transparent; z-index:1}nav.pdoc::-webkit-scrollbar{width:.4rem; }nav.pdoc::-webkit-scrollbar-thumb{background-color:var(--accent2); }nav.pdoc > div{padding:var(--pad) 0;}nav.pdoc .module-list-button{display:inline-flex;align-items:center;color:var(--text);border-color:var(--muted);margin-bottom:1rem;}nav.pdoc .module-list-button:hover{border-color:var(--text);}nav.pdoc input[type=search]{display:block;outline-offset:0;width:calc(100% - var(--pad));}nav.pdoc .logo{max-width:calc(100% - var(--pad));max-height:35vh;display:block;margin:0 auto 1rem;transform:translate(calc(-.5 * var(--pad)), 0);}nav.pdoc ul{list-style:none;padding-left:0;}nav.pdoc > div > ul{margin-left:calc(0px - var(--pad));}nav.pdoc li a{padding:.2rem 0 .2rem calc(var(--pad) + var(--indent));}nav.pdoc > div > ul > li > a{padding-left:var(--pad);}nav.pdoc li{transition:all 100ms;}nav.pdoc li:hover{background-color:var(--nav-hover);}nav.pdoc a, nav.pdoc a:hover{color:var(--text);}nav.pdoc a{display:block;}nav.pdoc > h2:first-of-type{margin-top:1.5rem;}nav.pdoc .class:before{content:"class ";color:var(--muted);}nav.pdoc .function:after{content:"()";color:var(--muted);}nav.pdoc footer:before{content:"";display:block;width:calc(100% - var(--pad));border-top:solid var(--accent2) 1px;margin-top:1.5rem;padding-top:.5rem;}nav.pdoc footer{font-size:small;}</style>
     <style>/*! content.css */.pdoc{color:var(--text);box-sizing:border-box;line-height:1.5;background:none;}.pdoc .pdoc-button{cursor:pointer;display:inline-block;border:solid black 1px;border-radius:2px;font-size:.75rem;padding:calc(0.5em - 1px) 1em;transition:100ms all;}.pdoc .alert{padding:1rem 1rem 1rem calc(1.5rem + 24px);border:1px solid transparent;border-radius:.25rem;background-repeat:no-repeat;background-position:.75rem center;margin-bottom:1rem;}.pdoc .alert > em{display:none;}.pdoc .alert > *:last-child{margin-bottom:0;}.pdoc .alert.note{color:#084298;background-color:#cfe2ff;border-color:#b6d4fe;background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%23084298%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M8%2016A8%208%200%201%200%208%200a8%208%200%200%200%200%2016zm.93-9.412-1%204.705c-.07.34.029.533.304.533.194%200%20.487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703%200-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381%202.29-.287zM8%205.5a1%201%200%201%201%200-2%201%201%200%200%201%200%202z%22/%3E%3C/svg%3E");}.pdoc .alert.tip{color:#0a3622;background-color:#d1e7dd;border-color:#a3cfbb;background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%230a3622%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M2%206a6%206%200%201%201%2010.174%204.31c-.203.196-.359.4-.453.619l-.762%201.769A.5.5%200%200%201%2010.5%2013a.5.5%200%200%201%200%201%20.5.5%200%200%201%200%201l-.224.447a1%201%200%200%201-.894.553H6.618a1%201%200%200%201-.894-.553L5.5%2015a.5.5%200%200%201%200-1%20.5.5%200%200%201%200-1%20.5.5%200%200%201-.46-.302l-.761-1.77a2%202%200%200%200-.453-.618A5.98%205.98%200%200%201%202%206m6-5a5%205%200%200%200-3.479%208.592c.263.254.514.564.676.941L5.83%2012h4.342l.632-1.467c.162-.377.413-.687.676-.941A5%205%200%200%200%208%201%22/%3E%3C/svg%3E");}.pdoc .alert.important{color:#055160;background-color:#cff4fc;border-color:#9eeaf9;background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%23055160%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M2%200a2%202%200%200%200-2%202v12a2%202%200%200%200%202%202h12a2%202%200%200%200%202-2V2a2%202%200%200%200-2-2zm6%204c.535%200%20.954.462.9.995l-.35%203.507a.552.552%200%200%201-1.1%200L7.1%204.995A.905.905%200%200%201%208%204m.002%206a1%201%200%201%201%200%202%201%201%200%200%201%200-2%22/%3E%3C/svg%3E");}.pdoc .alert.warning{color:#664d03;background-color:#fff3cd;border-color:#ffecb5;background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%23664d03%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M8.982%201.566a1.13%201.13%200%200%200-1.96%200L.165%2013.233c-.457.778.091%201.767.98%201.767h13.713c.889%200%201.438-.99.98-1.767L8.982%201.566zM8%205c.535%200%20.954.462.9.995l-.35%203.507a.552.552%200%200%201-1.1%200L7.1%205.995A.905.905%200%200%201%208%205zm.002%206a1%201%200%201%201%200%202%201%201%200%200%201%200-2z%22/%3E%3C/svg%3E");}.pdoc .alert.caution{color:#842029;background-color:#f8d7da;border-color:#f5c2c7;background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%23842029%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M11.46.146A.5.5%200%200%200%2011.107%200H4.893a.5.5%200%200%200-.353.146L.146%204.54A.5.5%200%200%200%200%204.893v6.214a.5.5%200%200%200%20.146.353l4.394%204.394a.5.5%200%200%200%20.353.146h6.214a.5.5%200%200%200%20.353-.146l4.394-4.394a.5.5%200%200%200%20.146-.353V4.893a.5.5%200%200%200-.146-.353zM8%204c.535%200%20.954.462.9.995l-.35%203.507a.552.552%200%200%201-1.1%200L7.1%204.995A.905.905%200%200%201%208%204m.002%206a1%201%200%201%201%200%202%201%201%200%200%201%200-2%22/%3E%3C/svg%3E");}.pdoc .alert.danger{color:#842029;background-color:#f8d7da;border-color:#f5c2c7;background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%23842029%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M5.52.359A.5.5%200%200%201%206%200h4a.5.5%200%200%201%20.474.658L8.694%206H12.5a.5.5%200%200%201%20.395.807l-7%209a.5.5%200%200%201-.873-.454L6.823%209.5H3.5a.5.5%200%200%201-.48-.641l2.5-8.5z%22/%3E%3C/svg%3E");}.pdoc .visually-hidden{position:absolute !important;width:1px !important;height:1px !important;padding:0 !important;margin:-1px !important;overflow:hidden !important;clip:rect(0, 0, 0, 0) !important;white-space:nowrap !important;border:0 !important;}.pdoc h1, .pdoc h2, .pdoc h3{font-weight:300;margin:.3em 0;padding:.2em 0;}.pdoc > section:not(.module-info) h1{font-size:1.5rem;font-weight:500;}.pdoc > section:not(.module-info) h2{font-size:1.4rem;font-weight:500;}.pdoc > section:not(.module-info) h3{font-size:1.3rem;font-weight:500;}.pdoc > section:not(.module-info) h4{font-size:1.2rem;}.pdoc > section:not(.module-info) h5{font-size:1.1rem;}.pdoc a{text-decoration:none;color:var(--link);}.pdoc a:hover{color:var(--link-hover);}.pdoc blockquote{margin-left:2rem;}.pdoc pre{border-top:1px solid var(--accent2);border-bottom:1px solid var(--accent2);margin-top:0;margin-bottom:1em;padding:.5rem 0 .5rem .5rem;overflow-x:auto;background-color:var(--code);}.pdoc code{color:var(--text);padding:.2em .4em;margin:0;font-size:85%;background-color:var(--accent);border-radius:6px;}.pdoc a > code{color:inherit;}.pdoc pre > code{display:inline-block;font-size:inherit;background:none;border:none;padding:0;}.pdoc > section:not(.module-info){margin-bottom:1.5rem;}.pdoc .modulename{margin-top:0;font-weight:bold;}.pdoc .modulename a{color:var(--link);transition:100ms all;}.pdoc .git-button{float:right;border:solid var(--link) 1px;}.pdoc .git-button:hover{background-color:var(--link);color:var(--pdoc-background);}.view-source-toggle-state,.view-source-toggle-state ~ .pdoc-code{display:none;}.view-source-toggle-state:checked ~ .pdoc-code{display:block;}.view-source-button{display:inline-block;float:right;font-size:.75rem;line-height:1.5rem;color:var(--muted);padding:0 .4rem 0 1.3rem;cursor:pointer;text-indent:-2px;}.view-source-button > span{visibility:hidden;}.module-info .view-source-button{float:none;display:flex;justify-content:flex-end;margin:-1.2rem .4rem -.2rem 0;}.view-source-button::before{position:absolute;content:"View Source";display:list-item;list-style-type:disclosure-closed;}.view-source-toggle-state:checked ~ .attr .view-source-button::before,.view-source-toggle-state:checked ~ .view-source-button::before{list-style-type:disclosure-open;}.pdoc .docstring{margin-bottom:1.5rem;}.pdoc section:not(.module-info) .docstring{margin-left:clamp(0rem, 5vw - 2rem, 1rem);}.pdoc .docstring .pdoc-code{margin-left:1em;margin-right:1em;}.pdoc h1:target,.pdoc h2:target,.pdoc h3:target,.pdoc h4:target,.pdoc h5:target,.pdoc h6:target,.pdoc .pdoc-code > pre > span:target{background-color:var(--active);box-shadow:-1rem 0 0 0 var(--active);}.pdoc .pdoc-code > pre > span:target{display:block;}.pdoc div:target > .attr,.pdoc section:target > .attr,.pdoc dd:target > a{background-color:var(--active);}.pdoc *{scroll-margin:2rem;}.pdoc .pdoc-code .linenos{user-select:none;}.pdoc .attr:hover{filter:contrast(0.95);}.pdoc section, .pdoc .classattr{position:relative;}.pdoc .headerlink{--width:clamp(1rem, 3vw, 2rem);position:absolute;top:0;left:calc(0rem - var(--width));transition:all 100ms ease-in-out;opacity:0;}.pdoc .headerlink::before{content:"#";display:block;text-align:center;width:var(--width);height:2.3rem;line-height:2.3rem;font-size:1.5rem;}.pdoc .attr:hover ~ .headerlink,.pdoc *:target > .headerlink,.pdoc .headerlink:hover{opacity:1;}.pdoc .attr{display:block;margin:.5rem 0 .5rem;padding:.4rem .4rem .4rem 1rem;background-color:var(--accent);overflow-x:auto;}.pdoc .classattr{margin-left:2rem;}.pdoc .decorator-deprecated{color:#842029;}.pdoc .decorator-deprecated ~ span{filter:grayscale(1) opacity(0.8);}.pdoc .name{color:var(--name);font-weight:bold;}.pdoc .def{color:var(--def);font-weight:bold;}.pdoc .signature{background-color:transparent;}.pdoc .param, .pdoc .return-annotation{white-space:pre;}.pdoc .signature.multiline .param{display:block;}.pdoc .signature.condensed .param{display:inline-block;}.pdoc .annotation{color:var(--annotation);}.pdoc .view-value-toggle-state,.pdoc .view-value-toggle-state ~ .default_value{display:none;}.pdoc .view-value-toggle-state:checked ~ .default_value{display:inherit;}.pdoc .view-value-button{font-size:.5rem;vertical-align:middle;border-style:dashed;margin-top:-0.1rem;}.pdoc .view-value-button:hover{background:white;}.pdoc .view-value-button::before{content:"show";text-align:center;width:2.2em;display:inline-block;}.pdoc .view-value-toggle-state:checked ~ .view-value-button::before{content:"hide";}.pdoc .inherited{margin-left:2rem;}.pdoc .inherited dt{font-weight:700;}.pdoc .inherited dt, .pdoc .inherited dd{display:inline;margin-left:0;margin-bottom:.5rem;}.pdoc .inherited dd:not(:last-child):after{content:", ";}.pdoc .inherited .class:before{content:"class ";}.pdoc .inherited .function a:after{content:"()";}.pdoc .search-result .docstring{overflow:auto;max-height:25vh;}.pdoc .search-result.focused > .attr{background-color:var(--active);}.pdoc .attribution{margin-top:2rem;display:block;opacity:0.5;transition:all 200ms;filter:grayscale(100%);}.pdoc .attribution:hover{opacity:1;filter:grayscale(0%);}.pdoc .attribution img{margin-left:5px;height:27px;vertical-align:bottom;width:50px;transition:all 200ms;}.pdoc table{display:block;width:max-content;max-width:100%;overflow:auto;margin-bottom:1rem;}.pdoc table th{font-weight:600;}.pdoc table th, .pdoc table td{padding:6px 13px;border:1px solid var(--accent2);}</style>
-    <style>/*! custom.css */@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');:root{--dust-grey:#dad7cd;--dry-sage: #a3b18a;--fern: #588157;--hunter-green:#3a5a40;--pine-teal:#344e41;--pdoc-background:#f4f5f2;}.pdoc{--text:#1c2419;--muted:#6b7c64;--link:var(--fern);--link-hover:var(--hunter-green);--code:#edf0e8;--active:#c8d5be;--accent:#e4e8de;--accent2:#b5c2aa;--nav-hover:rgba(88, 129, 87, 0.14);--name:var(--fern);--def:var(--hunter-green);--annotation:#4a7c59;font-family:'Inter', system-ui, -apple-system, sans-serif;color:var(--text);}nav.pdoc{background:linear-gradient(180deg, var(--pine-teal) 0%, var(--hunter-green) 100%);border-right:none;box-shadow:2px 0 12px rgba(0,0,0,0.15);}nav.pdoc a,nav.pdoc h2,nav.pdoc .pdoc-button{color:var(--dust-grey) !important;}nav.pdoc a:hover{background:rgba(255,255,255,0.12);color:#fff !important;border-radius:6px;}nav.pdoc h2{font-size:0.7rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--dry-sage) !important;margin-top:1.5rem;}nav.pdoc input[type=search]{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;border-radius:8px;}nav.pdoc input[type=search]::placeholder{color:rgba(255,255,255,0.45);}main.pdoc{background:#fff;border-radius:16px;padding-top:2.5rem;padding-right:3rem;padding-bottom:2.5rem;box-shadow:0 1px 3px rgba(0,0,0,0.05), 0 4px 24px rgba(52, 78, 65, 0.08);}.pdoc h1{font-size:2rem;font-weight:700;color:var(--pine-teal);border-bottom:2px solid var(--dust-grey);padding-bottom:0.5rem;margin-bottom:1.5rem;}.pdoc h2{font-size:1.3rem;font-weight:600;color:var(--hunter-green);margin-top:2rem;}.pdoc h3{font-size:1.05rem;font-weight:600;color:var(--fern);}.pdoc code, .pdoc pre{font-family:'JetBrains Mono', 'Fira Code', monospace;font-size:0.875rem;}.pdoc .pdoc-code{background:#f6f8f3;border:1px solid #d5dccc;border-radius:8px;}.pdoc .def{background:linear-gradient(90deg, #edf1e7 0%, #f8faf5 100%);border-left:3px solid var(--fern);border-radius:0 8px 8px 0;padding:0.6rem 1rem;margin-bottom:0.25rem;}.pdoc dl.field-list{background:#f6f8f3;border:1px solid #d5dccc;border-radius:10px;padding:1rem 1.25rem;margin:0.75rem 0;}.pdoc dt{font-weight:600;color:var(--hunter-green);font-size:0.85rem;text-transform:uppercase;letter-spacing:0.05em;}.pdoc .label{border-radius:4px;font-size:0.7rem;font-weight:600;letter-spacing:0.05em;padding:0.15rem 0.5rem;}.pdoc section:not(:last-child){border-bottom:1px solid #e4e8de;margin-bottom:2rem;padding-bottom:1rem;}.pdoc-button.module-list-button{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:var(--dust-grey) !important;font-size:0.82rem;padding:0.4rem 0.75rem;transition:background 0.15s;}.pdoc-button.module-list-button:hover{background:rgba(255,255,255,0.22);}@media (max-width:700px){main.pdoc{padding-top:1.5rem;padding-right:1.25rem;padding-bottom:1.5rem;border-radius:10px;}}</style></head>
+    <style>/*! custom.css */</style></head>
 <body>
     <nav class="pdoc">
         <label id="navtoggle" for="togglestate" class="pdoc-button"><svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'><path stroke-linecap='round' stroke="currentColor" stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/></svg></label>
@@ -332,20 +332,25 @@ the per-protocol <code>ao_mv_per_volt</code> field).</li>
 </span><span id="L-220"><a href="#L-220"><span class="linenos">220</span></a><span class="sd">    Returns:</span>
 </span><span id="L-221"><a href="#L-221"><span class="linenos">221</span></a><span class="sd">        1-D float64 array of ao0 voltages in V.</span>
 </span><span id="L-222"><a href="#L-222"><span class="linenos">222</span></a><span class="sd">    &quot;&quot;&quot;</span>
-</span><span id="L-223"><a href="#L-223"><span class="linenos">223</span></a>    <span class="k">if</span> <span class="n">protocol</span><span class="o">.</span><span class="n">clamp_mode</span> <span class="o">==</span> <span class="s2">&quot;voltage_clamp&quot;</span><span class="p">:</span>
-</span><span id="L-224"><a href="#L-224"><span class="linenos">224</span></a>        <span class="k">return</span> <span class="n">build_vc_trial_waveform</span><span class="p">(</span>
-</span><span id="L-225"><a href="#L-225"><span class="linenos">225</span></a>            <span class="n">stim_def</span><span class="p">,</span>
-</span><span id="L-226"><a href="#L-226"><span class="linenos">226</span></a>            <span class="n">pre_ms</span>         <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">pre_ms</span><span class="p">,</span>
-</span><span id="L-227"><a href="#L-227"><span class="linenos">227</span></a>            <span class="n">post_ms</span>        <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">post_ms</span><span class="p">,</span>
-</span><span id="L-228"><a href="#L-228"><span class="linenos">228</span></a>            <span class="n">ao_mv_per_volt</span> <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">ao_mv_per_volt</span><span class="p">,</span>
-</span><span id="L-229"><a href="#L-229"><span class="linenos">229</span></a>        <span class="p">)</span>
-</span><span id="L-230"><a href="#L-230"><span class="linenos">230</span></a>    <span class="k">else</span><span class="p">:</span>
-</span><span id="L-231"><a href="#L-231"><span class="linenos">231</span></a>        <span class="k">return</span> <span class="n">build_cc_trial_waveform</span><span class="p">(</span>
-</span><span id="L-232"><a href="#L-232"><span class="linenos">232</span></a>            <span class="n">stim_def</span><span class="p">,</span>
-</span><span id="L-233"><a href="#L-233"><span class="linenos">233</span></a>            <span class="n">pre_ms</span>   <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">pre_ms</span><span class="p">,</span>
-</span><span id="L-234"><a href="#L-234"><span class="linenos">234</span></a>            <span class="n">post_ms</span>  <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">post_ms</span><span class="p">,</span>
-</span><span id="L-235"><a href="#L-235"><span class="linenos">235</span></a>            <span class="n">hyperpol</span> <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">hyperpolarization</span><span class="p">,</span>
-</span><span id="L-236"><a href="#L-236"><span class="linenos">236</span></a>        <span class="p">)</span>
+</span><span id="L-223"><a href="#L-223"><span class="linenos">223</span></a>    <span class="k">if</span> <span class="n">stim_def</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="s2">&quot;baseline&quot;</span><span class="p">:</span>
+</span><span id="L-224"><a href="#L-224"><span class="linenos">224</span></a>        <span class="c1"># AO stays at 0 V for the full trial window (pre + post only, no stim).</span>
+</span><span id="L-225"><a href="#L-225"><span class="linenos">225</span></a>        <span class="n">n</span> <span class="o">=</span> <span class="n">_ms_to_samples</span><span class="p">(</span><span class="n">protocol</span><span class="o">.</span><span class="n">pre_ms</span><span class="p">)</span> <span class="o">+</span> <span class="n">_ms_to_samples</span><span class="p">(</span><span class="n">protocol</span><span class="o">.</span><span class="n">post_ms</span><span class="p">)</span>
+</span><span id="L-226"><a href="#L-226"><span class="linenos">226</span></a>        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+</span><span id="L-227"><a href="#L-227"><span class="linenos">227</span></a>
+</span><span id="L-228"><a href="#L-228"><span class="linenos">228</span></a>    <span class="k">if</span> <span class="n">protocol</span><span class="o">.</span><span class="n">clamp_mode</span> <span class="o">==</span> <span class="s2">&quot;voltage_clamp&quot;</span><span class="p">:</span>
+</span><span id="L-229"><a href="#L-229"><span class="linenos">229</span></a>        <span class="k">return</span> <span class="n">build_vc_trial_waveform</span><span class="p">(</span>
+</span><span id="L-230"><a href="#L-230"><span class="linenos">230</span></a>            <span class="n">stim_def</span><span class="p">,</span>
+</span><span id="L-231"><a href="#L-231"><span class="linenos">231</span></a>            <span class="n">pre_ms</span>         <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">pre_ms</span><span class="p">,</span>
+</span><span id="L-232"><a href="#L-232"><span class="linenos">232</span></a>            <span class="n">post_ms</span>        <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">post_ms</span><span class="p">,</span>
+</span><span id="L-233"><a href="#L-233"><span class="linenos">233</span></a>            <span class="n">ao_mv_per_volt</span> <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">ao_mv_per_volt</span><span class="p">,</span>
+</span><span id="L-234"><a href="#L-234"><span class="linenos">234</span></a>        <span class="p">)</span>
+</span><span id="L-235"><a href="#L-235"><span class="linenos">235</span></a>    <span class="k">else</span><span class="p">:</span>
+</span><span id="L-236"><a href="#L-236"><span class="linenos">236</span></a>        <span class="k">return</span> <span class="n">build_cc_trial_waveform</span><span class="p">(</span>
+</span><span id="L-237"><a href="#L-237"><span class="linenos">237</span></a>            <span class="n">stim_def</span><span class="p">,</span>
+</span><span id="L-238"><a href="#L-238"><span class="linenos">238</span></a>            <span class="n">pre_ms</span>   <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">pre_ms</span><span class="p">,</span>
+</span><span id="L-239"><a href="#L-239"><span class="linenos">239</span></a>            <span class="n">post_ms</span>  <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">post_ms</span><span class="p">,</span>
+</span><span id="L-240"><a href="#L-240"><span class="linenos">240</span></a>            <span class="n">hyperpol</span> <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">hyperpolarization</span><span class="p">,</span>
+</span><span id="L-241"><a href="#L-241"><span class="linenos">241</span></a>        <span class="p">)</span>
 </span></pre></div>
 
 
@@ -452,33 +457,24 @@ The amplifier command sensitivity is <code>~<a href="../config.html#AO_PA_PER_VO
 [0 V × post_samples]
 </code></pre>
 
-<h6 id="arguments">Arguments:</h6>
+<p>Args:
+    stim_def: Staircase stimulus definition containing <code>min_pA</code>,
+        <code>max_pA</code>, <code>step_pA</code>, <code>step_width_ms</code>, <code>gap_ms</code>, and
+        <code>staircase_repeats</code>.
+    pre_ms: Silent baseline duration before the stimulus in ms.
+    post_ms: Silent tail duration after the stimulus in ms.
+    hyperpol: Optional hyperpolarization pulse parameters.  When provided,
+        a negative current pulse of <code>hyperpol.amplitude_pA</code> pA lasting
+        <code>hyperpol.duration_ms</code> ms is prepended, followed by a gap of
+        <code>stim_def.gap_ms</code> ms before the staircase begins.
+        Pass <code>None</code> to omit the pulse.
+    sample_rate: DAQ sample rate in Hz.  Defaults to
+        <code>~<a href="../config.html#SAMPLE_RATE">config.SAMPLE_RATE</a></code>.</p>
 
-<ul>
-<li><strong>stim_def:</strong>  Staircase stimulus definition containing <code>min_pA</code>,
-<code>max_pA</code>, <code>step_pA</code>, <code>step_width_ms</code>, <code>gap_ms</code>, and
-<code>staircase_repeats</code>.</li>
-<li><strong>pre_ms:</strong>  Silent baseline duration before the stimulus in ms.</li>
-<li><strong>post_ms:</strong>  Silent tail duration after the stimulus in ms.</li>
-<li><strong>hyperpol:</strong>  Optional hyperpolarization pulse parameters.  When provided,
-a negative current pulse of <code>hyperpol.amplitude_pA</code> pA lasting
-<code>hyperpol.duration_ms</code> ms is prepended, followed by a gap of
-<code>stim_def.gap_ms</code> ms before the staircase begins.
-Pass <code>None</code> to omit the pulse.</li>
-<li><strong>sample_rate:</strong>  DAQ sample rate in Hz.  Defaults to
-<code>~<a href="../config.html#SAMPLE_RATE">config.SAMPLE_RATE</a></code>.</li>
-</ul>
-
-<h6 id="returns">Returns:</h6>
-
-<blockquote>
-  <p>1-D float64 array of ao0 voltages in V.  Total length =
-  ``pre_samples + hyperpol_samples + gap_samples + staircase_samples</p>
-  
-  <ul>
-  <li>post_samples``.</li>
-  </ul>
-</blockquote>
+<p>Returns:
+    1-D float64 array of ao0 voltages in V.  Total length =
+    <code>pre_samples + hyperpol_samples + gap_samples + staircase_samples
+    + post_samples</code>.</p>
 </div>
 
 
@@ -557,28 +553,22 @@ The AO output is 0 V during pre/post windows, and
 [0 V × post_samples]
 </code></pre>
 
-<h6 id="arguments">Arguments:</h6>
+<p>Args:
+    stim_def: Voltage-step stimulus definition containing <code>step_mV</code>
+        (step amplitude relative to holding potential, in mV) and
+        <code>duration_ms</code> (step duration in ms).
+    pre_ms: Silent baseline duration before the step in ms.
+    post_ms: Silent tail duration after the step in ms.
+    ao_mv_per_volt: Amplifier command sensitivity in mV/V.  Defaults to
+        <code>~<a href="../config.html#AO_MV_PER_VOLT">config.AO_MV_PER_VOLT</a></code> (20 mV/V for Axopatch 200B).
+        Override with <code>~<a href="trial_protocol.html#TrialProtocol.ao_mv_per_volt">acquisition.trial_protocol.TrialProtocol.ao_mv_per_volt</a></code>
+        for other amplifiers.
+    sample_rate: DAQ sample rate in Hz.  Defaults to
+        <code>~<a href="../config.html#SAMPLE_RATE">config.SAMPLE_RATE</a></code>.</p>
 
-<ul>
-<li><strong>stim_def:</strong>  Voltage-step stimulus definition containing <code>step_mV</code>
-(step amplitude relative to holding potential, in mV) and
-<code>duration_ms</code> (step duration in ms).</li>
-<li><strong>pre_ms:</strong>  Silent baseline duration before the step in ms.</li>
-<li><strong>post_ms:</strong>  Silent tail duration after the step in ms.</li>
-<li><strong>ao_mv_per_volt:</strong>  Amplifier command sensitivity in mV/V.  Defaults to
-<code>~<a href="../config.html#AO_MV_PER_VOLT">config.AO_MV_PER_VOLT</a></code> (20 mV/V for Axopatch 200B).
-Override with <code>~<a href="trial_protocol.html#TrialProtocol.ao_mv_per_volt">acquisition.trial_protocol.TrialProtocol.ao_mv_per_volt</a></code>
-for other amplifiers.</li>
-<li><strong>sample_rate:</strong>  DAQ sample rate in Hz.  Defaults to
-<code>~<a href="../config.html#SAMPLE_RATE">config.SAMPLE_RATE</a></code>.</li>
-</ul>
-
-<h6 id="returns">Returns:</h6>
-
-<blockquote>
-  <p>1-D float64 array of ao0 voltages in V.  Total length =
-  <code>pre_samples + step_samples + post_samples</code>.</p>
-</blockquote>
+<p>Returns:
+    1-D float64 array of ao0 voltages in V.  Total length =
+    <code>pre_samples + step_samples + post_samples</code>.</p>
 </div>
 
 
@@ -611,20 +601,25 @@ for other amplifiers.</li>
 </span><span id="build_trial_waveform-221"><a href="#build_trial_waveform-221"><span class="linenos">221</span></a><span class="sd">    Returns:</span>
 </span><span id="build_trial_waveform-222"><a href="#build_trial_waveform-222"><span class="linenos">222</span></a><span class="sd">        1-D float64 array of ao0 voltages in V.</span>
 </span><span id="build_trial_waveform-223"><a href="#build_trial_waveform-223"><span class="linenos">223</span></a><span class="sd">    &quot;&quot;&quot;</span>
-</span><span id="build_trial_waveform-224"><a href="#build_trial_waveform-224"><span class="linenos">224</span></a>    <span class="k">if</span> <span class="n">protocol</span><span class="o">.</span><span class="n">clamp_mode</span> <span class="o">==</span> <span class="s2">&quot;voltage_clamp&quot;</span><span class="p">:</span>
-</span><span id="build_trial_waveform-225"><a href="#build_trial_waveform-225"><span class="linenos">225</span></a>        <span class="k">return</span> <span class="n">build_vc_trial_waveform</span><span class="p">(</span>
-</span><span id="build_trial_waveform-226"><a href="#build_trial_waveform-226"><span class="linenos">226</span></a>            <span class="n">stim_def</span><span class="p">,</span>
-</span><span id="build_trial_waveform-227"><a href="#build_trial_waveform-227"><span class="linenos">227</span></a>            <span class="n">pre_ms</span>         <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">pre_ms</span><span class="p">,</span>
-</span><span id="build_trial_waveform-228"><a href="#build_trial_waveform-228"><span class="linenos">228</span></a>            <span class="n">post_ms</span>        <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">post_ms</span><span class="p">,</span>
-</span><span id="build_trial_waveform-229"><a href="#build_trial_waveform-229"><span class="linenos">229</span></a>            <span class="n">ao_mv_per_volt</span> <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">ao_mv_per_volt</span><span class="p">,</span>
-</span><span id="build_trial_waveform-230"><a href="#build_trial_waveform-230"><span class="linenos">230</span></a>        <span class="p">)</span>
-</span><span id="build_trial_waveform-231"><a href="#build_trial_waveform-231"><span class="linenos">231</span></a>    <span class="k">else</span><span class="p">:</span>
-</span><span id="build_trial_waveform-232"><a href="#build_trial_waveform-232"><span class="linenos">232</span></a>        <span class="k">return</span> <span class="n">build_cc_trial_waveform</span><span class="p">(</span>
-</span><span id="build_trial_waveform-233"><a href="#build_trial_waveform-233"><span class="linenos">233</span></a>            <span class="n">stim_def</span><span class="p">,</span>
-</span><span id="build_trial_waveform-234"><a href="#build_trial_waveform-234"><span class="linenos">234</span></a>            <span class="n">pre_ms</span>   <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">pre_ms</span><span class="p">,</span>
-</span><span id="build_trial_waveform-235"><a href="#build_trial_waveform-235"><span class="linenos">235</span></a>            <span class="n">post_ms</span>  <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">post_ms</span><span class="p">,</span>
-</span><span id="build_trial_waveform-236"><a href="#build_trial_waveform-236"><span class="linenos">236</span></a>            <span class="n">hyperpol</span> <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">hyperpolarization</span><span class="p">,</span>
-</span><span id="build_trial_waveform-237"><a href="#build_trial_waveform-237"><span class="linenos">237</span></a>        <span class="p">)</span>
+</span><span id="build_trial_waveform-224"><a href="#build_trial_waveform-224"><span class="linenos">224</span></a>    <span class="k">if</span> <span class="n">stim_def</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="s2">&quot;baseline&quot;</span><span class="p">:</span>
+</span><span id="build_trial_waveform-225"><a href="#build_trial_waveform-225"><span class="linenos">225</span></a>        <span class="c1"># AO stays at 0 V for the full trial window (pre + post only, no stim).</span>
+</span><span id="build_trial_waveform-226"><a href="#build_trial_waveform-226"><span class="linenos">226</span></a>        <span class="n">n</span> <span class="o">=</span> <span class="n">_ms_to_samples</span><span class="p">(</span><span class="n">protocol</span><span class="o">.</span><span class="n">pre_ms</span><span class="p">)</span> <span class="o">+</span> <span class="n">_ms_to_samples</span><span class="p">(</span><span class="n">protocol</span><span class="o">.</span><span class="n">post_ms</span><span class="p">)</span>
+</span><span id="build_trial_waveform-227"><a href="#build_trial_waveform-227"><span class="linenos">227</span></a>        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+</span><span id="build_trial_waveform-228"><a href="#build_trial_waveform-228"><span class="linenos">228</span></a>
+</span><span id="build_trial_waveform-229"><a href="#build_trial_waveform-229"><span class="linenos">229</span></a>    <span class="k">if</span> <span class="n">protocol</span><span class="o">.</span><span class="n">clamp_mode</span> <span class="o">==</span> <span class="s2">&quot;voltage_clamp&quot;</span><span class="p">:</span>
+</span><span id="build_trial_waveform-230"><a href="#build_trial_waveform-230"><span class="linenos">230</span></a>        <span class="k">return</span> <span class="n">build_vc_trial_waveform</span><span class="p">(</span>
+</span><span id="build_trial_waveform-231"><a href="#build_trial_waveform-231"><span class="linenos">231</span></a>            <span class="n">stim_def</span><span class="p">,</span>
+</span><span id="build_trial_waveform-232"><a href="#build_trial_waveform-232"><span class="linenos">232</span></a>            <span class="n">pre_ms</span>         <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">pre_ms</span><span class="p">,</span>
+</span><span id="build_trial_waveform-233"><a href="#build_trial_waveform-233"><span class="linenos">233</span></a>            <span class="n">post_ms</span>        <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">post_ms</span><span class="p">,</span>
+</span><span id="build_trial_waveform-234"><a href="#build_trial_waveform-234"><span class="linenos">234</span></a>            <span class="n">ao_mv_per_volt</span> <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">ao_mv_per_volt</span><span class="p">,</span>
+</span><span id="build_trial_waveform-235"><a href="#build_trial_waveform-235"><span class="linenos">235</span></a>        <span class="p">)</span>
+</span><span id="build_trial_waveform-236"><a href="#build_trial_waveform-236"><span class="linenos">236</span></a>    <span class="k">else</span><span class="p">:</span>
+</span><span id="build_trial_waveform-237"><a href="#build_trial_waveform-237"><span class="linenos">237</span></a>        <span class="k">return</span> <span class="n">build_cc_trial_waveform</span><span class="p">(</span>
+</span><span id="build_trial_waveform-238"><a href="#build_trial_waveform-238"><span class="linenos">238</span></a>            <span class="n">stim_def</span><span class="p">,</span>
+</span><span id="build_trial_waveform-239"><a href="#build_trial_waveform-239"><span class="linenos">239</span></a>            <span class="n">pre_ms</span>   <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">pre_ms</span><span class="p">,</span>
+</span><span id="build_trial_waveform-240"><a href="#build_trial_waveform-240"><span class="linenos">240</span></a>            <span class="n">post_ms</span>  <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">post_ms</span><span class="p">,</span>
+</span><span id="build_trial_waveform-241"><a href="#build_trial_waveform-241"><span class="linenos">241</span></a>            <span class="n">hyperpol</span> <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">hyperpolarization</span><span class="p">,</span>
+</span><span id="build_trial_waveform-242"><a href="#build_trial_waveform-242"><span class="linenos">242</span></a>        <span class="p">)</span>
 </span></pre></div>
 
 
@@ -633,19 +628,13 @@ for other amplifiers.</li>
 <p>Dispatches to <code><a href="#build_vc_trial_waveform">build_vc_trial_waveform()</a></code> or
 <code><a href="#build_cc_trial_waveform">build_cc_trial_waveform()</a></code> based on <code>protocol.clamp_mode</code>.</p>
 
-<h6 id="arguments">Arguments:</h6>
+<p>Args:
+    stim_def: Stimulus definition for this trial.
+    protocol: Protocol containing clamp mode, timing, and (in CC mode)
+        hyperpolarization parameters.</p>
 
-<ul>
-<li><strong>stim_def:</strong>  Stimulus definition for this trial.</li>
-<li><strong>protocol:</strong>  Protocol containing clamp mode, timing, and (in CC mode)
-hyperpolarization parameters.</li>
-</ul>
-
-<h6 id="returns">Returns:</h6>
-
-<blockquote>
-  <p>1-D float64 array of ao0 voltages in V.</p>
-</blockquote>
+<p>Returns:
+    1-D float64 array of ao0 voltages in V.</p>
 </div>
 
 
@@ -679,31 +668,16 @@ hyperpolarization parameters.</li>
     }
 
     const searchBox = document.querySelector(".pdoc input[type=search]");
-
-    // Debounce: wait 300 ms after the user stops typing before searching.
-    // Also require at least 2 characters so single letters don't trigger results.
-    let _searchDebounceTimer = null;
     searchBox.addEventListener("input", function () {
-        clearTimeout(_searchDebounceTimer);
-        const value = searchBox.value.trim();
-
-        if (!value) {
-            // Immediately clear results when the box is emptied.
-            let url = new URL(window.location);
-            url.searchParams.delete("search");
-            history.replaceState("", "", url.toString());
-            onInput();
-            return;
-        }
-
-        _searchDebounceTimer = setTimeout(function () {
-            if (searchBox.value.trim().length < 2) return;
-            let url = new URL(window.location);
+        let url = new URL(window.location);
+        if (searchBox.value.trim()) {
             url.hash = "";
             url.searchParams.set("search", searchBox.value);
-            history.replaceState("", "", url.toString());
-            onInput();
-        }, 300);
+        } else {
+            url.searchParams.delete("search");
+        }
+        history.replaceState("", "", url.toString());
+        onInput();
     });
     window.addEventListener("popstate", onInput);
 

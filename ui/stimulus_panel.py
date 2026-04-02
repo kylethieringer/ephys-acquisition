@@ -45,7 +45,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from config import SAMPLE_RATE
+from config import AO_MV_PER_VOLT, AO_PA_PER_VOLT, SAMPLE_RATE
 from utils.stimulus_generator import (
     generate_ao0_waveform,
     generate_preview_steps,
@@ -79,11 +79,31 @@ class StimulusPanel(QWidget):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
+        self._clamp_mode = "current_clamp"
         self._auto_clear_timer = QTimer(self)
         self._auto_clear_timer.setSingleShot(True)
         self._auto_clear_timer.timeout.connect(self._on_auto_clear)
 
         self._build_ui()
+
+    def set_clamp_mode(self, mode: str) -> None:
+        """Switch spinbox labels and ranges between CC (pA) and VC (mV).
+
+        Args:
+            mode: ``"current_clamp"`` or ``"voltage_clamp"``.
+        """
+        self._clamp_mode = mode
+        if mode == "voltage_clamp":
+            suffix, lo, hi = " mV", -200.0, 200.0
+            self._preview_plot.setLabel("left", "Voltage (mV)")
+        else:
+            suffix, lo, hi = " pA", -5000.0, 5000.0
+            self._preview_plot.setLabel("left", "Current (pA)")
+
+        for spin in (self._min_spin, self._max_spin, self._step_spin):
+            spin.setSuffix(suffix)
+            spin.setRange(lo, hi)
+        self._update_step_count()
 
     # ------------------------------------------------------------------
     # UI construction
@@ -218,16 +238,19 @@ class StimulusPanel(QWidget):
     def _on_apply(self) -> None:
         """Generate the ao0 waveform and emit ``stimulus_applied``.
 
-        Builds the waveform in Volts, tiles it by the repeat count, emits
+        Builds the waveform in Volts (using AO_PA_PER_VOLT in CC mode or
+        AO_MV_PER_VOLT in VC mode), tiles it by the repeat count, emits
         ``stimulus_applied``, and starts the auto-clear timer so ao0 returns
         to zero after one full pass.
         """
+        scale = AO_PA_PER_VOLT if self._clamp_mode == "current_clamp" else AO_MV_PER_VOLT
         ao0 = generate_ao0_waveform(
             self._min_spin.value(),
             self._max_spin.value(),
             self._step_spin.value(),
             self._width_spin.value(),
             self._gap_spin.value(),
+            scale_pa_per_v=scale,
         )
         if len(ao0) == 0:
             return

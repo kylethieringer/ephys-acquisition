@@ -13,7 +13,9 @@ Consecutive float64 chunks written in C order.  Each chunk has shape
 recording is recoverable as::
 
     raw  = np.fromfile(path, dtype=np.float64)
-    data = raw.reshape(N_channels, -1)
+    data = (raw.reshape(-1, N_channels, CHUNK_SIZE)
+               .transpose(1, 0, 2)
+               .reshape(N_channels, -1))
 
 HDF5 file layout
 -----------------
@@ -63,7 +65,7 @@ try:
 except ImportError:
     HAS_H5PY = False
 
-from config import AI_CHANNELS, SAMPLE_RATE
+from config import AI_CHANNELS, CHUNK_SIZE, SAMPLE_RATE
 
 
 # ---------------------------------------------------------------------------
@@ -164,15 +166,22 @@ class BinToHDF5Worker(QThread):
 
             offset          = 0
             bytes_per_chunk = n_ch * SAMPLE_RATE * 8
+            elems_per_write = n_ch * CHUNK_SIZE
             while True:
                 raw = bf.read(bytes_per_chunk)
                 if not raw:
                     break
                 arr  = np.frombuffer(raw, dtype=np.float64)
-                cols = len(arr) // n_ch
-                if cols == 0:
+                n_wc = len(arr) // elems_per_write
+                if n_wc == 0:
                     break
-                chunk_data = arr[: cols * n_ch].reshape(n_ch, cols)
+                chunk_data = (
+                    arr[: n_wc * elems_per_write]
+                    .reshape(n_wc, n_ch, CHUNK_SIZE)
+                    .transpose(1, 0, 2)
+                    .reshape(n_ch, n_wc * CHUNK_SIZE)
+                )
+                cols = chunk_data.shape[1]
                 ds[:, offset : offset + cols] = chunk_data
                 offset += cols
 
@@ -278,7 +287,7 @@ class ContinuousSaver:
         expt_id       = subject_metadata.get("expt_id", "ephys") or "ephys"
         genotype      = subject_metadata.get("genotype", "") or "unknown"
         safe_genotype = genotype.replace(" ", "_").replace("/", "-")
-        datestamp     = datetime.datetime.now().strftime("%Y%m%d")
+        datestamp     = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         stem          = f"{expt_id}_{safe_genotype}_{datestamp}"
 
         self._folder   = Path(save_dir) / expt_id

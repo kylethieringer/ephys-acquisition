@@ -50,6 +50,7 @@ from config import (
 )
 from acquisition.data_buffer import RingBuffer
 from acquisition.data_saver import ContinuousSaver
+from acquisition.continuous_protocol_runner import ContinuousProtocolRunner
 from hardware.daq_worker import DAQWorker
 from hardware.camera_worker import CameraWorker
 from utils.stimulus_generator import get_actual_frame_rate
@@ -106,13 +107,16 @@ class ContinuousAcquisition(QObject):
     recording_started   = Signal(object)   # Path — experiment folder
     recording_stopped   = Signal(int)      # n_samples_saved
     conversion_status   = Signal(str)      # status message for the UI
+    protocol_finished   = Signal()         # continuous protocol run complete
+    protocol_cancelled  = Signal()         # protocol stopped before completion
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
 
-        self._ring_buffer     = RingBuffer()
-        self._saver           = ContinuousSaver()
-        self._conversion_worker = None
+        self._ring_buffer        = RingBuffer()
+        self._saver              = ContinuousSaver()
+        self._conversion_worker  = None
+        self._protocol_runner:   ContinuousProtocolRunner | None = None
         self._daq_worker:    DAQWorker    | None = None
         self._camera_worker: CameraWorker | None = None
         self._is_running      = False
@@ -276,7 +280,7 @@ class ContinuousAcquisition(QObject):
         h5_path = self._saver.open(save_dir, metadata, channel_defs=channels)
         folder = self._saver.folder
         self._video_path = folder / (h5_path.stem + ".avi")
-        self._metadata_path = folder / "metadata.json"
+        self._metadata_path = folder / (h5_path.stem + "_metadata.json")
         self._write_metadata_json(metadata, h5_path, self._video_path)
         self._is_recording = True
 
@@ -346,6 +350,7 @@ class ContinuousAcquisition(QObject):
             },
             "files": {
                 "ephys_h5": h5_path.name,
+                "ephys_bin": self._saver.path.with_suffix(".bin").name,
                 "video": video_path.name,
             },
         }
@@ -422,6 +427,39 @@ class ContinuousAcquisition(QObject):
         if self._daq_worker is not None:
             self._daq_worker.clear_stimulus_waveform()
 
+    def cancel_protocol(self) -> None:
+        """Cancel the running continuous protocol without stopping the recording.
+
+        Clears the protocol runner immediately (no more events will fire) and
+        zeros the AO output.  The recording continues uninterrupted.
+        No-op if no protocol is active.
+        """
+        if self._protocol_runner is None:
+            return
+        self._protocol_runner = None
+        self.clear_stimulus()
+        self.protocol_cancelled.emit()
+
+    def start_protocol(self, protocol) -> None:
+        """Start running a protocol within the current continuous recording.
+
+        Must be called after :meth:`start_recording`.  Builds the event
+        timeline and anchors it to the current ``n_saved`` position so
+        stimulus events fire at the correct sample offsets.
+
+        When all events have fired, :meth:`stop_recording` is called
+        automatically and ``protocol_finished`` is emitted.
+
+        Args:
+            protocol: A :class:`~acquisition.trial_protocol.TrialProtocol`
+                to run.
+        """
+        if not self._is_recording:
+            return
+        runner = ContinuousProtocolRunner(protocol)
+        runner.start(self._saver.n_saved)
+        self._protocol_runner = runner
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
@@ -449,8 +487,32 @@ class ContinuousAcquisition(QObject):
         self._ring_buffer.push(chunk)
         if self._is_recording:
             self._saver.append(chunk)
+            self._advance_protocol_runner()
         if self._on_new_data is not None:
             self._on_new_data(chunk)
+
+    def _advance_protocol_runner(self) -> None:
+        """Fire any pending protocol events and auto-stop when done."""
+        if self._protocol_runner is None:
+            return
+
+        fired = self._protocol_runner.advance(self._saver.n_saved)
+        for ev in fired:
+            if ev.action == "apply" and ev.waveform is not None:
+                self.apply_stimulus_waveform(ev.waveform)
+            elif ev.action == "clear":
+                self.clear_stimulus()
+            self._saver.log_event(
+                sample_idx = self._saver.n_saved,
+                event_type = ev.action,
+                stim_name  = ev.stim_name,
+                stim_idx   = ev.stim_idx,
+            )
+
+        if self._protocol_runner.is_done():
+            self._protocol_runner = None
+            self.stop_recording()
+            self.protocol_finished.emit()
 
     def _on_camera_frame(self, frame: NDArray) -> None:
         """Handle an incoming camera frame.
@@ -492,7 +554,7 @@ class ContinuousAcquisition(QObject):
             h, w = frame.shape[:2]
             is_color = frame.ndim == 3
             fps = get_actual_frame_rate(self._frame_rate_hz)
-            fourcc = cv2.VideoWriter_fourcc(*"XVID")
+            fourcc = cv2.VideoWriter_fourcc(*"MJPG")
             self._video_writer = cv2.VideoWriter(
                 str(self._video_path), fourcc, fps, (w, h), isColor=is_color
             )
