@@ -1,5 +1,70 @@
-{# Custom search.html.jinja2 — adds debounce + 2-char minimum to pdoc's default search. #}
+{# search.html.jinja2 — dark-themed search with debounce + keyboard nav. #}
 {% set rootprefix = "../" * module.modulename.count(".") if module else "" %}
+
+<style>
+/* ── Search results — dark oscilloscope theme ── */
+.search-result {
+    padding: 1rem 1.25rem;
+    margin: 0.75rem 0;
+    background: var(--bg-card, #151d2e);
+    border: 1px solid var(--border, #1e2d4a);
+    border-radius: 10px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.search-result:hover,
+.search-result.focused {
+    border-color: var(--accent-cyan, #22d3ee);
+    box-shadow: 0 0 16px rgba(34, 211, 238, 0.06);
+}
+.search-result a.attr {
+    font-family: 'IBM Plex Mono', 'Fira Code', monospace;
+    font-size: 0.88rem;
+    color: var(--text-primary, #e2e8f0);
+    text-decoration: none;
+    display: block;
+    margin-bottom: 0.4rem;
+}
+.search-result a.attr .name {
+    color: var(--accent-cyan, #22d3ee);
+    font-weight: 600;
+}
+.search-result a.attr .def {
+    color: var(--accent-rose, #f472b6);
+    font-weight: 500;
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+.search-result a.attr .base,
+.search-result a.attr .annotation {
+    color: var(--accent-violet, #a78bfa);
+}
+.search-result a.attr .default_value {
+    color: var(--text-dim, #556377);
+}
+.search-result .docstring {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 0.82rem;
+    color: var(--text-secondary, #8896ab);
+    line-height: 1.6;
+}
+.search-result .docstring code {
+    background: var(--bg-elevated, #1a2540);
+    border: 1px solid var(--border, #1e2d4a);
+    border-radius: 3px;
+    padding: 0.05em 0.3em;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--accent-cyan, #22d3ee);
+}
+
+main.pdoc h3, main.pdoc h4 {
+    font-family: 'Syne', sans-serif;
+    color: var(--text-primary, #e2e8f0);
+}
+</style>
+
 <script>
     function escapeHTML(html) {
         return document.createElement('div').appendChild(document.createTextNode(html)).parentNode.innerHTML;
@@ -29,15 +94,13 @@
 
     const searchBox = document.querySelector(".pdoc input[type=search]");
 
-    // Debounce: wait 300 ms after the user stops typing before searching.
-    // Also require at least 2 characters so single letters don't trigger results.
+    // Debounce: 300 ms after user stops typing, min 2 chars
     let _searchDebounceTimer = null;
     searchBox.addEventListener("input", function () {
         clearTimeout(_searchDebounceTimer);
         const value = searchBox.value.trim();
 
         if (!value) {
-            // Immediately clear results when the box is emptied.
             let url = new URL(window.location);
             url.searchParams.delete("search");
             history.replaceState("", "", url.toString());
@@ -94,7 +157,7 @@
                 return `<h3>Error: ${searchErr}</h3>`
             }
             if (!search) {
-                return "<h3>Searching...</h3>"
+                return "<h3>Searching\u2026</h3>"
             }
 
             window.scrollTo({top: 0, left: 0, behavior: 'auto'});
@@ -103,9 +166,11 @@
 
             let html;
             if (results.length === 0) {
-                html = `No search results for '${escapeHTML(term)}'.`
+                html = `<div style="padding:2rem 3rem;color:var(--text-secondary)">No results for \u2018${escapeHTML(term)}\u2019</div>`
             } else {
-                html = `<h4>${results.length} search result${results.length > 1 ? "s" : ""} for '${escapeHTML(term)}'.</h4>`;
+                html = `<div style="padding:1.5rem 3rem 0.5rem">
+                    <h4 style="margin:0 0 0.25rem">${results.length} result${results.length > 1 ? "s" : ""} for \u2018${escapeHTML(term)}\u2019</h4>
+                </div><div style="padding:0 3rem 2rem">`;
             }
             for (let result of results.slice(0, 10)) {
                 let doc = result.doc;
@@ -141,12 +206,14 @@
                         break;
                 }
                 html += `
-                        <section class="search-result">
-                        <a href="${url}" class="attr ${doc.kind}">${heading}</a>
-                        <div class="docstring">${doc.doc}</div>
-                        </section>
-                    `;
-
+                    <section class="search-result">
+                    <a href="${url}" class="attr ${doc.kind}">${heading}</a>
+                    <div class="docstring">${doc.doc}</div>
+                    </section>
+                `;
+            }
+            if (results.length > 0) {
+                html += `</div>`;
             }
             return html;
         })());
@@ -164,7 +231,7 @@
         if (["ArrowDown", "ArrowUp", "Enter"].includes(e.key)) {
             let focused = currentContent.querySelector(".search-result.focused");
             if (!focused) {
-                currentContent.querySelector(".search-result").classList.add("focused");
+                currentContent.querySelector(".search-result")?.classList.add("focused");
             } else if (
                 e.key === "ArrowDown"
                 && focused.nextElementSibling

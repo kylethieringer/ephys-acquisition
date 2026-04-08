@@ -1,185 +1,365 @@
-/* ── ephys_acquisition custom docs theme ──────────────────────────────────── */
+/* ── ephys_acquisition · dark oscilloscope theme ────────────────────────── */
 
-/* Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+/* ── Fonts ──────────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
-/* ── Palette ─────────────────────────────────────────────────────────────── */
+/* ── Palette ────────────────────────────────────────────────────────────── */
 :root {
-    --dust-grey:    #dad7cd;
-    --dry-sage:     #a3b18a;
-    --fern:         #588157;
-    --hunter-green: #3a5a40;
-    --pine-teal:    #344e41;
+    --bg-deep:      #080c14;
+    --bg-surface:   #0f1520;
+    --bg-card:      #151d2e;
+    --bg-elevated:  #1a2540;
+    --border:       #1e2d4a;
+    --border-light: #2a3d5c;
 
-    --pdoc-background: #f4f5f2;
+    --text-primary:   #e2e8f0;
+    --text-secondary: #8896ab;
+    --text-dim:       #556377;
+
+    --accent-cyan:    #22d3ee;
+    --accent-amber:   #f59e0b;
+    --accent-rose:    #f472b6;
+    --accent-green:   #34d399;
+    --accent-violet:  #a78bfa;
+
+    --glow-cyan:    0 0 20px rgba(34, 211, 238, 0.15), 0 0 60px rgba(34, 211, 238, 0.05);
+    --glow-amber:   0 0 20px rgba(245, 158, 11, 0.12);
+
+    --pdoc-background: var(--bg-deep);
 }
 
-/* ── pdoc variable overrides ─────────────────────────────────────────────── */
+/* ── Global overrides ───────────────────────────────────────────────────── */
+html, body {
+    background: var(--bg-deep) !important;
+}
+
 .pdoc {
-    --text: #1c2419;
-    --muted: #6b7c64;
-    --link: var(--fern);
-    --link-hover: var(--hunter-green);
-    --code: #edf0e8;
-    --active: #c8d5be;
-    --accent: #e4e8de;
-    --accent2: #b5c2aa;
-    --nav-hover: rgba(88, 129, 87, 0.14);
-    --name: var(--fern);
-    --def: var(--hunter-green);
-    --annotation: #4a7c59;
+    --text:        var(--text-primary);
+    --muted:       var(--text-secondary);
+    --link:        var(--accent-cyan);
+    --link-hover:  #67e8f9;
+    --code:        var(--bg-elevated);
+    --active:      var(--bg-elevated);
+    --accent:      var(--border);
+    --accent2:     var(--border-light);
+    --nav-hover:   rgba(34, 211, 238, 0.08);
+    --name:        var(--accent-cyan);
+    --def:         var(--accent-amber);
+    --annotation:  var(--accent-violet);
 
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    color: var(--text);
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    color: var(--text-primary);
+    background: var(--bg-deep);
 }
 
-/* ── Navigation sidebar ───────────────────────────────────────────────────── */
+/* ── Navigation sidebar ─────────────────────────────────────────────────── */
 nav.pdoc {
-    background: linear-gradient(180deg, var(--pine-teal) 0%, var(--hunter-green) 100%);
-    border-right: none;
-    box-shadow: 2px 0 12px rgba(0,0,0,0.15);
+    background: var(--bg-surface);
+    border-right: 1px solid var(--border);
+    box-shadow: 2px 0 24px rgba(0, 0, 0, 0.4);
 }
 
 nav.pdoc a,
 nav.pdoc h2,
 nav.pdoc .pdoc-button {
-    color: var(--dust-grey) !important;
+    color: var(--text-secondary) !important;
 }
 
 nav.pdoc a:hover {
-    background: rgba(255,255,255,0.12);
-    color: #fff !important;
+    background: rgba(34, 211, 238, 0.06);
+    color: var(--accent-cyan) !important;
+    border-radius: 6px;
+}
+
+nav.pdoc a.current {
+    color: var(--accent-cyan) !important;
+    background: rgba(34, 211, 238, 0.08);
     border-radius: 6px;
 }
 
 nav.pdoc h2 {
-    font-size: 0.7rem;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.65rem;
     font-weight: 700;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: var(--dry-sage) !important;
+    color: var(--text-dim) !important;
     margin-top: 1.5rem;
 }
 
 nav.pdoc input[type=search] {
-    background: rgba(255,255,255,0.1);
-    border: 1px solid rgba(255,255,255,0.2);
-    color: #fff;
+    background: rgba(34, 211, 238, 0.04);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
     border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+nav.pdoc input[type=search]:focus {
+    border-color: rgba(34, 211, 238, 0.3);
+    box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.08);
+    outline: none;
 }
 
 nav.pdoc input[type=search]::placeholder {
-    color: rgba(255,255,255,0.45);
+    color: var(--text-dim);
 }
 
-/* ── Module page content ──────────────────────────────────────────────────── */
+/* ── Module page content ─────────────────────────────────────────────────── */
 main.pdoc {
-    background: #fff;
-    border-radius: 16px;
-    /* NOTE: never override padding-left — pdoc layout.css uses it to push
-       content right of the fixed sidebar (calc(var(--sidebar-width) + 3rem)). */
+    background: var(--bg-surface);
+    border-radius: 0;
     padding-top: 2.5rem;
     padding-right: 3rem;
     padding-bottom: 2.5rem;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 4px 24px rgba(52, 78, 65, 0.08);
+    border-left: 1px solid var(--border);
 }
 
+/* ── Headings ────────────────────────────────────────────────────────────── */
 .pdoc h1 {
+    font-family: 'Syne', sans-serif;
     font-size: 2rem;
     font-weight: 700;
-    color: var(--pine-teal);
-    border-bottom: 2px solid var(--dust-grey);
-    padding-bottom: 0.5rem;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.75rem;
     margin-bottom: 1.5rem;
+    letter-spacing: -0.01em;
+}
+
+.pdoc h1::before {
+    content: '';
+    display: inline-block;
+    width: 3px;
+    height: 1.4em;
+    background: var(--accent-cyan);
+    border-radius: 2px;
+    margin-right: 0.6rem;
+    vertical-align: text-bottom;
+    box-shadow: 0 0 8px rgba(34, 211, 238, 0.3);
 }
 
 .pdoc h2 {
+    font-family: 'Syne', sans-serif;
     font-size: 1.3rem;
     font-weight: 600;
-    color: var(--hunter-green);
-    margin-top: 2rem;
+    color: var(--accent-amber);
+    margin-top: 2.5rem;
+    letter-spacing: -0.005em;
 }
 
 .pdoc h3 {
+    font-family: 'Syne', sans-serif;
     font-size: 1.05rem;
     font-weight: 600;
-    color: var(--fern);
+    color: var(--text-secondary);
 }
 
-/* ── Code blocks and signatures ───────────────────────────────────────────── */
+/* ── Code blocks and signatures ──────────────────────────────────────────── */
 .pdoc code, .pdoc pre {
-    font-family: 'JetBrains Mono', 'Fira Code', monospace;
-    font-size: 0.875rem;
+    font-family: 'IBM Plex Mono', 'Fira Code', monospace;
+    font-size: 0.85rem;
+}
+
+.pdoc code {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.1em 0.35em;
+    color: var(--accent-cyan);
 }
 
 .pdoc .pdoc-code {
-    background: #f6f8f3;
-    border: 1px solid #d5dccc;
-    border-radius: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.3);
 }
 
+/* ── Function / class definition blocks ──────────────────────────────────── */
 .pdoc .def {
-    background: linear-gradient(90deg, #edf1e7 0%, #f8faf5 100%);
-    border-left: 3px solid var(--fern);
+    background: linear-gradient(90deg, rgba(34, 211, 238, 0.06) 0%, rgba(34, 211, 238, 0.02) 100%);
+    border-left: 2px solid var(--accent-cyan);
     border-radius: 0 8px 8px 0;
     padding: 0.6rem 1rem;
     margin-bottom: 0.25rem;
+    transition: border-color 0.2s, background 0.2s;
 }
 
-/* ── Docstring sections (Args, Returns, etc.) ─────────────────────────────── */
+.pdoc .def:hover {
+    border-left-color: var(--accent-amber);
+    background: linear-gradient(90deg, rgba(245, 158, 11, 0.06) 0%, rgba(245, 158, 11, 0.02) 100%);
+}
+
+/* ── Docstring field lists (Args, Returns, etc.) ─────────────────────────── */
 .pdoc dl.field-list {
-    background: #f6f8f3;
-    border: 1px solid #d5dccc;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
     border-radius: 10px;
     padding: 1rem 1.25rem;
     margin: 0.75rem 0;
 }
 
 .pdoc dt {
+    font-family: 'Syne', sans-serif;
     font-weight: 600;
-    color: var(--hunter-green);
-    font-size: 0.85rem;
+    color: var(--accent-amber);
+    font-size: 0.8rem;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.08em;
 }
 
-/* ── Badges for class/function/method labels ─────────────────────────────── */
+.pdoc dd {
+    color: var(--text-secondary);
+}
+
+/* ── Badges for class/function/method labels ──────────────────────────────── */
 .pdoc .label {
     border-radius: 4px;
-    font-size: 0.7rem;
+    font-size: 0.68rem;
     font-weight: 600;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.06em;
     padding: 0.15rem 0.5rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
 }
 
-/* ── Section dividers ─────────────────────────────────────────────────────── */
+/* ── Section dividers ────────────────────────────────────────────────────── */
 .pdoc section:not(:last-child) {
-    border-bottom: 1px solid #e4e8de;
+    border-bottom: 1px solid var(--border);
     margin-bottom: 2rem;
     padding-bottom: 1rem;
 }
 
-/* ── Back-to-index button ─────────────────────────────────────────────────── */
+/* ── Back-to-index button ────────────────────────────────────────────────── */
 .pdoc-button.module-list-button {
-    background: rgba(255,255,255,0.12);
-    border: 1px solid rgba(255,255,255,0.2);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
     border-radius: 8px;
-    color: var(--dust-grey) !important;
+    color: var(--text-secondary) !important;
+    font-family: 'DM Sans', sans-serif;
     font-size: 0.82rem;
     padding: 0.4rem 0.75rem;
-    transition: background 0.15s;
+    transition: border-color 0.2s, color 0.2s, box-shadow 0.2s;
 }
 
 .pdoc-button.module-list-button:hover {
-    background: rgba(255,255,255,0.22);
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan) !important;
+    box-shadow: 0 0 12px rgba(34, 211, 238, 0.1);
 }
 
-/* ── Responsive tweaks ────────────────────────────────────────────────────── */
+/* ── Links ───────────────────────────────────────────────────────────────── */
+.pdoc a {
+    color: var(--accent-cyan);
+    text-decoration: none;
+    transition: color 0.15s;
+}
+
+.pdoc a:hover {
+    color: #67e8f9;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────────────── */
+.pdoc table {
+    border-collapse: collapse;
+}
+
+.pdoc th, .pdoc td {
+    border: 1px solid var(--border);
+    padding: 0.5rem 0.75rem;
+}
+
+.pdoc th {
+    background: var(--bg-card);
+    color: var(--accent-amber);
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.pdoc tr:nth-child(even) {
+    background: rgba(15, 21, 32, 0.5);
+}
+
+/* ── Syntax highlighting (Pygments) — oscilloscope palette ───────────────── */
+.pdoc .pdoc-code .c,
+.pdoc .pdoc-code .c1,
+.pdoc .pdoc-code .cm,
+.pdoc .pdoc-code .cs,
+.pdoc .pdoc-code .ch { color: #4a6178; font-style: italic; }       /* comments — dim */
+
+.pdoc .pdoc-code .k,
+.pdoc .pdoc-code .kn,
+.pdoc .pdoc-code .kd,
+.pdoc .pdoc-code .kc { color: var(--accent-rose); }                /* keywords — rose */
+
+.pdoc .pdoc-code .n,
+.pdoc .pdoc-code .na,
+.pdoc .pdoc-code .nb,
+.pdoc .pdoc-code .nc { color: var(--text-primary); }               /* names — primary */
+
+.pdoc .pdoc-code .nf,
+.pdoc .pdoc-code .fm { color: var(--accent-cyan); }                /* functions — cyan */
+
+.pdoc .pdoc-code .s,
+.pdoc .pdoc-code .s1,
+.pdoc .pdoc-code .s2,
+.pdoc .pdoc-code .sa,
+.pdoc .pdoc-code .sb,
+.pdoc .pdoc-code .sc,
+.pdoc .pdoc-code .sd { color: var(--accent-green); }               /* strings — green */
+
+.pdoc .pdoc-code .mi,
+.pdoc .pdoc-code .mf,
+.pdoc .pdoc-code .mh,
+.pdoc .pdoc-code .mo { color: var(--accent-amber); }               /* numbers — amber */
+
+.pdoc .pdoc-code .o,
+.pdoc .pdoc-code .ow { color: var(--accent-rose); }                /* operators — rose */
+
+.pdoc .pdoc-code .bp { color: var(--accent-violet); }              /* builtins — violet */
+
+.pdoc .pdoc-code .nn { color: var(--accent-violet); }              /* module name — violet */
+
+.pdoc .pdoc-code .si { color: var(--accent-amber); }               /* string interp — amber */
+
+.pdoc .pdoc-code .p { color: var(--text-dim); }                    /* punctuation — dim */
+
+/* ── Scrollbar styling ───────────────────────────────────────────────────── */
+.pdoc ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.pdoc ::-webkit-scrollbar-track {
+    background: var(--bg-deep);
+}
+
+.pdoc ::-webkit-scrollbar-thumb {
+    background: var(--border-light);
+    border-radius: 3px;
+}
+
+.pdoc ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-dim);
+}
+
+/* ── Selection color ─────────────────────────────────────────────────────── */
+.pdoc ::selection {
+    background: rgba(34, 211, 238, 0.2);
+    color: #fff;
+}
+
+/* ── Responsive tweaks ───────────────────────────────────────────────────── */
 @media (max-width: 700px) {
     main.pdoc {
         padding-top: 1.5rem;
         padding-right: 1.25rem;
         padding-bottom: 1.5rem;
-        border-radius: 10px;
     }
 }
