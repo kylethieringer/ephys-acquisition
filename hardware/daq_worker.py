@@ -207,8 +207,82 @@ class DAQWorker(QThread):
             self._pending_ttl_cfg = (frame_rate_hz, exposure_ms)
 
     # ------------------------------------------------------------------
-    # QThread.run — executes in the worker thread
+    # QThread.run — helpers (execute in the worker thread)
     # ------------------------------------------------------------------
+
+    def _samples_per_frame(self) -> int:
+        """Number of AO samples in one camera-frame period."""
+        return max(1, int(SAMPLE_RATE / self._frame_rate))
+
+    def _drain_pending(self) -> tuple:
+        """Snapshot and reset all pending GUI-thread requests under ``_lock``.
+
+        Returns:
+            A 3-tuple ``(pending_wf, pending_ttl, pending_ttl_action)``.
+        """
+        with self._lock:
+            pending_wf         = self._pending_waveform
+            pending_ttl        = self._pending_ttl_cfg
+            pending_ttl_action = self._pending_ttl_action
+            self._pending_waveform   = _NO_CHANGE
+            self._pending_ttl_cfg    = None
+            self._pending_ttl_action = None
+        return pending_wf, pending_ttl, pending_ttl_action
+
+    def _handle_ttl(self, ctr_task, pending_ttl_action, pending_ttl,
+                    ttl_active: bool) -> tuple:
+        """Process TTL start/stop and reconfiguration requests.
+
+        Args:
+            ctr_task: Current counter task (may be rebuilt).
+            pending_ttl_action: ``_TTL_START``, ``_TTL_STOP``, or ``None``.
+            pending_ttl: ``(frame_rate, exposure_ms)`` tuple or ``None``.
+            ttl_active: Whether the counter is currently running.
+
+        Returns:
+            A 2-tuple ``(ctr_task, ttl_active)`` — the (possibly new)
+            counter task and updated active flag.
+        """
+        if pending_ttl_action is _TTL_START:
+            ctr_task.start()
+            ttl_active = True
+        elif pending_ttl_action is _TTL_STOP:
+            ctr_task.stop()
+            ttl_active = False
+
+        if pending_ttl is not None:
+            self._frame_rate  = pending_ttl[0]
+            self._exposure_ms = pending_ttl[1]
+            try:
+                ctr_task.stop()
+                ctr_task.close()
+            except Exception:
+                pass
+            ctr_task = build_ttl_counter_task(self._frame_rate, self._exposure_ms)
+            if ttl_active:
+                ctr_task.start()
+
+        return ctr_task, ttl_active
+
+    def _handle_ao(self, ao_task, writer, pending_wf) -> tuple:
+        """Process AO waveform update requests.
+
+        Args:
+            ao_task: Current AO task (may be rebuilt).
+            writer: Current AO writer (may be replaced).
+            pending_wf: ``_NO_CHANGE``, ``_CLEAR``, or a ``(1, N)`` array.
+
+        Returns:
+            A 2-tuple ``(ao_task, writer)`` — the (possibly new) AO task
+            and writer.
+        """
+        if pending_wf is _CLEAR:
+            n_zero = self._samples_per_frame()
+            ao_task, writer = self._rebuild_ao(
+                ao_task, np.zeros((1, n_zero), dtype=np.float64))
+        elif pending_wf is not _NO_CHANGE:
+            ao_task, writer = self._rebuild_ao(ao_task, pending_wf)
+        return ao_task, writer
 
     @staticmethod
     def _rebuild_ao(
@@ -282,7 +356,7 @@ class DAQWorker(QThread):
         ai_task = ao_task = ctr_task = None
 
         try:
-            n_wf       = max(1, int(SAMPLE_RATE / self._frame_rate))
+            n_wf       = self._samples_per_frame()
             initial_wf = np.zeros((1, n_wf), dtype=np.float64)
 
             ai_task  = build_ai_task()
@@ -304,50 +378,11 @@ class DAQWorker(QThread):
             ttl_active = False
 
             while self._running:
-                # -- Collect pending changes from GUI thread --
-                pending_wf         = _NO_CHANGE
-                pending_ttl        = None
-                pending_ttl_action = None
-                with self._lock:
-                    pending_wf         = self._pending_waveform
-                    pending_ttl        = self._pending_ttl_cfg
-                    pending_ttl_action = self._pending_ttl_action
-                    self._pending_waveform   = _NO_CHANGE
-                    self._pending_ttl_cfg    = None
-                    self._pending_ttl_action = None
+                pending_wf, pending_ttl, pending_ttl_action = self._drain_pending()
+                ctr_task, ttl_active = self._handle_ttl(
+                    ctr_task, pending_ttl_action, pending_ttl, ttl_active)
+                ao_task, writer = self._handle_ao(ao_task, writer, pending_wf)
 
-                # -- TTL counter: start / stop --
-                if pending_ttl_action is _TTL_START:
-                    ctr_task.start()
-                    ttl_active = True
-                elif pending_ttl_action is _TTL_STOP:
-                    ctr_task.stop()
-                    ttl_active = False
-
-                # -- TTL reconfiguration: rebuild counter with new params --
-                if pending_ttl is not None:
-                    self._frame_rate  = pending_ttl[0]
-                    self._exposure_ms = pending_ttl[1]
-                    try:
-                        ctr_task.stop()
-                        ctr_task.close()
-                    except Exception:
-                        pass
-                    ctr_task = build_ttl_counter_task(self._frame_rate, self._exposure_ms)
-                    if ttl_active:
-                        ctr_task.start()
-
-                # -- AO command waveform updates --
-                if pending_wf is _CLEAR:
-                    n_zero = max(1, int(SAMPLE_RATE / self._frame_rate))
-                    ao_task, writer = self._rebuild_ao(
-                        ao_task, np.zeros((1, n_zero), dtype=np.float64))
-
-                elif pending_wf is not _NO_CHANGE:
-                    # New stimulus waveform (ao0 only, shape 1×N)
-                    ao_task, writer = self._rebuild_ao(ao_task, pending_wf)
-
-                # -- Read AI --
                 reader.read_many_sample(ai_buf, CHUNK_SIZE, timeout=2.0)
                 self.data_ready.emit(ai_buf.copy())
 

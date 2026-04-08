@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QPlainTextEdit,
     QPushButton,
     QRadioButton,
     QSizePolicy,
@@ -118,8 +119,8 @@ class ControlPanel(QWidget):
 
         Returns:
             Dict with keys: ``"expt_id"``, ``"genotype"``, ``"age"``,
-            ``"sex"``, ``"targeted_cell_type"``.  ``expt_id`` falls back
-            to ``"expt_xx"`` if the field is empty.
+            ``"sex"``, ``"targeted_cell_type"``, ``"notes"``.
+            ``expt_id`` falls back to ``"expt_xx"`` if the field is empty.
         """
         return {
             "expt_id":            self._expt_id_edit.text().strip() or "expt_xx",
@@ -127,6 +128,7 @@ class ControlPanel(QWidget):
             "age":                self._age_edit.text().strip(),
             "sex":                self._sex_combo.currentText(),
             "targeted_cell_type": self._cell_type_edit.text().strip(),
+            "notes":              self._notes_edit.toPlainText().strip(),
         }
 
     def set_running(self, running: bool) -> None:
@@ -279,12 +281,16 @@ class ControlPanel(QWidget):
         self._sex_combo.addItems(["not specified", "M", "F"])
         self._cell_type_edit     = QLineEdit()
         self._cell_type_edit.setPlaceholderText("e.g. dvmn")
+        self._notes_edit         = QPlainTextEdit()
+        self._notes_edit.setPlaceholderText("e.g. experiment notes")
+        self._notes_edit.setMaximumHeight(60)
 
         meta_layout.addRow("Experiment ID:", self._expt_id_edit)
         meta_layout.addRow("Genotype:",      self._genotype_edit)
         meta_layout.addRow("Age:",           self._age_edit)
         meta_layout.addRow("Sex:",           self._sex_combo)
         meta_layout.addRow("Target cell type:", self._cell_type_edit)
+        meta_layout.addRow("Notes:",         self._notes_edit)
 
         root.addWidget(meta_box)
         root.addStretch()
@@ -406,11 +412,4 @@ class ControlPanel(QWidget):
 
     def _on_record(self) -> None:
         """Emit ``record_requested`` with the current save dir and metadata."""
-        metadata = {
-            "expt_id":          self._expt_id_edit.text().strip() or "ephys",
-            "genotype":         self._genotype_edit.text().strip(),
-            "age":              self._age_edit.text().strip(),
-            "sex":              self._sex_combo.currentText(),
-            "targeted_cell_type": self._cell_type_edit.text().strip(),
-        }
-        self.record_requested.emit(self._save_dir, metadata)
+        self.record_requested.emit(self._save_dir, self.get_metadata())

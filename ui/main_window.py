@@ -109,54 +109,10 @@ class MainWindow(QMainWindow):
         self._stim_panel   = StimulusPanel()
         self._ctrl_panel   = ControlPanel()
 
-        # --- Wire acquisition signals ---
-        self._acq.started.connect(self._on_acq_started)
-        self._acq.stopped.connect(self._on_acq_stopped)
-        self._acq.error_occurred.connect(self._on_error)
-        self._acq.recording_started.connect(self._on_recording_started)
-        self._acq.recording_stopped.connect(self._on_recording_stopped)
-        self._acq.conversion_status.connect(self._ctrl_panel.set_status)
-        self._acq.protocol_finished.connect(self._on_continuous_protocol_finished)
-
-        self._trial_acq.started.connect(self._on_acq_started)
-        self._trial_acq.stopped.connect(self._on_acq_stopped)
-        self._trial_acq.error_occurred.connect(self._on_error)
-        self._trial_acq.trial_started.connect(self._on_trial_started)
-        self._trial_acq.trial_finished.connect(self._on_trial_finished)
-        self._trial_acq.protocol_finished.connect(self._on_protocol_finished)
-        self._trial_acq.protocol_cancelled.connect(self._on_protocol_cancelled)
-
-        # Ring buffer shared between both modes (trace panel always shows data)
-        self._trace_panel.set_ring_buffer(self._acq.ring_buffer)
-
-        # Camera frames: continuous mode → panel preview
-        self._acq.connect_frame_callback(self._camera_panel.update_frame)
-
-        # Trial mode: frames → panel preview; AI chunks → shared ring buffer
-        self._trial_acq.connect_frame_callback(self._camera_panel.update_frame)
-        self._trial_acq.connect_data_callback(self._acq.ring_buffer.push)
-
-        # --- Protocol builder dialog (created lazily) ---
         self._protocol_builder: ProtocolBuilderDialog | None = None
 
-        # --- Signal wiring: control panel → acquisition ---
-        self._ctrl_panel.start_requested.connect(self._on_start)
-        self._ctrl_panel.stop_requested.connect(self._on_stop)
-        self._ctrl_panel.record_requested.connect(self._on_record)
-        self._ctrl_panel.stop_record_requested.connect(self._on_stop_record)
-        self._ctrl_panel.mode_changed.connect(self._on_mode_changed)
-        self._ctrl_panel.clamp_mode_changed.connect(self._on_clamp_mode_changed)
-        self._ctrl_panel.open_protocol_builder_requested.connect(
-            self._on_open_protocol_builder
-        )
-        self._ctrl_panel.run_protocol_requested.connect(self._on_start_protocol)
-        self._ctrl_panel.stop_protocol_requested.connect(self._on_stop_protocol)
-        self._ctrl_panel.protocol_selected.connect(self._on_protocol_file_selected)
-        self._acq.protocol_cancelled.connect(self._on_continuous_protocol_cancelled)
-
-        self._camera_panel.ttl_config_changed.connect(self._on_ttl_changed)
-        self._stim_panel.stimulus_applied.connect(self._acq.apply_stimulus_waveform)
-        self._stim_panel.stimulus_cleared.connect(self._acq.clear_stimulus)
+        self._wire_acquisition_signals()
+        self._wire_control_signals()
 
         # --- Build tab content ---
         tabs = QTabWidget()
@@ -179,6 +135,58 @@ class MainWindow(QMainWindow):
         main_splitter.setStretchFactor(1, 35)
 
         self.setCentralWidget(main_splitter)
+
+    # ------------------------------------------------------------------
+    # Signal wiring (called once from __init__)
+    # ------------------------------------------------------------------
+
+    def _wire_acquisition_signals(self) -> None:
+        """Connect acquisition back-end signals to UI slots."""
+        self._acq.started.connect(self._on_acq_started)
+        self._acq.stopped.connect(self._on_acq_stopped)
+        self._acq.error_occurred.connect(self._on_error)
+        self._acq.recording_started.connect(self._on_recording_started)
+        self._acq.recording_stopped.connect(self._on_recording_stopped)
+        self._acq.conversion_status.connect(self._ctrl_panel.set_status)
+        self._acq.protocol_finished.connect(self._on_continuous_protocol_finished)
+        self._acq.protocol_cancelled.connect(self._on_continuous_protocol_cancelled)
+
+        self._trial_acq.started.connect(self._on_acq_started)
+        self._trial_acq.stopped.connect(self._on_acq_stopped)
+        self._trial_acq.error_occurred.connect(self._on_error)
+        self._trial_acq.trial_started.connect(self._on_trial_started)
+        self._trial_acq.trial_finished.connect(self._on_trial_finished)
+        self._trial_acq.protocol_finished.connect(self._on_protocol_finished)
+        self._trial_acq.protocol_cancelled.connect(self._on_protocol_cancelled)
+
+        # Ring buffer shared between both modes (trace panel always shows data)
+        self._trace_panel.set_ring_buffer(self._acq.ring_buffer)
+
+        # Camera frames: continuous mode → panel preview
+        self._acq.connect_frame_callback(self._camera_panel.update_frame)
+
+        # Trial mode: frames → panel preview; AI chunks → shared ring buffer
+        self._trial_acq.connect_frame_callback(self._camera_panel.update_frame)
+        self._trial_acq.connect_data_callback(self._acq.ring_buffer.push)
+
+    def _wire_control_signals(self) -> None:
+        """Connect control panel and peripheral widget signals."""
+        self._ctrl_panel.start_requested.connect(self._on_start)
+        self._ctrl_panel.stop_requested.connect(self._on_stop)
+        self._ctrl_panel.record_requested.connect(self._on_record)
+        self._ctrl_panel.stop_record_requested.connect(self._on_stop_record)
+        self._ctrl_panel.mode_changed.connect(self._on_mode_changed)
+        self._ctrl_panel.clamp_mode_changed.connect(self._on_clamp_mode_changed)
+        self._ctrl_panel.open_protocol_builder_requested.connect(
+            self._on_open_protocol_builder
+        )
+        self._ctrl_panel.run_protocol_requested.connect(self._on_start_protocol)
+        self._ctrl_panel.stop_protocol_requested.connect(self._on_stop_protocol)
+        self._ctrl_panel.protocol_selected.connect(self._on_protocol_file_selected)
+
+        self._camera_panel.ttl_config_changed.connect(self._on_ttl_changed)
+        self._stim_panel.stimulus_applied.connect(self._acq.apply_stimulus_waveform)
+        self._stim_panel.stimulus_cleared.connect(self._acq.clear_stimulus)
 
     # ------------------------------------------------------------------
     # Tab builders

@@ -37,8 +37,10 @@ from config import (
 
 pg.setConfigOptions(antialias=False)
 
-REFRESH_INTERVAL_MS = 33   # ~30 Hz
-DOWNSAMPLE_FACTOR   = 4    # display every 4th point (5 kHz → plenty for display)
+REFRESH_INTERVAL_MS    = 33   # ~30 Hz
+DOWNSAMPLE_FACTOR      = 4    # display every 4th point (5 kHz → plenty for display)
+_SPLITTER_UNIT_HEIGHT  = 100  # base height unit for channel splitter sizing
+_PRIMARY_CHANNEL_SCALE = 2    # primary channel (ScAmpOut) gets N× the height
 
 
 class ChannelYControls(QWidget):
@@ -168,8 +170,11 @@ class LiveTracePanel(QWidget):
             self._splitter.addWidget(pw)
 
         # ScAmpOut (index 0) gets 2× height; all others get 1×
-        unit = 100
-        sizes = [unit * 2 if i == 0 else unit for i in range(n_ch)]
+        sizes = [
+            _SPLITTER_UNIT_HEIGHT * _PRIMARY_CHANNEL_SCALE if i == 0
+            else _SPLITTER_UNIT_HEIGHT
+            for i in range(n_ch)
+        ]
         self._splitter.setSizes(sizes)
 
         root = QVBoxLayout(self)

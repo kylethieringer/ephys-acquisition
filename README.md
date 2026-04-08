@@ -195,7 +195,8 @@ A companion `.bin` file (raw float64 data) and `metadata.json` sidecar are alway
 - **pypylon** — Basler camera SDK
 - **numpy** — Numerical computing
 - **h5py** — HDF5 file I/O
-- **opencv-python** (optional) — Video recording
+- **scipy** — Signal processing utilities
+- **opencv-python** — Video recording
 
 ## Contact
 

@@ -66,6 +66,7 @@ except ImportError:
     HAS_H5PY = False
 
 from config import AI_CHANNELS, CHUNK_SIZE, SAMPLE_RATE
+from acquisition import write_common_hdf5_metadata
 
 
 # ---------------------------------------------------------------------------
@@ -131,29 +132,9 @@ class BinToHDF5Worker(QThread):
         chunk_cols = min(SAMPLE_RATE, max(1, n_samp))
 
         with open(self._bin_path, "rb") as bf, _h5py.File(self._h5_path, "w") as hf:
-            meta = hf.create_group("metadata")
-            meta.attrs["sample_rate"] = header["sample_rate"]
-            meta.attrs["start_time"]  = header["start_time"]
+            write_common_hdf5_metadata(hf, header)
 
             dt_str = _h5py.string_dtype()
-            meta.create_dataset(
-                "channel_names",
-                data=np.array(header["channel_names"], dtype=object),
-                dtype=dt_str,
-            )
-            meta.create_dataset(
-                "display_scales",
-                data=np.array(header["display_scales"], dtype=np.float64),
-            )
-            meta.create_dataset(
-                "units",
-                data=np.array(header["units"], dtype=object),
-                dtype=dt_str,
-            )
-
-            subj = hf.create_group("subject")
-            for k, v in header.get("subject", {}).items():
-                subj.attrs[k] = str(v) if v else ""
 
             data_grp = hf.create_group("data")
             ds = data_grp.create_dataset(

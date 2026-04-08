@@ -70,6 +70,7 @@ except ImportError:
     HAS_H5PY = False
 
 from config import ChannelDef, N_AI_CHANNELS, SAMPLE_RATE
+from acquisition import write_common_hdf5_metadata
 from acquisition.trial_protocol import TrialProtocol, protocol_to_dict
 
 
@@ -269,27 +270,12 @@ class TrialSaver:
         with open(self._bin_path, "rb") as bf, _h5py.File(self._path, "w") as hf:
             dt_str = _h5py.string_dtype()
 
-            # /metadata
-            meta = hf.create_group("metadata")
-            meta.attrs["sample_rate"] = header["sample_rate"]
-            meta.attrs["start_time"]  = header["start_time"]
-            meta.attrs["clamp_mode"]  = header["clamp_mode"]
-            meta.attrs["n_trials"]    = header["n_trials"]
+            # /metadata and /subject (common fields)
+            meta = write_common_hdf5_metadata(hf, header)
 
-            meta.create_dataset(
-                "channel_names",
-                data=np.array(header["channel_names"], dtype=object),
-                dtype=dt_str,
-            )
-            meta.create_dataset(
-                "display_scales",
-                data=np.array(header["display_scales"], dtype=np.float64),
-            )
-            meta.create_dataset(
-                "units",
-                data=np.array(header["units"], dtype=object),
-                dtype=dt_str,
-            )
+            # Trial-specific metadata
+            meta.attrs["clamp_mode"] = header["clamp_mode"]
+            meta.attrs["n_trials"]   = header["n_trials"]
             meta.create_dataset("protocol", data=header["protocol_json"], dtype=dt_str)
             meta.create_dataset(
                 "trial_order",
@@ -305,11 +291,6 @@ class TrialSaver:
                 data=np.array(header["trial_stimulus_types"], dtype=object),
                 dtype=dt_str,
             )
-
-            # /subject
-            subj = hf.create_group("subject")
-            for k, v in header.get("subject", {}).items():
-                subj.attrs[k] = str(v) if v else ""
 
             # /trial_NNN groups
             for entry in self._trial_index:

@@ -1,8 +1,9 @@
 """
 CameraWorker — QThread that grabs frames from a Basler camera.
 
-Uses GrabStrategy_LatestImageOnly so the preview always shows the
-most recent frame; older frames are discarded if the GUI is slow.
+Uses GrabStrategy_OneByOne so frames are retrieved in arrival order
+and none are silently discarded when the system is momentarily slow.
+This ensures the video frame count matches the TTL trigger count.
 
 Lifecycle:
     worker = CameraWorker(exposure_ms=10.0)
@@ -69,7 +70,7 @@ class CameraWorker(QThread):
             cam = open_camera(self._exposure_ms)
             self._running = True
 
-            cam.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
+            cam.StartGrabbing(pylon.GrabStrategy_OneByOne)
 
             while self._running and cam.IsGrabbing():
                 result = cam.RetrieveResult(
