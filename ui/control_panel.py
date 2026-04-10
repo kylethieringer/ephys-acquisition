@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFileDialog,
     QFormLayout,
@@ -119,7 +120,8 @@ class ControlPanel(QWidget):
 
         Returns:
             Dict with keys: ``"expt_id"``, ``"genotype"``, ``"age"``,
-            ``"sex"``, ``"targeted_cell_type"``, ``"notes"``.
+            ``"sex"``, ``"targeted_cell_type"``, ``"notes"``,
+            ``"drug_applied"``, ``"drug_name"``, ``"drug_concentration"``.
             ``expt_id`` falls back to ``"expt_xx"`` if the field is empty.
         """
         return {
@@ -129,7 +131,28 @@ class ControlPanel(QWidget):
             "sex":                self._sex_combo.currentText(),
             "targeted_cell_type": self._cell_type_edit.text().strip(),
             "notes":              self._notes_edit.toPlainText().strip(),
+            "drug_applied":       self._drug_check.isChecked(),
+            "drug_name":          self._drug_name_edit.text().strip() if self._drug_check.isChecked() else "",
+            "drug_concentration": self._drug_conc_edit.text().strip() if self._drug_check.isChecked() else "",
         }
+
+    def validate_metadata(self) -> list[str]:
+        """Check required metadata fields and return names of empty ones.
+
+        Returns:
+            List of human-readable field names that are blank.
+            An empty list means all required fields are filled.
+        """
+        missing: list[str] = []
+        if not self._expt_id_edit.text().strip():
+            missing.append("Experiment ID")
+        if not self._genotype_edit.text().strip():
+            missing.append("Genotype")
+        if not self._age_edit.text().strip():
+            missing.append("Age")
+        if not self._cell_type_edit.text().strip():
+            missing.append("Target cell type")
+        return missing
 
     def set_running(self, running: bool) -> None:
         """Update Start/Stop button states to reflect running status.
@@ -278,12 +301,25 @@ class ControlPanel(QWidget):
         self._age_edit           = QLineEdit()
         self._age_edit.setPlaceholderText("e.g. 4")
         self._sex_combo          = QComboBox()
-        self._sex_combo.addItems(["not specified", "M", "F"])
+        self._sex_combo.addItems(["F","M"])
         self._cell_type_edit     = QLineEdit()
         self._cell_type_edit.setPlaceholderText("e.g. dvmn")
         self._notes_edit         = QPlainTextEdit()
         self._notes_edit.setPlaceholderText("e.g. experiment notes")
         self._notes_edit.setMaximumHeight(60)
+
+        self._drug_check         = QCheckBox("Drug applied")
+        self._drug_name_edit     = QLineEdit()
+        self._drug_name_edit.setPlaceholderText("e.g. TTX")
+        self._drug_name_edit.setVisible(False)
+        self._drug_conc_edit     = QLineEdit()
+        self._drug_conc_edit.setPlaceholderText("e.g. 1 µM")
+        self._drug_conc_edit.setVisible(False)
+        self._drug_name_label    = QLabel("Drug name:")
+        self._drug_name_label.setVisible(False)
+        self._drug_conc_label    = QLabel("Concentration:")
+        self._drug_conc_label.setVisible(False)
+        self._drug_check.toggled.connect(self._on_drug_toggled)
 
         meta_layout.addRow("Experiment ID:", self._expt_id_edit)
         meta_layout.addRow("Genotype:",      self._genotype_edit)
@@ -291,6 +327,9 @@ class ControlPanel(QWidget):
         meta_layout.addRow("Sex:",           self._sex_combo)
         meta_layout.addRow("Target cell type:", self._cell_type_edit)
         meta_layout.addRow("Notes:",         self._notes_edit)
+        meta_layout.addRow("",               self._drug_check)
+        meta_layout.addRow(self._drug_name_label, self._drug_name_edit)
+        meta_layout.addRow(self._drug_conc_label, self._drug_conc_edit)
 
         root.addWidget(meta_box)
         root.addStretch()
@@ -400,6 +439,13 @@ class ControlPanel(QWidget):
         path = self._protocol_combo.itemData(index)
         if path:
             self.protocol_selected.emit(path)
+
+    def _on_drug_toggled(self, checked: bool) -> None:
+        """Show or hide drug name and concentration fields."""
+        self._drug_name_edit.setVisible(checked)
+        self._drug_name_label.setVisible(checked)
+        self._drug_conc_edit.setVisible(checked)
+        self._drug_conc_label.setVisible(checked)
 
     def _browse_dir(self) -> None:
         """Open a directory chooser and update the save directory."""

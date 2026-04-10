@@ -49,7 +49,7 @@ HALF_WIN_S    = 1.0    # seconds displayed either side of current frame
 TRACE_HEIGHT  = 200    # pixels — height of trace panel appended below video
 
 # BGR colours (OpenCV convention)
-_BG  = ( 26,  26,  46)   # dark navy background
+_BG  = (  0,   0,   0)   # black background
 _FG  = (255, 191,   0)   # gold trace
 _CL  = (200, 200, 200)   # centre-line white
 _AX  = (120, 120, 130)   # axis / tick grey
@@ -112,9 +112,9 @@ def find_frame_samples(ttl: np.ndarray, threshold: float = TTL_THRESHOLD) -> np.
 # ---------------------------------------------------------------------------
 
 def _y_range(vm: np.ndarray, pad_frac: float = 0.08) -> tuple[float, float]:
-    """Robust y-axis range using the 2nd–98th percentile of the Vm trace."""
-    lo = float(np.nanpercentile(vm, 2))
-    hi = float(np.nanpercentile(vm, 98))
+    """Y-axis range using the full min/max of the Vm trace."""
+    lo = float(np.nanmin(vm))
+    hi = float(np.nanmax(vm))
     margin = (hi - lo) * pad_frac
     return lo - margin, hi + margin
 
@@ -239,18 +239,28 @@ def _draw_trace(
     for dy in range(pad_top, baseline, 6):
         cv2.line(img, (cx, dy), (cx, min(dy + 3, baseline)), _CL, 1)
 
-    # ---- trace (min-max envelope) ----
+    # ---- trace (min-max envelope as polylines) ----
     col_min, col_max = _minmax_envelope(window, draw_w)
+    seg_max: list[tuple[int, int]] = []
+    seg_min: list[tuple[int, int]] = []
+    segs_max: list[list[tuple[int, int]]] = []
+    segs_min: list[list[tuple[int, int]]] = []
     for col in range(draw_w):
         if np.isnan(col_min[col]):
+            if seg_max:
+                segs_max.append(seg_max); segs_min.append(seg_min)
+                seg_max = []; seg_min = []
             continue
-        x  = pad_lft + col
-        y1 = _y_px(float(col_min[col]))
-        y2 = _y_px(float(col_max[col]))
-        # y1 > y2 because y_px flips the axis; clamp to plot area
-        y_top = max(pad_top, min(y1, y2))
-        y_bot = min(baseline, max(y1, y2))
-        cv2.line(img, (x, y_top), (x, y_bot), _FG, 1)
+        x = pad_lft + col
+        seg_max.append((x, _y_px(float(col_max[col]))))
+        seg_min.append((x, _y_px(float(col_min[col]))))
+    if seg_max:
+        segs_max.append(seg_max); segs_min.append(seg_min)
+
+    for seg in segs_max:
+        cv2.polylines(img, [np.array(seg, dtype=np.int32)], False, _FG, 1, cv2.LINE_AA)
+    for seg in segs_min:
+        cv2.polylines(img, [np.array(seg, dtype=np.int32)], False, _FG, 1, cv2.LINE_AA)
 
     return img
 

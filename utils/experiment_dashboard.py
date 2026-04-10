@@ -131,7 +131,7 @@ def load_csv(csv_path: str) -> pd.DataFrame:
         df["end_time"] = pd.to_datetime(df["end_time"], errors="coerce")
     if "duration_seconds" in df.columns:
         df["duration_seconds"] = pd.to_numeric(df["duration_seconds"], errors="coerce")
-    for col in ("has_video", "has_trials"):
+    for col in ("has_video", "has_trials", "drug_applied"):
         if col in df.columns:
             df[col] = df[col].astype(str).str.lower().isin(("true", "1", "yes"))
     return df
@@ -221,6 +221,11 @@ with st.sidebar:
 
     st.markdown("---")
 
+    # Drug filter
+    only_drug = st.checkbox("Drug applied")
+
+    st.markdown("---")
+
     # Date range
     has_dates = "start_time" in df_full.columns and df_full["start_time"].notna().any()
     if has_dates:
@@ -264,6 +269,8 @@ if only_video and "has_video" in df.columns:
     df = df[df["has_video"]]
 if only_trials and "has_trials" in df.columns:
     df = df[df["has_trials"]]
+if only_drug and "drug_applied" in df.columns:
+    df = df[df["drug_applied"].astype(str).str.lower().isin(("true", "1", "yes"))]
 
 
 # ── Header ────────────────────────────────────────────────────────────────────
@@ -295,6 +302,7 @@ if df.empty:
 # Columns to show in the table (auto + any user columns)
 AUTO_COLS = [
     "expt_id", "genotype", "age", "sex", "targeted_cell_type",
+    "drug_applied", "drug_name", "drug_concentration",
     "start_time", "duration_seconds", "clamp_mode", "has_video", "has_trials",
 ]
 user_cols = [c for c in df.columns if c not in AUTO_COLS and c != "metadata_file" and c != "end_time"]
@@ -314,8 +322,9 @@ if "start_time" in df_display.columns:
     df_display["start_time"] = df_display["start_time"].dt.strftime("%Y-%m-%d  %H:%M")
 
 col_cfg: dict = {}
-if "has_video"  in df_display.columns: col_cfg["has_video"]  = st.column_config.CheckboxColumn("video")
-if "has_trials" in df_display.columns: col_cfg["has_trials"] = st.column_config.CheckboxColumn("trials")
+if "has_video"    in df_display.columns: col_cfg["has_video"]    = st.column_config.CheckboxColumn("video")
+if "has_trials"   in df_display.columns: col_cfg["has_trials"]   = st.column_config.CheckboxColumn("trials")
+if "drug_applied" in df_display.columns: col_cfg["drug_applied"] = st.column_config.CheckboxColumn("drug")
 if "start_time" in df_display.columns: col_cfg["start_time"] = st.column_config.TextColumn("date / time")
 if "expt_id"    in df_display.columns: col_cfg["expt_id"]    = st.column_config.TextColumn("experiment")
 
@@ -367,6 +376,9 @@ with left:
             ("Age",              subject.get("age",               row.get("age", ""))),
             ("Sex",              subject.get("sex",               row.get("sex", ""))),
             ("Targeted cell",    subject.get("targeted_cell_type",row.get("targeted_cell_type", ""))),
+            ("Drug applied",     subject.get("drug_applied",      row.get("drug_applied", ""))),
+            ("Drug name",        subject.get("drug_name",         row.get("drug_name", ""))),
+            ("Concentration",    subject.get("drug_concentration",row.get("drug_concentration", ""))),
         ]
         rows_html = "".join(
             f'<div class="info-key">{k}</div><div class="info-val">{v or "—"}</div>'

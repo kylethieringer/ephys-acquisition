@@ -332,6 +332,27 @@ class MainWindow(QMainWindow):
         else:
             self._acq.stop()
 
+    def _check_metadata(self) -> bool:
+        """Warn the user if required metadata fields are empty.
+
+        Returns:
+            ``True`` if metadata is complete or the user chose to continue
+            anyway; ``False`` if the user cancelled.
+        """
+        missing = self._ctrl_panel.validate_metadata()
+        if not missing:
+            return True
+        fields = ", ".join(missing)
+        result = QMessageBox.warning(
+            self,
+            "Missing Metadata",
+            f"The following metadata fields are empty:\n{fields}\n\n"
+            "Do you want to continue anyway?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        return result == QMessageBox.StandardButton.Yes
+
     def _on_record(self, save_dir: str, metadata: dict) -> None:
         """Handle the Record button: open the HDF5 file and start TTL.
 
@@ -339,6 +360,8 @@ class MainWindow(QMainWindow):
             save_dir: Root directory from the control panel.
             metadata: Subject info dict from :meth:`~ui.control_panel.ControlPanel.get_metadata`.
         """
+        if not self._check_metadata():
+            return
         try:
             self._acq.start_recording(save_dir, metadata)
         except Exception as exc:
@@ -438,6 +461,8 @@ class MainWindow(QMainWindow):
         In trial mode: runs the protocol as discrete per-trial HDF5 groups.
         """
         if self._pending_protocol is None:
+            return
+        if not self._check_metadata():
             return
         try:
             protocol_dict = dict(self._pending_protocol)
