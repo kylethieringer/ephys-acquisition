@@ -1,3 +1,22 @@
+Metadata-Version: 2.4
+Name: ephys-acquisition
+Version: 0.1.0
+Summary: code for running ephys experiments
+Requires-Python: >=3.14
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: h5py>=3.10
+Requires-Dist: nidaqmx>=0.9
+Requires-Dist: numpy>=1.26
+Requires-Dist: opencv-python>=4.9
+Requires-Dist: pandas>=2.0
+Requires-Dist: pypylon>=3.0
+Requires-Dist: pyqtgraph>=0.13
+Requires-Dist: pyside6>=6.6
+Requires-Dist: scipy>=1.12
+Requires-Dist: streamlit>=1.35
+Dynamic: license-file
+
 # Ephys Acquisition
 
 A real-time electrophysiology data acquisition system with integrated camera triggering, live visualization, and protocol-driven stimulation. Built with PySide6 and NI DAQ hardware (NI PCIe-6323).
@@ -9,7 +28,7 @@ A real-time electrophysiology data acquisition system with integrated camera tri
 - **Camera Integration**: Basler Pylon camera with TTL triggering and exposure control
 - **Current Clamp & Voltage Clamp Modes**: Switch between CC and VC with automatic channel relabelling and scaling
 - **Protocol Builder**: Design staircase (CC) and voltage-step (VC) stimulus protocols with a GUI editor
-- **Protocol Dropdown**: Load saved protocols from `D:/protocols` directly from the main window
+- **Protocol Dropdown**: Load saved protocols from `E:/protocols` directly from the main window
 - **Continuous Protocol Mode**: Run a stimulus protocol within a single unbroken recording; stimulus timing is saved as sample-accurate events in the HDF5 file for post-processing
 - **Trial-Based Mode**: Per-trial HDF5 recording with pre-allocated datasets for fast sequential reads
 - **Binary-First Save**: Raw data is written to a `.bin` file during acquisition for minimal overhead; converted to HDF5 in a background thread when recording stops. The `.bin` file is always preserved as a backup
@@ -57,7 +76,7 @@ python main.py
 **Acquisition Tab**
 - Acquisition mode (Continuous / Trial-based)
 - Clamp mode (Current clamp / Voltage clamp)
-- Protocol dropdown — select a `.json` from `D:/protocols`; click **↻** to refresh
+- Protocol dropdown — select a `.json` from `E:/protocols`; click **↻** to refresh
 - Open Protocol Builder button — design new protocols
 - **Run Protocol** button — starts the protocol in whichever mode is active
 - Save directory and subject metadata
@@ -185,7 +204,7 @@ A companion `.bin` file (raw float64 data) and `metadata.json` sidecar are alway
 | "Device not found" | Check device name in NI MAX; update `DEVICE_NAME` in `config.py` |
 | Camera not triggering | Verify TTL levels (`TTL_HIGH_V`, `TTL_LOW_V`) and PFI12 wiring |
 | HDF5 conversion failed | Raw `.bin` file preserved — re-run conversion manually using `np.fromfile` |
-| Protocol not in dropdown | Place `.json` protocol files in `D:/protocols`; click **↻** to refresh |
+| Protocol not in dropdown | Place `.json` protocol files in `E:/protocols`; click **↻** to refresh |
 
 ## Dependencies
 

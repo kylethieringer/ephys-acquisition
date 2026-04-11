@@ -1,10 +1,10 @@
-PySide6>=6.6
-pyqtgraph>=0.13
-nidaqmx>=0.9
-pypylon>=3.0
-numpy>=1.26
 h5py>=3.10
-scipy>=1.12
+nidaqmx>=0.9
+numpy>=1.26
 opencv-python>=4.9
 pandas>=2.0
+pypylon>=3.0
+pyqtgraph>=0.13
+pyside6>=6.6
+scipy>=1.12
 streamlit>=1.35

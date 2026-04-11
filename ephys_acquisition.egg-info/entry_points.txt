@@ -1,0 +1,2 @@
+[console_scripts]
+ephys-gui = main:main

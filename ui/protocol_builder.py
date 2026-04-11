@@ -112,7 +112,7 @@ class ProtocolBuilderDialog(QDialog):
             self.windowFlags() | Qt.WindowMaximizeButtonHint
         )
 
-        self._save_dir = "E:/protocols"
+        self._save_dir = "D:/protocols"
         self._stimuli: list[StimulusDefinition] = []
 
         self._build_ui()
@@ -734,7 +734,7 @@ class ProtocolBuilderDialog(QDialog):
     def _on_load(self) -> None:
         """Open a file dialog and load a protocol JSON into the dialog."""
         path, _ = QFileDialog.getOpenFileName(
-            self, "Load Protocol", "E:/protocols", "Protocol files (*.json)"
+            self, "Load Protocol", "D:/protocols", "Protocol files (*.json)"
         )
         if path:
             self.load_protocol_from_file(path)

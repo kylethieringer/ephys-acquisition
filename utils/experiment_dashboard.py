@@ -3,7 +3,7 @@ experiment_dashboard.py — Interactive experiment browser.
 
 Run with:
     streamlit run experiment_dashboard.py
-    streamlit run experiment_dashboard.py -- --data-dir E:/data
+    streamlit run experiment_dashboard.py -- --data-dir D:/data
 """
 
 from __future__ import annotations
@@ -170,7 +170,7 @@ def get_config() -> tuple[Path, Path]:
         raw_args = []
 
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--data-dir", type=Path, default=Path("E:/data"))
+    parser.add_argument("--data-dir", type=Path, default=Path("D:/data"))
     parser.add_argument("--csv", type=Path, default=None)
     args, _ = parser.parse_known_args(raw_args)
 

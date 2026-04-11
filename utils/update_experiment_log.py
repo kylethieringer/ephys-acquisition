@@ -8,8 +8,8 @@ columns (notes, quality scores, etc.) are never overwritten.
 Usage
 -----
     python update_experiment_log.py
-    python update_experiment_log.py --data-dir E:/data
-    python update_experiment_log.py --data-dir E:/data --output E:/data/_experiment_log.csv
+    python update_experiment_log.py --data-dir D:/data
+    python update_experiment_log.py --data-dir D:/data --output D:/data/_experiment_log.csv
 """
 
 from __future__ import annotations
@@ -177,8 +177,8 @@ def main() -> None:
     parser.add_argument(
         "--data-dir",
         type=Path,
-        default=Path("E:/data"),
-        help="Root directory to scan for *_metadata.json files (default: E:/data)",
+        default=Path("D:/data"),
+        help="Root directory to scan for *_metadata.json files (default: D:/data)",
     )
     parser.add_argument(
         "--output",

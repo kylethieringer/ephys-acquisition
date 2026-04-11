@@ -74,8 +74,8 @@ class ControlPanel(QWidget):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self._save_dir       = "E:/data"
-        self._protocol_folder = "E:/protocols"
+        self._save_dir       = "D:/data"
+        self._protocol_folder = "D:/protocols"
 
         self._settings_widget  = QWidget()
         self._protocol_widget  = QWidget()
