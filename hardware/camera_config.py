@@ -16,6 +16,49 @@ except ImportError:
     HAS_PYPYLON = False
 
 
+def check_camera_available() -> None:
+    """
+    Verify that a Basler camera can be found and opened.
+
+    Call this before starting acquisition workers to give an early, clear
+    error rather than silently running without frame capture.
+
+    Raises:
+        RuntimeError: if pypylon is not installed, no camera is detected,
+                      or the camera cannot be opened (e.g. already in use
+                      by another program).
+    """
+    if not HAS_PYPYLON:
+        raise RuntimeError(
+            "pypylon is not installed. Run: pip install pypylon"
+        )
+
+    tlf = pylon.TlFactory.GetInstance()
+    devices = tlf.EnumerateDevices()
+    if len(devices) == 0:
+        raise RuntimeError(
+            "No Basler camera detected. Check that the camera is plugged in "
+            "and powered on."
+        )
+
+    # Open and immediately close to confirm the camera is not locked by
+    # another process (e.g. Pylon Viewer or a previous crashed session).
+    cam = pylon.InstantCamera(tlf.CreateFirstDevice())
+    try:
+        cam.Open()
+    except Exception as exc:
+        raise RuntimeError(
+            f"Camera detected but cannot be opened — it may already be in use "
+            f"by another program. Close any other software that has the camera "
+            f"open and try again. ({exc})"
+        ) from exc
+    finally:
+        try:
+            cam.Close()
+        except Exception:
+            pass
+
+
 def open_camera(exposure_ms: float = 10.0):
     """
     Open the first available Basler camera, configure hardware trigger and

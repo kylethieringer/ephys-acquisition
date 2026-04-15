@@ -28,7 +28,7 @@ A real-time electrophysiology data acquisition system with integrated camera tri
 - **Camera Integration**: Basler Pylon camera with TTL triggering and exposure control
 - **Current Clamp & Voltage Clamp Modes**: Switch between CC and VC with automatic channel relabelling and scaling
 - **Protocol Builder**: Design staircase (CC) and voltage-step (VC) stimulus protocols with a GUI editor
-- **Protocol Dropdown**: Load saved protocols from `E:/protocols` directly from the main window
+- **Protocol Dropdown**: Load saved protocols from `D:/protocols` directly from the main window
 - **Continuous Protocol Mode**: Run a stimulus protocol within a single unbroken recording; stimulus timing is saved as sample-accurate events in the HDF5 file for post-processing
 - **Trial-Based Mode**: Per-trial HDF5 recording with pre-allocated datasets for fast sequential reads
 - **Binary-First Save**: Raw data is written to a `.bin` file during acquisition for minimal overhead; converted to HDF5 in a background thread when recording stops. The `.bin` file is always preserved as a backup
@@ -76,7 +76,7 @@ python main.py
 **Acquisition Tab**
 - Acquisition mode (Continuous / Trial-based)
 - Clamp mode (Current clamp / Voltage clamp)
-- Protocol dropdown — select a `.json` from `E:/protocols`; click **↻** to refresh
+- Protocol dropdown — select a `.json` from `D:/protocols`; click **↻** to refresh
 - Open Protocol Builder button — design new protocols
 - **Run Protocol** button — starts the protocol in whichever mode is active
 - Save directory and subject metadata
@@ -204,7 +204,7 @@ A companion `.bin` file (raw float64 data) and `metadata.json` sidecar are alway
 | "Device not found" | Check device name in NI MAX; update `DEVICE_NAME` in `config.py` |
 | Camera not triggering | Verify TTL levels (`TTL_HIGH_V`, `TTL_LOW_V`) and PFI12 wiring |
 | HDF5 conversion failed | Raw `.bin` file preserved — re-run conversion manually using `np.fromfile` |
-| Protocol not in dropdown | Place `.json` protocol files in `E:/protocols`; click **↻** to refresh |
+| Protocol not in dropdown | Place `.json` protocol files in `D:/protocols`; click **↻** to refresh |
 
 ## Dependencies
 

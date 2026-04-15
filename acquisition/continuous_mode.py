@@ -51,8 +51,10 @@ from config import (
 from acquisition.data_buffer import RingBuffer
 from acquisition.data_saver import ContinuousSaver
 from acquisition.continuous_protocol_runner import ContinuousProtocolRunner
+from acquisition.trial_protocol import protocol_to_dict
 from hardware.daq_worker import DAQWorker
 from hardware.camera_worker import CameraWorker
+from hardware.camera_config import HAS_PYPYLON, check_camera_available
 from utils.stimulus_generator import get_actual_frame_rate
 
 try:
@@ -204,9 +206,16 @@ class ContinuousAcquisition(QObject):
         - AO output is silent (0 V on ao0).
 
         No-op if already running.
+
+        Raises:
+            RuntimeError: if the camera cannot be detected or is already
+                open in another program.
         """
         if self._is_running:
             return
+
+        if HAS_PYPYLON:
+            check_camera_available()   # raises RuntimeError if camera unusable
 
         self._ring_buffer.reset()
 
@@ -353,6 +362,7 @@ class ContinuousAcquisition(QObject):
                 "ephys_bin": self._saver.path.with_suffix(".bin").name,
                 "video": video_path.name,
             },
+            "protocols": [],
         }
         self._metadata_path.write_text(json.dumps(self._metadata, indent=2))
 
@@ -447,8 +457,8 @@ class ContinuousAcquisition(QObject):
         timeline and anchors it to the current ``n_saved`` position so
         stimulus events fire at the correct sample offsets.
 
-        When all events have fired, :meth:`stop_recording` is called
-        automatically and ``protocol_finished`` is emitted.
+        When all events have fired, ``protocol_finished`` is emitted.
+        Recording continues until :meth:`stop_recording` is called.
 
         Args:
             protocol: A :class:`~acquisition.trial_protocol.TrialProtocol`
@@ -457,8 +467,17 @@ class ContinuousAcquisition(QObject):
         if not self._is_recording:
             return
         runner = ContinuousProtocolRunner(protocol)
-        runner.start(self._saver.n_saved)
+        start_sample = self._saver.n_saved
+        runner.start(start_sample)
         self._protocol_runner = runner
+
+        if self._metadata is not None and self._metadata_path is not None:
+            self._metadata.setdefault("protocols", []).append({
+                "start_time":   datetime.datetime.now().isoformat(),
+                "start_sample": start_sample,
+                "protocol":     protocol_to_dict(protocol),
+            })
+            self._metadata_path.write_text(json.dumps(self._metadata, indent=2))
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -511,7 +530,6 @@ class ContinuousAcquisition(QObject):
 
         if self._protocol_runner.is_done():
             self._protocol_runner = None
-            self.stop_recording()
             self.protocol_finished.emit()
 
     def _on_camera_frame(self, frame: NDArray) -> None:
@@ -594,11 +612,24 @@ class ContinuousAcquisition(QObject):
         self.error_occurred.emit(f"DAQ error: {msg}")
 
     def _handle_camera_error(self, msg: str) -> None:
-        """Handle a non-fatal camera error by forwarding it to the UI.
+        """Handle a fatal camera error by tearing down all acquisition state.
 
-        Camera errors do not interrupt the DAQ acquisition loop.
+        Closes the recording (if active), stops both workers, and emits
+        ``error_occurred``.  This mirrors :meth:`_handle_error` so that a
+        camera failure during acquisition stops the experiment cleanly rather
+        than silently continuing without frame capture.
 
         Args:
             msg: Human-readable error message from the camera worker.
         """
+        if self._is_recording:
+            self._close_recording()
+        self._teardown_camera()
+
+        if self._daq_worker is not None:
+            self._daq_worker.stop()
+            self._daq_worker.wait(5000)
+            self._daq_worker = None
+
+        self._is_running = False
         self.error_occurred.emit(f"Camera error: {msg}")

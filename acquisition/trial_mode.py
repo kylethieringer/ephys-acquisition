@@ -79,6 +79,7 @@ from acquisition.trial_protocol import (
 from acquisition.trial_saver import TrialSaver
 from acquisition.trial_waveforms import build_trial_waveform
 from hardware.camera_worker import CameraWorker
+from hardware.camera_config import HAS_PYPYLON, check_camera_available
 from hardware.daq_worker import DAQWorker
 
 
@@ -274,9 +275,16 @@ class TrialAcquisition(QObject):
 
         Mirrors :meth:`~acquisition.continuous_mode.ContinuousAcquisition.start`.
         No-op if already running.
+
+        Raises:
+            RuntimeError: if the camera cannot be detected or is already
+                open in another program.
         """
         if self._is_running:
             return
+
+        if HAS_PYPYLON:
+            check_camera_available()   # raises RuntimeError if camera unusable
 
         self._daq_worker = DAQWorker(self._frame_rate_hz, self._exposure_ms)
         self._daq_worker.data_ready.connect(self._on_ai_chunk)
@@ -664,11 +672,31 @@ class TrialAcquisition(QObject):
         self.error_occurred.emit(f"DAQ error: {msg}")
 
     def _handle_camera_error(self, msg: str) -> None:
-        """Forward a non-fatal camera error to the UI.
+        """Handle a fatal camera error by tearing down all acquisition state.
+
+        Closes the HDF5 file (partial data preserved), resets the state
+        machine, and tears down all workers.  This mirrors
+        :meth:`_handle_error` so a camera failure stops the experiment
+        cleanly rather than silently continuing without frame capture.
 
         Args:
             msg: Human-readable error message from the camera worker.
         """
+        if self._video_writer is not None:
+            self._video_writer.release()
+            self._video_writer = None
+
+        if self._saver.is_open:
+            self._saver.close()
+        self._state = _S_IDLE
+        self._teardown_camera()
+
+        if self._daq_worker is not None:
+            self._daq_worker.stop()
+            self._daq_worker.wait(5000)
+            self._daq_worker = None
+
+        self._is_running = False
         self.error_occurred.emit(f"Camera error: {msg}")
 
     # ------------------------------------------------------------------

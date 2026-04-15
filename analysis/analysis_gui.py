@@ -52,11 +52,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from analysis.align_video import (
-    HALF_WIN_S,
     TRACE_HEIGHT,
-    TTL_CHANNEL,
-    TTL_THRESHOLD,
-    VM_CHANNEL,
     _compute_rmp,
     _draw_trace,
     _is_trial_mode,
@@ -75,7 +71,7 @@ _STYLESHEET = """
 QMainWindow, QWidget {
     background-color: #1a1a2e;
     color: #e0e0e0;
-    font-size: 11px;
+    font-size: 9pt;
 }
 QGroupBox {
     border: 1px solid #444466;
@@ -154,7 +150,8 @@ class VideoPanel(QWidget):
         self._image_view.ui.roiBtn.hide()
         self._image_view.ui.menuBtn.hide()
         self._image_view.ui.histogram.hide()
-        self._image_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self._image_view.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._image_view.setImage(np.zeros((100, 100), dtype=np.uint8))
         box_layout.addWidget(self._image_view)
 
@@ -168,8 +165,10 @@ class VideoPanel(QWidget):
             img = np.transpose(rgb, (1, 0, 2))
         else:
             img = bgr.T
+        max_val = 65535 if img.dtype == np.uint16 else 255
         self._image_view.setImage(img, autoRange=self._first_frame,
-                                  autoLevels=self._first_frame,
+                                  autoLevels=False,
+                                  levels=(0, max_val),
                                   autoHistogramRange=False)
         self._first_frame = False
 
@@ -208,7 +207,7 @@ class TracePanel(QWidget):
 
         self._cursor = pg.InfiniteLine(pos=0, angle=90, movable=False,
                                        pen=pg.mkPen("#ffffff", width=1,
-                                                     style=Qt.DashLine))
+                                                     style=Qt.PenStyle.DashLine))
         self._plot.addItem(self._cursor)
 
         self._region = pg.LinearRegionItem(brush=pg.mkBrush(85, 85, 170, 50))
@@ -326,7 +325,8 @@ class TracePanel(QWidget):
 
     def get_region(self) -> tuple[float, float]:
         """Return selected region bounds in seconds."""
-        return tuple(self._region.getRegion())
+        lo, hi = self._region.getRegion()
+        return (float(np.asarray(lo).item()), float(np.asarray(hi).item()))
 
     def clear(self) -> None:
         self._curve.setData([], [])
@@ -398,7 +398,7 @@ class TimelineController(QWidget):
         self._play_btn.clicked.connect(self._on_play)
         layout.addWidget(self._play_btn)
 
-        self._slider = QSlider(Qt.Horizontal)
+        self._slider = QSlider(Qt.Orientation.Horizontal)
         self._slider.setMinimum(0)
         self._slider.setMaximum(0)
         self._slider.valueChanged.connect(self.seek_requested.emit)
@@ -478,6 +478,8 @@ class ExportWorker(QThread):
         y_lo: float,
         y_hi: float,
         rmp: float,
+        brightness: float = 0.0,
+        contrast: float = 1.0,
     ) -> None:
         super().__init__()
         self._cap_path = cap_path
@@ -491,6 +493,8 @@ class ExportWorker(QThread):
         self._y_lo = y_lo
         self._y_hi = y_hi
         self._rmp = rmp
+        self._brightness = brightness
+        self._contrast = contrast
 
     def run(self) -> None:
         cap = cv2.VideoCapture(self._cap_path)
@@ -526,6 +530,11 @@ class ExportWorker(QThread):
 
             if frame.shape[1] != vid_w:
                 frame = cv2.resize(frame, (vid_w, vid_h))
+
+            if self._contrast != 1.0 or self._brightness != 0.0:
+                frame = cv2.convertScaleAbs(
+                    frame, alpha=self._contrast, beta=self._brightness,
+                )
 
             composite = np.vstack([frame, trace_img])
             writer.write(composite)
@@ -565,6 +574,9 @@ class ExportDialog(QDialog):
         self.setMinimumWidth(400)
 
         self._worker: ExportWorker | None = None
+        self._video_path = video_path
+        self._start_frame = start_frame
+        self._end_frame = end_frame
 
         layout = QVBoxLayout(self)
 
@@ -588,6 +600,46 @@ class ExportDialog(QDialog):
         path_row.addWidget(browse_btn)
         layout.addLayout(path_row)
 
+        # Brightness / contrast controls
+        adj_box = QGroupBox("Video Adjustments")
+        adj_layout = QHBoxLayout(adj_box)
+
+        adj_layout.addWidget(QLabel("Brightness:"))
+        self._brightness_spin = QDoubleSpinBox()
+        self._brightness_spin.setRange(-255.0, 255.0)
+        self._brightness_spin.setValue(0.0)
+        self._brightness_spin.setSingleStep(5.0)
+        self._brightness_spin.setDecimals(0)
+        self._brightness_spin.setToolTip(
+            "Additive offset (beta). Positive = brighter, negative = darker."
+        )
+        adj_layout.addWidget(self._brightness_spin)
+
+        adj_layout.addWidget(QLabel("Contrast:"))
+        self._contrast_spin = QDoubleSpinBox()
+        self._contrast_spin.setRange(0.1, 5.0)
+        self._contrast_spin.setValue(1.0)
+        self._contrast_spin.setSingleStep(0.1)
+        self._contrast_spin.setDecimals(2)
+        self._contrast_spin.setToolTip(
+            "Multiplicative gain (alpha). 1.0 = unchanged, >1 = more contrast."
+        )
+        adj_layout.addWidget(self._contrast_spin)
+
+        auto_btn = QPushButton("Auto")
+        auto_btn.setToolTip(
+            "Sample frames from the clip and pick brightness/contrast\n"
+            "that stretch the 1st–99th percentile to 0–255."
+        )
+        auto_btn.clicked.connect(self._auto_adjust)
+        adj_layout.addWidget(auto_btn)
+
+        reset_btn = QPushButton("Reset")
+        reset_btn.clicked.connect(self._reset_adjustments)
+        adj_layout.addWidget(reset_btn)
+
+        layout.addWidget(adj_box)
+
         self._progress = QProgressBar()
         self._progress.setValue(0)
         layout.addWidget(self._progress)
@@ -601,6 +653,48 @@ class ExportDialog(QDialog):
 
         self._status_label = QLabel("")
         layout.addWidget(self._status_label)
+
+    def _reset_adjustments(self) -> None:
+        self._brightness_spin.setValue(0.0)
+        self._contrast_spin.setValue(1.0)
+
+    def _auto_adjust(self) -> None:
+        """Sample frames from the clip range and pick brightness/contrast
+        that map the 1st–99th percentile of luminance to 0–255."""
+        cap = cv2.VideoCapture(self._video_path)
+        if not cap.isOpened():
+            return
+
+        n_samples = 10
+        n_clip = max(1, self._end_frame - self._start_frame)
+        step = max(1, n_clip // n_samples)
+        indices = list(range(self._start_frame, self._end_frame, step))[:n_samples]
+
+        pixels = []
+        for idx in indices:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+            ret, frame = cap.read()
+            if not ret:
+                continue
+            if frame.ndim == 3:
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            pixels.append(frame.ravel())
+        cap.release()
+
+        if not pixels:
+            return
+
+        data = np.concatenate(pixels)
+        p_lo, p_hi = np.percentile(data, [1.0, 99.0])
+        if p_hi - p_lo < 1.0:
+            return
+
+        alpha = 255.0 / (p_hi - p_lo)
+        beta = -alpha * p_lo
+        alpha = float(np.clip(alpha, 0.1, 5.0))
+        beta = float(np.clip(beta, -255.0, 255.0))
+        self._contrast_spin.setValue(alpha)
+        self._brightness_spin.setValue(beta)
 
     def _browse(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
@@ -630,6 +724,8 @@ class ExportDialog(QDialog):
             vm, sr, frame_samples,
             start_frame, end_frame, fps,
             y_lo, y_hi, rmp,
+            brightness=self._brightness_spin.value(),
+            contrast=self._contrast_spin.value(),
         )
         self._worker.progress.connect(self._progress.setValue)
         self._worker.finished.connect(self._on_finished)
@@ -689,7 +785,8 @@ class AnalysisWindow(QMainWindow):
         top_bar.addWidget(open_btn)
 
         self._file_label = QLabel("No file loaded")
-        self._file_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self._file_label.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         top_bar.addWidget(self._file_label, stretch=1)
 
         self._status_label = QLabel("")
@@ -697,7 +794,7 @@ class AnalysisWindow(QMainWindow):
         root.addLayout(top_bar)
 
         # Splitter: video | trace
-        splitter = QSplitter(Qt.Horizontal)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
         self._video_panel = VideoPanel()
         self._trace_panel = TracePanel()
         splitter.addWidget(self._video_panel)
@@ -807,7 +904,8 @@ class AnalysisWindow(QMainWindow):
         self._sr = sr
         self._frame_samples = frame_samples
 
-        if has_video:
+        n_video = 0
+        if has_video and self._cap is not None:
             n_video = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT))
             self._fps = self._cap.get(cv2.CAP_PROP_FPS) or 100.0
             self._n_frames = min(len(frame_samples), n_video)
@@ -815,7 +913,7 @@ class AnalysisWindow(QMainWindow):
             self._n_frames = len(frame_samples)
             self._fps = 100.0
 
-        if len(frame_samples) != (n_video if has_video else len(frame_samples)):
+        if has_video and len(frame_samples) != n_video:
             self._status_label.setText(
                 f"Warning: TTL edges ({len(frame_samples)}) != "
                 f"video frames ({n_video})")

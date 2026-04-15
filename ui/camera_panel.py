@@ -71,14 +71,16 @@ class CameraPanel(QWidget):
         frame: HxW (mono) or HxWx3 (color) uint8 / uint16 numpy array.
         """
         auto_range = self._first_frame
+        max_val = 65535 if frame.dtype == np.uint16 else 255
         if frame.ndim == 2:
             self._image_view.setImage(
                 frame.T, autoLevels=False, autoRange=auto_range,
-                levels=(0, frame.max() or 1),
+                levels=(0, max_val),
             )
         else:
             self._image_view.setImage(
-                frame.transpose(1, 0, 2), autoRange=auto_range,
+                frame.transpose(1, 0, 2), autoLevels=False,
+                autoRange=auto_range, levels=(0, max_val),
             )
         self._first_frame = False
 

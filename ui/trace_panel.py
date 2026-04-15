@@ -207,6 +207,22 @@ class LiveTracePanel(QWidget):
     def set_ring_buffer(self, buf) -> None:
         self._ring_buffer = buf
 
+    def toggle_channel(self, index: int, visible: bool) -> None:
+        """Show or hide a channel's plot widget and keep the time axis on the last visible plot."""
+        self._plot_widgets[index].setVisible(visible)
+        self._update_time_axis()
+
+    def _update_time_axis(self) -> None:
+        """Show the time (bottom) axis only on the last visible channel."""
+        last_visible = -1
+        for i, pw in enumerate(self._plot_widgets):
+            if pw.isVisible():
+                last_visible = i
+        for i, plot in enumerate(self._plots):
+            show = (i == last_visible)
+            plot.setLabel("bottom", "Time (s)" if show else "")
+            plot.showAxis("bottom", show)
+
     def set_clamp_mode(self, mode: str) -> None:
         """Switch channel definitions and Y-range defaults for CC or VC mode.
 

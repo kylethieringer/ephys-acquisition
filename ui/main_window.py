@@ -311,15 +311,19 @@ class MainWindow(QMainWindow):
             index: 0-based channel index matching :data:`~config.AI_CHANNELS`.
             visible: ``True`` to show the plot.
         """
-        self._trace_panel.plot_widgets[index].setVisible(visible)
+        self._trace_panel.toggle_channel(index, visible)
 
     def _on_start(self) -> None:
         """Handle the Start button: start the active acquisition back-end."""
         self._ctrl_panel.set_status("Starting acquisition…")
-        if self._active_mode == "trial":
-            self._trial_acq.start()
-        else:
-            self._acq.start()
+        try:
+            if self._active_mode == "trial":
+                self._trial_acq.start()
+            else:
+                self._acq.start()
+        except Exception as exc:
+            self._ctrl_panel.set_status(f"Error: {exc}")
+            QMessageBox.critical(self, "Cannot Start Acquisition", str(exc))
 
     def _on_stop(self) -> None:
         """Handle the Stop button: cancel any protocol and stop the active back-end."""
@@ -587,10 +591,10 @@ class MainWindow(QMainWindow):
     def _on_continuous_protocol_finished(self) -> None:
         """Handle protocol completion in continuous mode.
 
-        Recording has already been stopped by the runner.  Re-enable the
-        Run Protocol button and update the status label.
+        Recording continues; only the stimulus timeline has finished.
+        Re-enable the Run Protocol button and update the status label.
         """
-        self._ctrl_panel.set_status("Continuous protocol complete — converting to HDF5…")
+        self._ctrl_panel.set_status("Continuous protocol complete — recording continues.")
         self._ctrl_panel.enable_stop_protocol_button(False)
         if self._pending_protocol is not None:
             self._ctrl_panel.enable_run_protocol_button(True)

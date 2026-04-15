@@ -54,6 +54,7 @@ from config import (
     AI_CHANNELS,
     AO_COMMAND_CH,
     CTR_CHANNEL,
+    CTR_OUT_TERMINAL,
     CHUNK_SIZE,
     DEVICE_NAME,
     SAMPLE_RATE,
@@ -174,13 +175,14 @@ def build_ttl_counter_task(
     duty_cycle = min(max(exposure_ms / period_ms, 0.01), 0.99)
 
     task = nidaqmx.Task("ttl_ctr_task")
-    task.co_channels.add_co_pulse_chan_freq(
+    chan = task.co_channels.add_co_pulse_chan_freq(
         f"{DEVICE_NAME}/{CTR_CHANNEL}",
         freq=frame_rate_hz,
         duty_cycle=duty_cycle,
         idle_state=Level.LOW,
         initial_delay=0.0,
     )
+    chan.co_pulse_term = f"/{DEVICE_NAME}/{CTR_OUT_TERMINAL}"
     task.timing.cfg_implicit_timing(sample_mode=AcquisitionType.CONTINUOUS)
     return task
 
