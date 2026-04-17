@@ -226,10 +226,10 @@ are captured before the file is closed.
 # ---------------------------------------------------------------------------
 
 AI_Y_DEFAULTS: list[tuple[float, float]] = [
-    (-100.0,  100.0),   # ScAmpOut  (mV)
+    (-100.0,  10.0),   # ScAmpOut  (mV)
     ( -10.0,   10.0),   # RawAmpOut (nA)
-    (-500.0,  500.0),   # AmpCmd    (pA)
-    (  -0.5,    5.5),   # Camera    (V)
+    (-150.0,  10.0),   # AmpCmd    (pA)
+    (  3,    4),   # Camera    (V)
     (  -0.5,    5.5),   # TTLLoopback (V)
 ]
 """Default Y-axis (min, max) ranges in display units for each AI channel.
@@ -238,8 +238,8 @@ Indices correspond to :data:`AI_CHANNELS` row order.
 """
 
 AI_Y_DEFAULTS_VC: list[tuple[float, float]] = [
-    (-2000.0, 2000.0),   # I_mem  (pA)
-    ( -100.0,  100.0),   # V_pip  (mV)
+    (-50.0, 50.0),   # I_mem  (pA)
+    ( -100.0,  0.0),   # V_pip  (mV)
     ( -200.0,  200.0),   # AmpCmd (mV, ±10 V DAQ × 20 mV/V)
     (   -0.5,    5.5),   # Camera (V)
     (   -0.5,    5.5),   # TTLLoopback (V)

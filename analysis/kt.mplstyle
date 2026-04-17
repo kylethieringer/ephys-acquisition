@@ -1,0 +1,28 @@
+
+# reset all font sizes to defaults
+axes.autolimit_mode: round_numbers
+axes.xmargin: 0
+axes.ymargin: 0
+axes.facecolor: None
+axes.spines.top: False
+axes.spines.right: False
+
+figure.frameon: False
+figure.facecolor : none      ## figure facecolor
+figure.edgecolor : none      ## figure edgecolor
+
+legend.frameon: False
+
+image.interpolation: nearest
+image.aspect: auto
+image.origin: lower
+
+font.family: Arial
+font.size:14
+
+pdf.fonttype: 42
+ps.fonttype: 42
+svg.fonttype: none
+
+savefig.pad_inches  : 0.01      ## Padding to be used when bbox is set to 'tight'
+savefig.transparent : True    
