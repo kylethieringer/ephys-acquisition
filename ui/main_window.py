@@ -1,18 +1,27 @@
 """
 MainWindow — top-level Qt window that assembles all panels.
 
-Layout::
+Layout (redesigned)::
 
-    QSplitter (horizontal, 65 / 35 split)
-    ├── Left:  LiveTracePanel  (5 rolling AI traces at 20 kHz)
-    └── Right: QWidget (vertical)
-                ├── QTabWidget
-                │   ├── Tab "Acquisition": mode selector, data recording,
-                │   │       TTL settings, channel toggles, Y-range controls
-                │   └── Tab "Experiment":  camera preview (top),
-                │           protocol controls + stimulus panel (bottom)
-                └── Recording bar (always visible): start/stop, record/stop,
-                        status label
+    QMainWindow
+    └── central widget (vertical)
+        ├── TopChromeBar  (session label + mode/clamp pills + status badge)
+        ├── QHBoxLayout
+        │   ├── Sidebar (icon rail: Acquire / Protocol / Camera / Channels / Setup)
+        │   └── QVBoxLayout
+        │       ├── QStackedWidget
+        │       │   ├── AcquirePage
+        │       │   │   └── QSplitter (horizontal)
+        │       │   │       ├── LiveTracePanel
+        │       │   │       └── right column (vertical)
+        │       │   │           ├── Camera preview (top, ~280 px)
+        │       │   │           └── QScrollArea
+        │       │   │               └── Subject / Protocol / Stimulus / Channels
+        │       │   ├── ProtocolPage
+        │       │   ├── CameraPage
+        │       │   ├── ChannelsPage
+        │       │   └── SetupPage
+        │       └── Recording bar (always visible, bottom)
 
 Signal wiring summary
 ---------------------
@@ -24,7 +33,7 @@ Signal wiring summary
 - :class:`~ui.stimulus_panel.StimulusPanel` signals → continuous acquisition
   ao0 control (apply / clear).
 - Acquisition ``started`` / ``stopped`` / ``error_occurred`` → UI state
-  updates (button enables, status label).
+  updates (button enables, status label, top-chrome status badge).
 - Trial signals (``trial_started``, ``protocol_finished``, etc.) → status label.
 
 Developer notes
@@ -32,11 +41,14 @@ Developer notes
 Both acquisition controllers are always instantiated; only the **active** one
 is started when the user clicks Start.  The ring buffer from
 :class:`~acquisition.continuous_mode.ContinuousAcquisition` is shared by
-both modes — :class:`~acquisition.trial_mode.TrialAcquisition` pushes chunks
-directly into it so the trace panel always shows live data regardless of mode.
+both modes.
 
 :class:`~ui.protocol_builder.ProtocolBuilderDialog` is created lazily on
 first use and kept alive (hidden) between uses to preserve edits.
+
+The camera preview widget is re-parented between the Acquire page (pinned
+top-right) and the full Camera page on page switch so only one
+``pg.ImageView`` instance exists.
 """
 
 from __future__ import annotations
@@ -46,13 +58,16 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
+    QFrame,
     QGroupBox,
     QHBoxLayout,
+    QLabel,
     QMainWindow,
     QMessageBox,
     QScrollArea,
+    QSizePolicy,
     QSplitter,
-    QTabWidget,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -67,30 +82,20 @@ from ui.control_panel import ControlPanel
 from ui.protocol_builder import ProtocolBuilderDialog
 from ui.stimulus_panel import StimulusPanel
 from ui.trace_panel import ChannelYControls, LiveTracePanel
+from ui.widgets import Sidebar, TopChromeBar
+
+
+SIDEBAR_ITEMS = [
+    ("acquire",  "wave",   "Acquire"),
+    ("protocol", "flask",  "Protocol"),
+    ("camera",   "camera", "Camera"),
+    ("channels", "dot",    "Channels"),
+    ("setup",    "gear",   "Setup"),
+]
 
 
 class MainWindow(QMainWindow):
-    """Top-level application window for the ephys acquisition GUI.
-
-    Assembles all sub-panels and wires signals between UI components and
-    the two acquisition back-ends (continuous and trial-based).
-
-    Attributes:
-        _acq (ContinuousAcquisition): Continuous acquisition back-end.
-            Also owns the ring buffer used by trial mode.
-        _trial_acq (TrialAcquisition): Trial-based acquisition back-end.
-        _active_mode (str): Currently selected mode — ``"continuous"`` or
-            ``"trial"``.
-        _trace_panel (LiveTracePanel): Left-panel rolling trace display.
-        _camera_panel (CameraPanel): Camera preview and TTL settings widget.
-        _stim_panel (StimulusPanel): Quick staircase stimulus builder.
-        _ctrl_panel (ControlPanel): Mode selector, start/stop, recording bar.
-        _protocol_builder (ProtocolBuilderDialog | None): Protocol editor
-            dialog, created lazily on first use.
-        _channel_cbs (list[QCheckBox]): One checkbox per AI channel for
-            toggling trace visibility.
-        _y_controls (list[ChannelYControls]): Y-range spinboxes for each trace.
-    """
+    """Top-level application window for the ephys acquisition GUI."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -110,31 +115,64 @@ class MainWindow(QMainWindow):
         self._ctrl_panel   = ControlPanel()
 
         self._protocol_builder: ProtocolBuilderDialog | None = None
+        self._channel_cbs: list[QCheckBox] = []
+        self._y_controls:  list[ChannelYControls] = []
 
+        # --- Top chrome ---
+        self._chrome = TopChromeBar()
+
+        # --- Sidebar + stacked pages ---
+        self._sidebar = Sidebar(SIDEBAR_ITEMS)
+        self._stack   = QStackedWidget()
+
+        self._page_acquire  = self._build_acquire_page()
+        self._page_protocol = self._build_protocol_page()
+        self._page_camera   = self._build_camera_page()
+        self._page_channels = self._build_channels_page()
+        self._page_setup    = self._build_setup_page()
+
+        self._page_index = {
+            "acquire":  self._stack.addWidget(self._page_acquire),
+            "protocol": self._stack.addWidget(self._page_protocol),
+            "camera":   self._stack.addWidget(self._page_camera),
+            "channels": self._stack.addWidget(self._page_channels),
+            "setup":    self._stack.addWidget(self._page_setup),
+        }
+
+        # --- Central layout ---
+        central = QWidget()
+        root = QVBoxLayout(central)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+        root.addWidget(self._chrome)
+
+        body = QHBoxLayout()
+        body.setContentsMargins(0, 0, 0, 0)
+        body.setSpacing(0)
+        body.addWidget(self._sidebar)
+
+        workspace = QVBoxLayout()
+        workspace.setContentsMargins(0, 0, 0, 0)
+        workspace.setSpacing(0)
+        workspace.addWidget(self._stack, stretch=1)
+
+        action_bar_wrap = QFrame()
+        action_bar_wrap.setProperty("chrome", True)
+        action_bar_wrap.setFrameShape(QFrame.NoFrame)
+        abl = QVBoxLayout(action_bar_wrap)
+        abl.setContentsMargins(0, 0, 0, 0)
+        abl.addWidget(self._ctrl_panel.recording_bar)
+        workspace.addWidget(action_bar_wrap)
+
+        body.addLayout(workspace, stretch=1)
+        root.addLayout(body, stretch=1)
+
+        self.setCentralWidget(central)
+
+        # --- Wire signals ---
         self._wire_acquisition_signals()
         self._wire_control_signals()
-
-        # --- Build tab content ---
-        tabs = QTabWidget()
-        tabs.addTab(self._build_acquisition_tab(), "Acquisition")
-        tabs.addTab(self._build_experiment_tab(), "Experiment")
-
-        # --- Right panel: tabs + always-visible recording bar ---
-        right_widget = QWidget()
-        right_layout = QVBoxLayout(right_widget)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(0)
-        right_layout.addWidget(tabs, stretch=1)
-        right_layout.addWidget(self._ctrl_panel.recording_bar)
-
-        # --- Main splitter ---
-        main_splitter = QSplitter(Qt.Horizontal)
-        main_splitter.addWidget(self._trace_panel)
-        main_splitter.addWidget(right_widget)
-        main_splitter.setStretchFactor(0, 65)
-        main_splitter.setStretchFactor(1, 35)
-
-        self.setCentralWidget(main_splitter)
+        self._wire_chrome_and_sidebar()
 
     # ------------------------------------------------------------------
     # Signal wiring (called once from __init__)
@@ -159,13 +197,9 @@ class MainWindow(QMainWindow):
         self._trial_acq.protocol_finished.connect(self._on_protocol_finished)
         self._trial_acq.protocol_cancelled.connect(self._on_protocol_cancelled)
 
-        # Ring buffer shared between both modes (trace panel always shows data)
         self._trace_panel.set_ring_buffer(self._acq.ring_buffer)
 
-        # Camera frames: continuous mode → panel preview
         self._acq.connect_frame_callback(self._camera_panel.update_frame)
-
-        # Trial mode: frames → panel preview; AI chunks → shared ring buffer
         self._trial_acq.connect_frame_callback(self._camera_panel.update_frame)
         self._trial_acq.connect_data_callback(self._acq.ring_buffer.push)
 
@@ -188,133 +222,333 @@ class MainWindow(QMainWindow):
         self._stim_panel.stimulus_applied.connect(self._acq.apply_stimulus_waveform)
         self._stim_panel.stimulus_cleared.connect(self._acq.clear_stimulus)
 
+    def _wire_chrome_and_sidebar(self) -> None:
+        """Wire top-chrome pills / status badge and sidebar page switching."""
+        # Sidebar → QStackedWidget page switching
+        self._sidebar.page_changed.connect(self._on_page_changed)
+
+        # Top-chrome pills ↔ control-panel pills (two-way sync).  Using
+        # separate PillToggle instances lets us place them in different
+        # parent widgets without parenting conflicts.
+        self._chrome.mode_pill.changed.connect(self._ctrl_panel.mode_pill.set_value)
+        self._chrome.mode_pill.changed.connect(self._ctrl_panel.mode_changed.emit)
+        self._chrome.mode_pill.changed.connect(
+            lambda v: self._chrome.clamp_pill.setVisible(v == "continuous")
+        )
+        self._chrome.clamp_pill.changed.connect(self._ctrl_panel.clamp_pill.set_value)
+        self._chrome.clamp_pill.changed.connect(self._ctrl_panel.clamp_mode_changed.emit)
+
+        # Session label ← control-panel Experiment ID field
+        self._ctrl_panel.expt_id_changed.connect(self._chrome.set_session_label)
+
+        # Status badge ← control-panel status text (and acquisition state).
+        # The text feeds the fallback label; state transitions below drive
+        # the LED color.
+        self._ctrl_panel.status_text_changed.connect(self._chrome.status_badge.set_text)
+
     # ------------------------------------------------------------------
-    # Tab builders
+    # Page builders
     # ------------------------------------------------------------------
 
-    def _build_acquisition_tab(self) -> QWidget:
-        """Build Tab 1: acquisition mode, recording settings, channel toggles, Y-range controls.
+    def _build_acquire_page(self) -> QWidget:
+        """Build the Acquire page: traces on the left, camera-pinned right column."""
+        page = QWidget()
+        page_layout = QHBoxLayout(page)
+        page_layout.setContentsMargins(0, 0, 0, 0)
+        page_layout.setSpacing(0)
 
-        Returns:
-            A :class:`QScrollArea` wrapping the tab content so it is
-            scrollable if the window is resized to be very small.
-        """
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.setChildrenCollapsible(False)
+
+        # --- Left: traces ---
+        splitter.addWidget(self._trace_panel)
+
+        # --- Right: camera on top + scrollable controls below ---
+        right = QWidget()
+        right_layout = QVBoxLayout(right)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(0)
+
+        # Camera mount (re-parentable between this page and the Camera page)
+        self._acquire_camera_mount = QFrame()
+        self._acquire_camera_mount.setFixedHeight(300)
+        self._acquire_camera_mount.setFrameShape(QFrame.NoFrame)
+        cm_layout = QVBoxLayout(self._acquire_camera_mount)
+        cm_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.addWidget(self._acquire_camera_mount)
+
+        # Scrollable controls
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.NoFrame)
-
         container = QWidget()
         layout = QVBoxLayout(container)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(6)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(10)
 
-        layout.addWidget(self._ctrl_panel.settings_widget)
-        layout.addWidget(self._camera_panel.ttl_widget)
+        layout.addWidget(self._ctrl_panel.subject_card)
+        layout.addWidget(self._ctrl_panel.protocol_widget)
+        # StimulusPanel shown only in continuous mode (toggled by _on_mode_changed)
+        self._stim_panel_wrap = QFrame()
+        sw_layout = QVBoxLayout(self._stim_panel_wrap)
+        sw_layout.setContentsMargins(0, 0, 0, 0)
+        sw_layout.addWidget(self._stim_panel)
+        layout.addWidget(self._stim_panel_wrap)
 
-        channels_box = QGroupBox("Channels to Display")
-        ch_layout = QVBoxLayout(channels_box)
-        ch_layout.setSpacing(2)
-        self._channel_cbs: list[QCheckBox] = []
+        layout.addWidget(self._build_channels_groupbox())
+
+        layout.addStretch(1)
+        scroll.setWidget(container)
+        right_layout.addWidget(scroll, stretch=1)
+
+        splitter.addWidget(right)
+        splitter.setStretchFactor(0, 65)
+        splitter.setStretchFactor(1, 35)
+        splitter.setSizes([1000, 540])
+
+        page_layout.addWidget(splitter)
+
+        # Initial camera mount → this page
+        self._mount_camera(self._acquire_camera_mount)
+
+        return page
+
+    def _build_channels_groupbox(self) -> QGroupBox:
+        """Build the channels/Y-range groupbox used inside the Acquire page."""
+        box = QGroupBox("Channels")
+        v = QVBoxLayout(box)
+        v.setContentsMargins(10, 14, 10, 10)
+        v.setSpacing(4)
+
         for i, (name, _, _, _, units) in enumerate(AI_CHANNELS):
+            row = QHBoxLayout()
+            row.setSpacing(6)
             cb = QCheckBox(f"{name} ({units})")
             cb.setChecked(True)
             cb.toggled.connect(lambda checked, idx=i: self._toggle_channel(idx, checked))
-            ch_layout.addWidget(cb)
             self._channel_cbs.append(cb)
-        ch_layout.addStretch()
-        layout.addWidget(channels_box)
-
-        y_ranges_box = QGroupBox("Y Ranges")
-        y_layout = QVBoxLayout(y_ranges_box)
-        y_layout.setSpacing(2)
-        self._y_controls: list[ChannelYControls] = []
-        for i, plot in enumerate(self._trace_panel.plots):
-            ctrl = ChannelYControls(i, plot)
-            y_layout.addWidget(ctrl)
+            ctrl = ChannelYControls(i, self._trace_panel.plots[i])
             self._y_controls.append(ctrl)
-        y_layout.addStretch()
-        layout.addWidget(y_ranges_box)
 
-        layout.addStretch()
+            row.addWidget(cb, stretch=1)
+            v.addLayout(row)
+            v.addWidget(ctrl)
 
-        scroll.setWidget(container)
-        return scroll
+        return box
 
-    def _build_experiment_tab(self) -> QWidget:
-        """Build Tab 2: camera preview, protocol controls, and stimulus panel.
+    def _build_protocol_page(self) -> QWidget:
+        """Full-page protocol view: reuses the control panel's protocol widget."""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
 
-        The bottom section stacks protocol controls above the stimulus panel.
+        header = QLabel("Protocol")
+        header.setStyleSheet("font-size: 14pt; font-weight: 600; color: #e7ebf0;")
+        layout.addWidget(header)
 
-        Returns:
-            A :class:`QSplitter` (vertical) so the user can resize the
-            camera preview and bottom sections.
+        hint = QLabel(
+            "Pick a saved protocol below or open the full Builder to compose a new one. "
+            "Run and Stop also live on the Acquire page."
+        )
+        hint.setProperty("tier", "secondary")
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+
+        self._protocol_page_mount = QFrame()
+        self._protocol_page_mount.setFrameShape(QFrame.NoFrame)
+        pm = QVBoxLayout(self._protocol_page_mount)
+        pm.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self._protocol_page_mount)
+        layout.addStretch(1)
+
+        return page
+
+    def _build_camera_page(self) -> QWidget:
+        """Full-screen camera view + TTL controls beneath."""
+        page = QWidget()
+        layout = QHBoxLayout(page)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(14)
+
+        # Preview mount (camera preview is re-parented here when this page shows)
+        self._camera_page_mount = QFrame()
+        self._camera_page_mount.setFrameShape(QFrame.NoFrame)
+        cm = QVBoxLayout(self._camera_page_mount)
+        cm.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self._camera_page_mount, stretch=3)
+
+        # TTL controls on the right
+        side = QVBoxLayout()
+        side.setSpacing(10)
+        side.addWidget(self._camera_panel.ttl_widget)
+        side.addStretch(1)
+
+        side_wrap = QWidget()
+        side_wrap.setLayout(side)
+        side_wrap.setFixedWidth(320)
+        layout.addWidget(side_wrap)
+
+        return page
+
+    def _build_channels_page(self) -> QWidget:
+        """Full-page channel list and Y-range controls.
+
+        Note: the Acquire page owns the per-channel ``QCheckBox`` / ``ChannelYControls``
+        widgets; duplicating them here would diverge state. Instead, this page
+        shows a summary and directs the user to the Acquire page.
         """
-        # Bottom section: protocol controls (top) | stimulus params (bottom)
-        bottom = QWidget()
-        bottom_layout = QVBoxLayout(bottom)
-        bottom_layout.setContentsMargins(0, 0, 0, 0)
-        bottom_layout.setSpacing(4)
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
 
-        bottom_layout.addWidget(self._ctrl_panel.protocol_widget)
-        bottom_layout.addWidget(self._stim_panel)
+        header = QLabel("Channels")
+        header.setStyleSheet("font-size: 14pt; font-weight: 600; color: #e7ebf0;")
+        layout.addWidget(header)
 
-        splitter = QSplitter(Qt.Vertical)
-        splitter.addWidget(self._camera_panel.preview_widget)
-        splitter.addWidget(bottom)
-        splitter.setStretchFactor(0, 3)
-        splitter.setStretchFactor(1, 2)
+        hint = QLabel(
+            "Channel visibility and Y-range controls live in the right column "
+            "of the Acquire page so they're adjustable while viewing traces."
+        )
+        hint.setProperty("tier", "secondary")
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
 
-        return splitter
+        # Static summary of the channel configuration from config.py
+        summary = QGroupBox("Configured channels")
+        sl = QVBoxLayout(summary)
+        sl.setContentsMargins(10, 14, 10, 10)
+        for i, (name, ai, _, _, units) in enumerate(AI_CHANNELS):
+            y_min, y_max = AI_Y_DEFAULTS[i]
+            row = QLabel(
+                f"{i}.  {name}   ({ai}, {units})   Y default: {y_min} … {y_max} {units}"
+            )
+            row.setProperty("mono", True)
+            row.setStyleSheet("font-family: 'JetBrains Mono', 'Consolas', monospace;")
+            sl.addWidget(row)
+        layout.addWidget(summary)
+        layout.addStretch(1)
+        return page
+
+    def _build_setup_page(self) -> QWidget:
+        """Setup page: save-directory picker, TTL (camera) settings."""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
+
+        header = QLabel("Setup")
+        header.setStyleSheet("font-size: 14pt; font-weight: 600; color: #e7ebf0;")
+        layout.addWidget(header)
+
+        layout.addWidget(self._ctrl_panel.recording_settings)
+
+        # TTL widget (camera trigger settings) mounts here when the Setup page shows.
+        self._setup_ttl_mount = QFrame()
+        tm = QVBoxLayout(self._setup_ttl_mount)
+        tm.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self._setup_ttl_mount)
+
+        layout.addStretch(1)
+        return page
+
+    # ------------------------------------------------------------------
+    # Widget re-parenting helpers
+    # ------------------------------------------------------------------
+
+    def _mount_camera(self, frame: QFrame) -> None:
+        """Re-parent the camera preview widget into ``frame``."""
+        prev = self._camera_panel.preview_widget
+        # Remove from current parent's layout, if any
+        if prev.parent() is not None:
+            parent_layout = prev.parent().layout()
+            if parent_layout is not None:
+                parent_layout.removeWidget(prev)
+        # Add to new mount
+        target_layout = frame.layout()
+        if target_layout is None:
+            target_layout = QVBoxLayout(frame)
+            target_layout.setContentsMargins(0, 0, 0, 0)
+        target_layout.addWidget(prev)
+        prev.setVisible(True)
+
+    def _mount_protocol_widget(self, frame: QFrame) -> None:
+        w = self._ctrl_panel.protocol_widget
+        if w.parent() is not None and w.parent().layout() is not None:
+            w.parent().layout().removeWidget(w)
+        frame.layout().addWidget(w)
+        w.setVisible(True)
+
+    def _mount_ttl(self, frame: QFrame) -> None:
+        w = self._camera_panel.ttl_widget
+        if w.parent() is not None and w.parent().layout() is not None:
+            w.parent().layout().removeWidget(w)
+        frame.layout().addWidget(w)
+        w.setVisible(True)
+
+    # ------------------------------------------------------------------
+    # Page switching
+    # ------------------------------------------------------------------
+
+    def _on_page_changed(self, key: str) -> None:
+        """Switch the stacked widget and re-parent shared panels as needed."""
+        idx = self._page_index.get(key)
+        if idx is None:
+            return
+        self._stack.setCurrentIndex(idx)
+
+        if key == "acquire":
+            self._mount_camera(self._acquire_camera_mount)
+        elif key == "camera":
+            self._mount_camera(self._camera_page_mount)
+            self._mount_ttl(self._camera_page_mount)
+        elif key == "setup":
+            self._mount_ttl(self._setup_ttl_mount)
+        elif key == "protocol":
+            self._mount_protocol_widget(self._protocol_page_mount)
+        else:  # channels — nothing to re-parent
+            pass
 
     # ------------------------------------------------------------------
     # Mode switching
     # ------------------------------------------------------------------
 
     def _on_mode_changed(self, mode: str) -> None:
-        """Update the active acquisition mode.
-
-        Args:
-            mode: ``"continuous"`` or ``"trial"``.
-        """
+        """Update the active acquisition mode and toggle StimulusPanel visibility."""
         self._active_mode = mode
+        # StimulusPanel is continuous-only; hide it in trial mode
+        self._stim_panel_wrap.setVisible(mode == "continuous")
+        # Keep chrome and control-panel pills in sync (changed signal comes
+        # from whichever pill the user clicked).
+        self._chrome.mode_pill.set_value(mode)
+        self._ctrl_panel.mode_pill.set_value(mode)
 
     def _on_clamp_mode_changed(self, mode: str) -> None:
-        """Propagate a clamp mode change to the trace panel, channel list, and acquisition.
-
-        Updates axis labels and Y-range defaults on the live trace display,
-        renames the channel checkboxes and Y-range controls to match the new
-        channel definitions, and notifies the continuous acquisition back-end
-        so the correct channel info is written to metadata.
-
-        Args:
-            mode: ``"current_clamp"`` or ``"voltage_clamp"``.
-        """
+        """Propagate a clamp mode change to the trace panel, channel list, and acquisition."""
         channels   = AI_CHANNELS_VC  if mode == "voltage_clamp" else AI_CHANNELS
         y_defaults = AI_Y_DEFAULTS_VC if mode == "voltage_clamp" else AI_Y_DEFAULTS
         self._trace_panel.set_clamp_mode(mode)
         for i, ((name, _, _, _, units), (y_min, y_max)) in enumerate(
             zip(channels, y_defaults)
         ):
-            self._channel_cbs[i].setText(f"{name} ({units})")
-            self._y_controls[i].update_channel(name, units, y_min, y_max)
+            if i < len(self._channel_cbs):
+                self._channel_cbs[i].setText(f"{name} ({units})")
+            if i < len(self._y_controls):
+                self._y_controls[i].update_channel(name, units, y_min, y_max)
         self._stim_panel.set_clamp_mode(mode)
         self._acq.set_clamp_mode(mode)
+        self._chrome.clamp_pill.set_value(mode)
+        self._ctrl_panel.clamp_pill.set_value(mode)
 
     # ------------------------------------------------------------------
     # Acquisition slots
     # ------------------------------------------------------------------
 
     def _toggle_channel(self, index: int, visible: bool) -> None:
-        """Show or hide a channel's plot widget in the trace panel.
-
-        Args:
-            index: 0-based channel index matching :data:`~config.AI_CHANNELS`.
-            visible: ``True`` to show the plot.
-        """
         self._trace_panel.toggle_channel(index, visible)
 
     def _on_start(self) -> None:
-        """Handle the Start button: start the active acquisition back-end."""
         self._ctrl_panel.set_status("Starting acquisition…")
         try:
             if self._active_mode == "trial":
@@ -326,9 +560,9 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Cannot Start Acquisition", str(exc))
 
     def _on_stop(self) -> None:
-        """Handle the Stop button: cancel any protocol and stop the active back-end."""
         self._ctrl_panel.set_stopping()
         self._ctrl_panel.set_status("Stopping…")
+        self._chrome.status_badge.set_state("stopping")
         if self._active_mode == "trial":
             if self._trial_acq.is_protocol_active:
                 self._trial_acq.cancel_protocol()
@@ -337,12 +571,6 @@ class MainWindow(QMainWindow):
             self._acq.stop()
 
     def _check_metadata(self) -> bool:
-        """Warn the user if required metadata fields are empty.
-
-        Returns:
-            ``True`` if metadata is complete or the user chose to continue
-            anyway; ``False`` if the user cancelled.
-        """
         missing = self._ctrl_panel.validate_metadata()
         if not missing:
             return True
@@ -358,12 +586,6 @@ class MainWindow(QMainWindow):
         return result == QMessageBox.StandardButton.Yes
 
     def _on_record(self, save_dir: str, metadata: dict) -> None:
-        """Handle the Record button: open the HDF5 file and start TTL.
-
-        Args:
-            save_dir: Root directory from the control panel.
-            metadata: Subject info dict from :meth:`~ui.control_panel.ControlPanel.get_metadata`.
-        """
         if not self._check_metadata():
             return
         try:
@@ -372,17 +594,10 @@ class MainWindow(QMainWindow):
             self._on_error(str(exc))
 
     def _on_stop_record(self) -> None:
-        """Handle Stop Recording: stop TTL and start the guard delay."""
         self._ctrl_panel.set_status("Stopping camera triggers…")
         self._acq.stop_recording()
 
     def _on_ttl_changed(self, frame_rate_hz: float, exposure_ms: float) -> None:
-        """Propagate TTL parameter changes to both acquisition back-ends.
-
-        Args:
-            frame_rate_hz: New camera frame rate in Hz.
-            exposure_ms: New camera exposure duration in ms.
-        """
         self._acq.set_ttl_config(frame_rate_hz, exposure_ms)
         self._trial_acq.set_ttl_config(frame_rate_hz, exposure_ms)
         self._ctrl_panel.set_status(
@@ -394,7 +609,6 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _on_open_protocol_builder(self) -> None:
-        """Show the protocol builder dialog, creating it lazily on first call."""
         if self._protocol_builder is None:
             self._protocol_builder = ProtocolBuilderDialog(self)
             self._protocol_builder.protocol_run_requested.connect(
@@ -406,11 +620,6 @@ class MainWindow(QMainWindow):
         self._protocol_builder.activateWindow()
 
     def _apply_channel_defs(self, mode: str) -> None:
-        """Switch the trace panel and Y-range controls to CC or VC channel definitions.
-
-        Args:
-            mode: ``"current_clamp"`` or ``"voltage_clamp"``.
-        """
         channel_defs = AI_CHANNELS_VC  if mode == "voltage_clamp" else AI_CHANNELS
         y_defaults   = AI_Y_DEFAULTS_VC if mode == "voltage_clamp" else AI_Y_DEFAULTS
         self._trace_panel.set_clamp_mode(mode)
@@ -420,17 +629,6 @@ class MainWindow(QMainWindow):
             ctrl.update_channel(name, units, y_min, y_max)
 
     def _on_run_protocol(self, protocol_dict: dict) -> None:
-        """Stage a protocol received from the builder dialog.
-
-        Stores the dict as the pending protocol and enables the
-        "Run Protocol" button in the main window.  Does *not* start
-        acquisition — the user clicks "Run Protocol" to do that.
-
-        Args:
-            protocol_dict: Dict from
-                :class:`~ui.protocol_builder.ProtocolBuilderDialog`, containing
-                the serialised protocol fields plus ``"save_dir"``.
-        """
         self._pending_protocol = dict(protocol_dict)
         name = protocol_dict.get("name", "protocol")
         self._ctrl_panel.enable_run_protocol_button(True)
@@ -439,11 +637,6 @@ class MainWindow(QMainWindow):
         )
 
     def _on_protocol_file_selected(self, path: str) -> None:
-        """Load a protocol JSON file selected from the dropdown and stage it.
-
-        Args:
-            path: Full path to the protocol JSON file.
-        """
         import json as _json
         try:
             with open(path) as f:
@@ -458,12 +651,6 @@ class MainWindow(QMainWindow):
             self._ctrl_panel.set_status(f"Failed to load protocol: {exc}")
 
     def _on_start_protocol(self) -> None:
-        """Start the pending protocol run in the active acquisition mode.
-
-        In continuous mode: starts recording then runs the protocol as a
-        flat event timeline within the unbroken recording.
-        In trial mode: runs the protocol as discrete per-trial HDF5 groups.
-        """
         if self._pending_protocol is None:
             return
         if not self._check_metadata():
@@ -495,11 +682,11 @@ class MainWindow(QMainWindow):
                 )
             self._ctrl_panel.enable_run_protocol_button(False)
             self._ctrl_panel.enable_stop_protocol_button(True)
+            self._chrome.status_badge.set_state("protocol")
         except Exception as exc:
             self._on_error(str(exc))
 
     def _on_stop_protocol(self) -> None:
-        """Handle the Stop Protocol button: cancel the active protocol run."""
         self._ctrl_panel.enable_stop_protocol_button(False)
         if self._active_mode == "continuous":
             self._acq.cancel_protocol()
@@ -511,8 +698,8 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _on_acq_started(self) -> None:
-        """Handle the ``started`` signal: enable UI controls for the running state."""
         self._ctrl_panel.set_running(True)
+        self._chrome.status_badge.set_state("acquiring")
         if self._active_mode == "continuous":
             self._ctrl_panel.enable_record_button(True)
             self._ctrl_panel.set_status("Acquiring — camera armed, waiting for Record")
@@ -522,104 +709,65 @@ class MainWindow(QMainWindow):
             )
 
     def _on_acq_stopped(self) -> None:
-        """Handle the ``stopped`` signal: disable all acquisition UI controls."""
         self._ctrl_panel.set_running(False)
         self._ctrl_panel.enable_record_button(False)
         self._ctrl_panel.enable_run_protocol_button(False)
         self._ctrl_panel.enable_stop_protocol_button(False)
         self._ctrl_panel.set_status("Stopped.")
+        self._chrome.status_badge.set_state("idle")
 
     def _on_recording_started(self, folder: Path) -> None:
-        """Handle ``recording_started``: update the recording bar UI.
-
-        Args:
-            folder: Experiment folder path emitted by
-                :class:`~acquisition.continuous_mode.ContinuousAcquisition`.
-        """
         self._ctrl_panel.set_recording(True)
         self._ctrl_panel.set_status(f"Recording + camera → {folder.name}/")
+        self._chrome.status_badge.set_state("recording")
 
     def _on_recording_stopped(self, n_samples: int) -> None:
-        """Handle ``recording_stopped``: show sample count and re-enable Record.
-
-        Args:
-            n_samples: Total samples saved, as emitted by
-                :class:`~acquisition.continuous_mode.ContinuousAcquisition`.
-        """
         self._ctrl_panel.set_recording(False)
         self._ctrl_panel.set_status(
             f"Recording stopped. {n_samples:,} samples saved."
         )
         if self._acq.is_running:
             self._ctrl_panel.enable_record_button(True)
+            self._chrome.status_badge.set_state("acquiring")
+        else:
+            self._chrome.status_badge.set_state("idle")
 
     # ------------------------------------------------------------------
     # Trial mode callbacks
     # ------------------------------------------------------------------
 
     def _on_trial_started(self, trial_idx: int, total: int) -> None:
-        """Handle ``trial_started``: update the status label.
-
-        Args:
-            trial_idx: 0-based index of the trial that just started.
-            total: Total number of trials in the run.
-        """
         self._ctrl_panel.set_status(f"Trial {trial_idx + 1} / {total} running…")
 
     def _on_trial_finished(self, trial_idx: int, total: int) -> None:
-        """Handle ``trial_finished``: show saved trial count and ITI status.
-
-        Args:
-            trial_idx: 0-based index of the trial that just finished.
-            total: Total number of trials in the run.
-        """
         self._ctrl_panel.set_status(
             f"Trial {trial_idx + 1} / {total} saved. ITI…"
         )
 
     def _on_protocol_finished(self, path: Path) -> None:
-        """Handle ``protocol_finished``: show the save path and stop the back-end.
-
-        Args:
-            path: Path to the completed HDF5 file.
-        """
         self._ctrl_panel.set_status(f"Protocol complete. Saved: {path.name}")
         self._ctrl_panel.enable_stop_protocol_button(False)
         self._apply_channel_defs("current_clamp")
         self._trial_acq.stop()
 
     def _on_continuous_protocol_finished(self) -> None:
-        """Handle protocol completion in continuous mode.
-
-        Recording continues; only the stimulus timeline has finished.
-        Re-enable the Run Protocol button and update the status label.
-        """
         self._ctrl_panel.set_status("Continuous protocol complete — recording continues.")
         self._ctrl_panel.enable_stop_protocol_button(False)
         if self._pending_protocol is not None:
             self._ctrl_panel.enable_run_protocol_button(True)
+        self._chrome.status_badge.set_state("recording")
 
     def _on_continuous_protocol_cancelled(self) -> None:
-        """Handle early cancellation of a continuous protocol.
-
-        Recording continues; only the stimulus injections have been stopped.
-        Re-enable the Run Protocol button and update the status label.
-        """
         self._ctrl_panel.set_status("Protocol cancelled — recording continues.")
         self._ctrl_panel.enable_stop_protocol_button(False)
         if self._pending_protocol is not None:
             self._ctrl_panel.enable_run_protocol_button(True)
+        self._chrome.status_badge.set_state("recording")
 
     def _on_protocol_cancelled(self, n_completed: int) -> None:
-        """Handle ``protocol_cancelled``: show how many trials were completed.
-
-        Args:
-            n_completed: Number of trials saved before cancellation.
-        """
         self._ctrl_panel.set_status(f"Protocol cancelled after {n_completed} trial(s).")
         self._ctrl_panel.enable_stop_protocol_button(False)
         self._apply_channel_defs("current_clamp")
-        # Re-enable Run Protocol so the user can restart the same protocol
         if self._pending_protocol is not None:
             self._ctrl_panel.enable_run_protocol_button(True)
 
@@ -628,14 +776,9 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _on_error(self, msg: str) -> None:
-        """Handle an acquisition error: reset UI and show a modal error dialog.
-
-        Args:
-            msg: Human-readable error message from a worker or acquisition
-                controller.
-        """
         self._ctrl_panel.set_running(False)
         self._ctrl_panel.set_status(f"Error: {msg}")
+        self._chrome.status_badge.set_state("error")
         QMessageBox.critical(self, "Acquisition Error", msg)
 
     # ------------------------------------------------------------------
@@ -643,11 +786,6 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def closeEvent(self, event) -> None:
-        """Stop all running acquisition back-ends before closing the window.
-
-        Args:
-            event: Qt close event.  Always accepted.
-        """
         if self._trial_acq.is_running:
             self._trial_acq.stop()
         if self._acq.is_running:

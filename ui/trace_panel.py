@@ -41,6 +41,7 @@ REFRESH_INTERVAL_MS    = 33   # ~30 Hz
 DOWNSAMPLE_FACTOR      = 4    # display every 4th point (5 kHz → plenty for display)
 _SPLITTER_UNIT_HEIGHT  = 100  # base height unit for channel splitter sizing
 _PRIMARY_CHANNEL_SCALE = 2    # primary channel (ScAmpOut) gets N× the height
+_LEFT_AXIS_WIDTH       = 62   # fixed left-axis width so all plot areas align
 
 
 class ChannelYControls(QWidget):
@@ -141,7 +142,7 @@ class LiveTracePanel(QWidget):
         self._splitter.setChildrenCollapsible(False)
 
         for i, (name, _, _, scale, units) in enumerate(self._channel_defs):
-            pw = pg.PlotWidget(background="#1a1a2e")
+            pw = pg.PlotWidget(background="#14161a")
             plot = pw.plotItem
 
             plot.setLabel("left", f"{name} ({units})", color=TRACE_COLORS[i])
@@ -149,6 +150,9 @@ class LiveTracePanel(QWidget):
             plot.showAxis("bottom", i == n_ch - 1)
             plot.setMenuEnabled(False)
             plot.setXRange(-DISPLAY_SECONDS, 0, padding=0)
+
+            left_axis = plot.getAxis("left")
+            left_axis.setWidth(_LEFT_AXIS_WIDTH)
 
             y_min, y_max = self._y_defaults[i]
             plot.setYRange(y_min, y_max, padding=0)
