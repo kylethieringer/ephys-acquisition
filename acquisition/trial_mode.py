@@ -382,6 +382,9 @@ class TrialAcquisition(QObject):
         self._video_folder = self._saver.folder
         self._write_trial_metadata_json(protocol, channel_defs)
 
+        if self._daq_worker is not None:
+            self._daq_worker.clear_buffer_events()
+
         self._iti_samples = _ms_to_samples(protocol.iti_ms)
         self._enter_iti()
 
@@ -527,6 +530,19 @@ class TrialAcquisition(QObject):
                 self.protocol_cancelled.emit(self._trial_pos)
             else:
                 if path is not None:
+                    try:
+                        if self._daq_worker is not None:
+                            events = self._daq_worker.drain_buffer_events()
+                            if events:
+                                from analysis.qc.hook import write_acquisition_log
+                                write_acquisition_log(path, events)
+                    except Exception:
+                        pass  # log-write failure must never affect the save path
+                    try:
+                        from analysis.qc.hook import schedule_qc
+                        schedule_qc(path)
+                    except Exception:
+                        pass  # QC must never affect the save path
                     self.protocol_finished.emit(path)
                 else:
                     self.protocol_finished.emit(Path())

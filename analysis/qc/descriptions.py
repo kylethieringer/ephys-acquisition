@@ -29,6 +29,31 @@ REPORT_INTRO: str = (
     "worst status across every check."
 )
 
+ALIGNMENT_REPORT_INTRO: str = (
+    "This is the <b>standalone hardware-alignment report</b>. It is not "
+    "tied to any single recording — it is a periodic health check on the "
+    "rig itself, run weekly or after any rig change (rewiring, amplifier "
+    "swap, DAQ firmware update). It is run from the CLI with the Axon "
+    "Patch-1U <b>model cell</b> in CELL mode (a known 500 MΩ resistor) "
+    "patched in place of a real pipette, so every measurement has a "
+    "ground-truth answer.<br><br>"
+    "The report is split into two phases. <b>Phase A</b> exercises the "
+    "rig itself — DAQ timing, channel-to-channel isolation, the camera "
+    "trigger counter — and needs no model-cell or amplifier assumptions. "
+    "<b>Phase B</b> uses the 500 MΩ model cell as a calibrator: we drive "
+    "currents and voltages through it and confirm the amplifier reports "
+    "back what Ohm's law predicts (ΔV = I·R, ΔI = ΔV/R). Phase B is "
+    "split again into a current-clamp block (B1) and a voltage-clamp "
+    "block (B2); the operator is prompted to flip the amplifier's "
+    "front-panel mode switch between the two.<br><br>"
+    "Numeric metrics for every run are appended to "
+    "<code>qc_alignment_history.csv</code> in the same folder, so drift "
+    "across weeks is easy to plot. A <b>fail</b> here means a real rig "
+    "problem that will corrupt subsequent recordings; a <b>warn</b> "
+    "means the value has drifted outside its normal envelope but is "
+    "probably still usable. Investigate before running animals."
+)
+
 STATUS_KEY: str = (
     "<b>pass</b> — metric is within expected bounds. "
     "<b>warn</b> — value is unusual but may still be acceptable. "
@@ -61,6 +86,37 @@ SECTION_DESCRIPTIONS: dict[str, str] = {
         "Disagreement here catches mis-scaled AO output, a stuck DAQ "
         "channel, or an amplifier front-end fault before they show up "
         "in the physiology."
+    ),
+
+    # ------------------------------------------------------------------
+    # Standalone hardware-alignment report
+    # ------------------------------------------------------------------
+    "Phase A — rig timing": (
+        "Pure rig checks — no model cell or amplifier assumptions needed. "
+        "Confirms the DAQ's analog-out and analog-in clocks are sample-"
+        "aligned, that driving one channel does not bleed into the "
+        "others, and that the camera-trigger counter is producing a "
+        "stable TTL clock. If anything in this section fails, every "
+        "downstream measurement is suspect because the data and the "
+        "command waveforms are not lined up."
+    ),
+    "Phase B1 — model cell, current clamp": (
+        "Switch the amplifier to current clamp (I-clamp) for this "
+        "section. We inject known currents into the 500 MΩ model cell "
+        "and confirm the recorded voltage matches Ohm's law (ΔV = I·R). "
+        "These checks together validate the amplifier's I-clamp gain, "
+        "the <code>AO_PA_PER_VOLT</code> command scaling, the "
+        "<code>ScAmpOut</code> readout scaling, and the analysis code "
+        "that turns a recorded step into an input resistance."
+    ),
+    "Phase B2 — model cell, voltage clamp": (
+        "Switch the amplifier to voltage clamp (V-clamp) before this "
+        "section. We apply known voltage steps to the model cell and "
+        "check the recorded current (ΔI = ΔV/R), and we fit the "
+        "capacitance transient to confirm the cap-comp circuit is "
+        "behaving. Validates the V-clamp headstage gain, the "
+        "<code>AO_MV_PER_VOLT</code> command scaling, and the "
+        "<code>I_mem</code> readout scaling."
     ),
 }
 
@@ -181,6 +237,116 @@ CHECK_DESCRIPTIONS: dict[str, str] = {
         "set on the amplifier — benign. A quiet <code>AmpCmd</code> "
         "<i>inside</i> a stimulus window means ao0 isn't wired or "
         "isn't being driven."
+    ),
+
+    # ------------------------------------------------------------------
+    # Alignment — Phase A (rig timing)
+    # ------------------------------------------------------------------
+    "AO → AmpCmd loopback latency": (
+        "Plays a short square wave on the command output (<code>ao0</code>) "
+        "and records the same signal coming back through the "
+        "<code>AmpCmd</code> analog input (ai2), which is wired as a "
+        "hardware loopback. Cross-correlation gives the lag between the "
+        "two. A few samples of delay is normal — the AO and AI tasks "
+        "share a sample clock, so the offset should be sub-millisecond. "
+        "Lag &gt; 0.5 ms warns; &gt; 2 ms fails. A large lag means "
+        "commanded waveforms in your real recordings will not be "
+        "sample-aligned with the data — every downstream stimulus "
+        "comparison becomes unreliable."
+    ),
+    "Inter-channel crosstalk": (
+        "Drives <code>ao0</code> hard with a 137 Hz sine while the camera "
+        "counter is running, then measures how much of that 137 Hz tone "
+        "shows up on the quiet input channels. We use a narrowband DFT "
+        "and subtract a nearby empty bin (147 Hz) so broadband noise "
+        "doesn't get counted as crosstalk. Pass/warn/fail is judged on "
+        "<b>TTLLoopback only</b> (a differential channel, trustworthy): "
+        "&gt; 10 mV warns, &gt; 50 mV fails. The Camera channel is also "
+        "reported but never flagged — it sits next to <code>AmpCmd</code> "
+        "in the DAQ's MUX scan order and picks up a known sample-and-hold "
+        "settling artifact when ai2 is driven full-swing, which does not "
+        "happen in normal recording."
+    ),
+    "Counter TTL period stability": (
+        "The on-board counter drives the camera trigger line (PFI12) at "
+        "a commanded rate (default 100 Hz); that line also feeds back "
+        "into <code>TTLLoopback</code> on the AI side. We acquire 2 s of "
+        "quiet AI, find rising edges, and measure the inter-edge intervals. "
+        "Catches a misrouted counter terminal, a free-running counter "
+        "that doesn't match the commanded rate, or excess jitter. Warns "
+        "if the observed rate is &gt; 0.5 % off the commanded rate, or "
+        "if period jitter is &gt; 0.1 % of the period. A flat loopback "
+        "(no edges) means the counter never started — usually the "
+        "<code>co_pulse_term</code> terminal isn't set."
+    ),
+
+    # ------------------------------------------------------------------
+    # Alignment — Phase B1 (model cell, current clamp)
+    # ------------------------------------------------------------------
+    "Model-cell resting baseline (I=0)": (
+        "With the command output idle and the 500 MΩ model cell patched "
+        "in, the <code>ScAmpOut</code> readout should sit at ~0 mV — a "
+        "pure resistor has no resting potential. We report the median "
+        "voltage over 1 s. Anything &gt; 10 mV warns and points to an "
+        "amplifier DC offset, a bad reference electrode, or a stale "
+        "holding-current setting on the front panel that wasn't zeroed."
+    ),
+    "Model-cell amplifier noise floor": (
+        "RMS noise on <code>ScAmpOut</code> (mV) and <code>RawAmpOut</code> "
+        "(pA) with the command idle, plus the fraction of total signal "
+        "power concentrated in the 60/120/180 Hz mains-harmonic bands "
+        "(via Welch PSD). Line-noise fraction &gt; 10 % warns, &gt; 30 % "
+        "fails — at that level mains hum dominates the recording. If it "
+        "trips, check the Faraday cage door, ground straps, and that no "
+        "new mains-powered equipment has been added near the rig."
+    ),
+    "CC scaling & linearity (model cell)": (
+        "Injects a current staircase (default −100 → +100 pA in 20 pA "
+        "steps) and measures the steady-state voltage deflection on "
+        "<code>ScAmpOut</code> at each step. With the 500 MΩ model cell, "
+        "Ohm's law predicts ΔV = I·R, so a +100 pA step should give a "
+        "+50 mV deflection. We fit a line through the (I, ΔV) points; "
+        "the slope is the implied resistance in MΩ. Warns if any single "
+        "step deviates &gt; 5 % from 500 MΩ, if the fitted slope deviates "
+        "&gt; 5 %, or if R² &lt; 0.999. Catches a wrong "
+        "<code>AO_PA_PER_VOLT</code> constant in <code>config.py</code>, "
+        "a clipped DAQ output, or amplifier gain drift."
+    ),
+    "Analysis pipeline self-test (compute_input_resistance)": (
+        "End-to-end check of the analysis code, not the rig: records a "
+        "single hyperpolarising current pulse on the model cell, then "
+        "feeds the resulting trace into the production "
+        "<code>compute_input_resistance</code> function used by the rest "
+        "of the analysis pipeline. The answer should be within 5 % of "
+        "500 MΩ. Warns otherwise. A failure here without other Phase B1 "
+        "failures is almost always a regression in the analysis code "
+        "(a unit conversion bug, a baseline-window change), not an "
+        "amplifier problem."
+    ),
+
+    # ------------------------------------------------------------------
+    # Alignment — Phase B2 (model cell, voltage clamp)
+    # ------------------------------------------------------------------
+    "VC scaling (model cell)": (
+        "Applies a set of voltage steps (default ±10, ±20, ±50 mV) and "
+        "measures the resulting current on <code>I_mem</code>. With the "
+        "500 MΩ model cell, ΔI = ΔV / R, so a 50 mV step should produce "
+        "a 100 pA current. We fit a line through the (V, ΔI) points and "
+        "report the implied resistance from the slope. Warns if any "
+        "single step deviates &gt; 5 % from 500 MΩ. Catches a wrong "
+        "<code>AO_MV_PER_VOLT</code> constant, a miscalibrated V-clamp "
+        "headstage gain, or the amplifier still being in current clamp."
+    ),
+    "Capacitance transient τ (VC step)": (
+        "Fits a single exponential (I(t) = I_ss + ΔI·exp(−t/τ)) to the "
+        "onset transient of <code>I_mem</code> after a small VC step. "
+        "With amplifier capacitance compensation <i>off</i>, τ ≈ R·C of "
+        "the model cell — for the Patch-1U at CELL (500 MΩ × 33 pF) "
+        "this is around 16 ms. With cap-comp <i>on</i>, τ should "
+        "collapse to a fraction of a millisecond. Reported for "
+        "diagnostic transparency only — this check never fails — but a "
+        "consistent shift in τ between weeks is a great early warning "
+        "that the cap-comp circuit is drifting."
     ),
 }
 

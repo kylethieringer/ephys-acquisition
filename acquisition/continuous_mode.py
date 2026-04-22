@@ -294,6 +294,7 @@ class ContinuousAcquisition(QObject):
         self._is_recording = True
 
         if self._daq_worker is not None:
+            self._daq_worker.clear_buffer_events()
             self._daq_worker.start_ttl()
 
         self.recording_started.emit(folder)
@@ -398,6 +399,19 @@ class ContinuousAcquisition(QObject):
         from pathlib import Path as _Path
         fname = _Path(path).name
         self.conversion_status.emit(f"Saved: {fname}")
+        try:
+            if self._daq_worker is not None:
+                events = self._daq_worker.drain_buffer_events()
+                if events:
+                    from analysis.qc.hook import write_acquisition_log
+                    write_acquisition_log(path, events)
+        except Exception:
+            pass  # log-write failure must never affect the save path
+        try:
+            from analysis.qc.hook import schedule_qc
+            schedule_qc(path, on_status=self.conversion_status.emit)
+        except Exception:
+            pass  # QC must never affect the save path
 
     def _on_conversion_failed(self, msg: str) -> None:
         """Handle failed HDF5 conversion (binary file preserved)."""

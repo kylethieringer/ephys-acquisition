@@ -124,6 +124,15 @@ class DAQWorker(QThread):
         self._pending_ttl_cfg:    tuple | None   = None
         self._pending_ttl_action                 = None
 
+        # Buffer-fill instrumentation (see log_buffer_event / drain_buffer_events).
+        # Appended from the worker thread, drained from the GUI thread — both
+        # paths acquire ``_lock`` so the list is never read mid-mutation.
+        self._buffer_events:           list[dict] = []
+        self._samples_since_clear:     int        = 0
+        self._chunks_since_last_event: int        = 10_000   # suppress at startup
+        self._buffer_warn_threshold:   int        = int(CHUNK_SIZE * 10 * 0.70)
+        self._buffer_min_chunks_gap:   int        = 100     # ≥1 s @ 100 Hz
+
     # ------------------------------------------------------------------
     # Public slots / methods (called from GUI thread)
     # ------------------------------------------------------------------
@@ -206,6 +215,35 @@ class DAQWorker(QThread):
         with self._lock:
             self._pending_ttl_cfg = (frame_rate_hz, exposure_ms)
 
+    def clear_buffer_events(self) -> None:
+        """Reset the buffer-fill event list and the sample-index counter.
+
+        Call this from the GUI thread at the start of a recording so that
+        later events reference sample indices from recording start.
+
+        Note:
+            Thread-safe: uses ``_lock`` internally.
+        """
+        with self._lock:
+            self._buffer_events = []
+            self._samples_since_clear     = 0
+            self._chunks_since_last_event = self._buffer_min_chunks_gap
+
+    def drain_buffer_events(self) -> list[dict]:
+        """Return and clear the pending list of buffer-fill warning events.
+
+        Each event is a dict with keys ``sample_index``,
+        ``avail_samp_per_chan``, and ``threshold``.  ``sample_index`` is
+        counted from the last :meth:`clear_buffer_events` call.
+
+        Note:
+            Thread-safe: uses ``_lock`` internally.
+        """
+        with self._lock:
+            events = self._buffer_events
+            self._buffer_events = []
+        return events
+
     # ------------------------------------------------------------------
     # QThread.run — helpers (execute in the worker thread)
     # ------------------------------------------------------------------
@@ -228,6 +266,33 @@ class DAQWorker(QThread):
             self._pending_ttl_cfg    = None
             self._pending_ttl_action = None
         return pending_wf, pending_ttl, pending_ttl_action
+
+    def _poll_buffer_fill(self, ai_task) -> None:
+        """Record a warning event if the AI driver buffer is backing up.
+
+        Runs after every successful ``read_many_sample`` call.  The property
+        access is a single NI-DAQmx driver read (microseconds) and the list
+        append is O(1), so the hot-path cost is negligible.  Events are
+        rate-limited to at most one per ``_buffer_min_chunks_gap`` chunks
+        (≥1 s at the default 100 Hz callback rate) to prevent spam during
+        sustained near-misses.
+        """
+        self._samples_since_clear     += CHUNK_SIZE
+        self._chunks_since_last_event += 1
+        try:
+            avail = int(ai_task.in_stream.avail_samp_per_chan)
+        except Exception:
+            return
+        if (avail >= self._buffer_warn_threshold
+                and self._chunks_since_last_event >= self._buffer_min_chunks_gap):
+            event = {
+                "sample_index":         int(self._samples_since_clear),
+                "avail_samp_per_chan":  avail,
+                "threshold":            int(self._buffer_warn_threshold),
+            }
+            with self._lock:
+                self._buffer_events.append(event)
+            self._chunks_since_last_event = 0
 
     def _handle_ttl(self, ctr_task, pending_ttl_action, pending_ttl,
                     ttl_active: bool) -> tuple:
@@ -385,6 +450,7 @@ class DAQWorker(QThread):
 
                 reader.read_many_sample(ai_buf, CHUNK_SIZE, timeout=2.0)
                 self.data_ready.emit(ai_buf.copy())
+                self._poll_buffer_fill(ai_task)
 
         except Exception as exc:
             if self._running:   # suppress errors during intentional shutdown
