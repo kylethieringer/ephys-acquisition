@@ -14,6 +14,14 @@ acquisition/trial_saver.py
 acquisition/trial_waveforms.py
 analysis/align_video.py
 analysis/analysis_gui.py
+analysis/analyze_steps.py
+analysis/qc_report.py
+analysis/qc/__init__.py
+analysis/qc/integrity.py
+analysis/qc/load.py
+analysis/qc/report.py
+analysis/qc/signal.py
+analysis/qc/stimulus.py
 ephys_acquisition.egg-info/PKG-INFO
 ephys_acquisition.egg-info/SOURCES.txt
 ephys_acquisition.egg-info/dependency_links.txt
@@ -32,6 +40,7 @@ ui/main_window.py
 ui/protocol_builder.py
 ui/stimulus_panel.py
 ui/trace_panel.py
+ui/widgets.py
 utils/__init__.py
 utils/data_loader.py
 utils/experiment_dashboard.py

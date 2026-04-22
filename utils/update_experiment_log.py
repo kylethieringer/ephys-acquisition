@@ -25,23 +25,17 @@ from pathlib import Path
 # Anything else in the CSV is treated as user data and left alone.
 # ---------------------------------------------------------------------------
 AUTO_COLUMNS = [
-    "metadata_file",
     "expt_id",
     "genotype",
     "age",
     "sex",
-    "targeted_cell_type",
-    "notes",
+    "metadata_file",
     "drug_applied",
     "drug_name",
     "drug_concentration",
-    "start_time",
-    "end_time",
     "duration_seconds",
     "clamp_mode",
-    "sample_rate_hz",
-    "has_video",
-    "has_trials",
+    "notes",
 ]
 
 
@@ -53,27 +47,18 @@ def _parse_metadata(json_path: Path, data_dir: Path) -> dict:
     subject = meta.get("subject", {})
     files = meta.get("files", {})
 
-    # has_trials: check whether a *_trials.h5 exists next to this file
-    trials_h5 = json_path.with_name(json_path.name.replace("_metadata.json", "_trials.h5"))
-
     return {
-        "metadata_file": str(json_path.relative_to(data_dir)).replace("\\", "/"),
         "expt_id": subject.get("expt_id", ""),
         "genotype": subject.get("genotype", ""),
         "age": subject.get("age", ""),
         "sex": subject.get("sex", ""),
-        "targeted_cell_type": subject.get("targeted_cell_type", ""),
-        "notes": subject.get("notes", ""),
+        "metadata_file": str(json_path.relative_to(data_dir)).replace("\\", "/"),
         "drug_applied": subject.get("drug_applied", False),
         "drug_name": subject.get("drug_name", ""),
         "drug_concentration": subject.get("drug_concentration", ""),
-        "start_time": meta.get("start_time", ""),
-        "end_time": meta.get("end_time", ""),
         "duration_seconds": meta.get("duration_seconds", ""),
         "clamp_mode": meta.get("clamp_mode", ""),
-        "sample_rate_hz": meta.get("sample_rate_hz", ""),
-        "has_video": bool(files.get("video")),
-        "has_trials": trials_h5.exists(),
+        "notes": subject.get("notes", ""),
     }
 
 

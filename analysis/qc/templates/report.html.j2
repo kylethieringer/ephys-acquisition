@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>QC Report — {{ h5_path }}</title>
+<style>
+  :root {
+    --pass: #2e7d32; --warn: #ed6c02; --fail: #c62828; --skip: #616161;
+    --bg: #fafafa; --card: #ffffff; --border: #e0e0e0;
+    --fg: #212121; --muted: #616161;
+  }
+  body {
+    font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+    background: var(--bg); color: var(--fg);
+    margin: 0; padding: 24px;
+  }
+  h1 { margin: 0 0 4px; font-size: 22px; }
+  h2 { margin: 32px 0 12px; font-size: 18px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  .meta { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+  .meta code { background: #eee; padding: 1px 5px; border-radius: 3px; }
+  .banner {
+    display: inline-block; padding: 10px 20px; border-radius: 6px;
+    color: white; font-weight: 600; font-size: 18px; letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .banner.pass { background: var(--pass); }
+  .banner.warn { background: var(--warn); }
+  .banner.fail { background: var(--fail); }
+  .banner.skip { background: var(--skip); }
+  .check {
+    background: var(--card); border: 1px solid var(--border);
+    border-left: 4px solid var(--skip);
+    margin: 8px 0; padding: 10px 14px; border-radius: 4px;
+  }
+  .check.pass { border-left-color: var(--pass); }
+  .check.warn { border-left-color: var(--warn); }
+  .check.fail { border-left-color: var(--fail); }
+  .check .row {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 14px;
+  }
+  .check .pill {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    font-size: 11px; font-weight: 600; color: white; text-transform: uppercase;
+    letter-spacing: 0.5px; min-width: 42px; text-align: center;
+  }
+  .check .pill.pass { background: var(--pass); }
+  .check .pill.warn { background: var(--warn); }
+  .check .pill.fail { background: var(--fail); }
+  .check .pill.skip { background: var(--skip); }
+  .check .name { font-weight: 600; }
+  .check .msg  { color: var(--muted); }
+  .check details { margin-top: 6px; font-size: 12px; }
+  .check details summary { cursor: pointer; color: var(--muted); }
+  .check pre {
+    background: #f5f5f5; border: 1px solid var(--border);
+    padding: 8px; border-radius: 3px; overflow-x: auto;
+    font-size: 11px; line-height: 1.3; margin: 6px 0 0;
+    max-height: 360px; overflow-y: auto;
+  }
+  .plot { margin: 14px 0; }
+  .plot img { max-width: 100%; border: 1px solid var(--border); border-radius: 3px; background: white; }
+  .intro {
+    background: #fffde7; border: 1px solid #fff59d;
+    padding: 12px 16px; border-radius: 4px;
+    margin: 16px 0; font-size: 13px; line-height: 1.55;
+    color: #424242; max-width: 900px;
+  }
+  .intro b { color: #212121; }
+  .intro .key { margin-top: 8px; }
+  .section-desc {
+    color: var(--muted); font-size: 13px; line-height: 1.5;
+    margin: 4px 0 14px; max-width: 900px;
+  }
+  .section-desc code { background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 12px; }
+  .check .desc {
+    color: var(--muted); font-size: 12px; line-height: 1.5;
+    margin-top: 6px; max-width: 900px;
+  }
+  .check .desc code { background: #f0f0f0; padding: 1px 4px; border-radius: 2px; font-size: 11px; }
+</style>
+</head>
+<body>
+
+<h1>QC Report</h1>
+<div class="meta">
+  <div><code>{{ h5_path }}</code></div>
+  <div>Mode: <b>{{ mode }}</b> · Sample rate: {{ sample_rate }} Hz · Started: {{ start_time }}</div>
+  <div>Channels: {{ channel_names | join(", ") }}</div>
+  <div>Generated: {{ generated }}</div>
+</div>
+
+<div class="banner {{ overall_status }}">{{ overall_status }}</div>
+
+<div class="intro">
+  <div>{{ report_intro | safe }}</div>
+  <div class="key">{{ status_key | safe }}</div>
+</div>
+
+{% if plots.overview_html %}
+<h2>Recording overview</h2>
+<div class="meta" style="margin-bottom:6px">
+  Interactive — box-zoom by dragging, double-click to reset, hover for values.
+</div>
+<div class="plot">{{ plots.overview_html | safe }}</div>
+{% endif %}
+
+{% if plots.stimulus_overlay %}
+<h2>Commanded vs. recorded (per-stimulus overlay)</h2>
+<div class="plot"><img src="data:image/png;base64,{{ plots.stimulus_overlay }}" alt="stimulus overlay"></div>
+{% endif %}
+
+{% for section_name, section in sections.items() %}
+<h2>{{ section_name }}</h2>
+{% if section.description %}
+<div class="section-desc">{{ section.description | safe }}</div>
+{% endif %}
+{% for c in section.checks %}
+  <div class="check {{ c.status }}">
+    <div class="row">
+      <span class="pill {{ c.status }}">{{ c.status }}</span>
+      <span class="name">{{ c.name }}</span>
+      <span class="msg">— {{ c.message }}</span>
+    </div>
+    {% if c.description %}
+    <div class="desc">{{ c.description | safe }}</div>
+    {% endif %}
+    {% if c.metrics and c.metrics != "{}" %}
+    <details>
+      <summary>metrics</summary>
+      <pre>{{ c.metrics }}</pre>
+    </details>
+    {% endif %}
+  </div>
+{% endfor %}
+{% endfor %}
+
+</body>
+</html>
