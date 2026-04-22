@@ -860,12 +860,20 @@ def plot_step_overlay(
     vm_pad_mV: float = 2.0,
     cmd_pad_pA: float = 5.0,
     trace_alpha: float = 0.85,
+    sweep_labels: list | None = None,
 ) -> tuple[plt.Figure, tuple[plt.Axes, plt.Axes]]:
-    """Plot overlaid step responses colored by injection amplitude.
+    """Plot overlaid step responses.
 
     Creates a two-panel figure: membrane potential on top (3:1 height
     ratio) and command current on the bottom, with minimal aesthetics
     (no spines/ticks), L-shaped scale bars, and an RMP marker.
+
+    Coloring:
+        - If ``sweep_labels`` is None, traces are colored by injection
+          amplitude (black→blue CMAP).
+        - If ``sweep_labels`` is provided (one label per sweep), each
+          sweep gets a single distinct color sampled from ``Spectral``
+          (all traces in that sweep share it). A legend is drawn.
 
     Parameters
     ----------
@@ -882,27 +890,42 @@ def plot_step_overlay(
         Y-axis padding around data extremes.
     trace_alpha : float
         Opacity of each trace.
+    sweep_labels : list or None
+        Optional labels, one per sweep. If given, switches coloring
+        from amplitude-based to sweep-index-based and draws a legend.
 
     Returns
     -------
     fig : Figure
     axes : (ax_vm, ax_cmd)
     """
-    all_amps = sorted({
-        seg["amplitude_pA"]
-        for sweep_segs in segment_lists
-        for seg in sweep_segs
-    })
-    norm = mcolors.Normalize(vmin=min(all_amps), vmax=max(all_amps))
+    color_by_sweep = sweep_labels is not None
+
+    if color_by_sweep:
+        n_sweeps = len(segment_lists)
+        spectral = plt.get_cmap("Spectral")
+        sweep_base_colors = [
+            spectral(i / max(1, n_sweeps - 1)) for i in range(n_sweeps)
+        ]
+    else:
+        all_amps = sorted({
+            seg["amplitude_pA"]
+            for sweep_segs in segment_lists
+            for seg in sweep_segs
+        })
+        amp_norm = mcolors.Normalize(vmin=min(all_amps), vmax=max(all_amps))
 
     fig, (ax_vm, ax_cmd) = plt.subplots(
         2, 1, figsize=figsize, sharex=True,
         gridspec_kw={"height_ratios": [3, 1], "hspace": 0.2},
     )
 
-    for sweep_segs in segment_lists:
+    for sweep_idx, sweep_segs in enumerate(segment_lists):
         for seg in sweep_segs:
-            color = CMAP(norm(seg["amplitude_pA"]))
+            if color_by_sweep:
+                color = sweep_base_colors[sweep_idx]
+            else:
+                color = CMAP(amp_norm(seg["amplitude_pA"]))
             ax_vm.plot(
                 seg["time_ms"], seg["vm_mV"],
                 color=color, linewidth=0.9, alpha=trace_alpha,
@@ -952,6 +975,18 @@ def plot_step_overlay(
 
     add_scalebar(ax_vm, *vm_scalebar)
     add_scalebar(ax_cmd, *cmd_scalebar)
+
+    if color_by_sweep:
+        legend_handles = [
+            plt.Line2D([0], [0], color=sweep_base_colors[i], linewidth=1.5,
+                       label=str(sweep_labels[i]))
+            for i in range(len(segment_lists))
+        ]
+        ax_vm.legend(
+            handles=legend_handles, loc="upper right",
+            fontsize=8, frameon=False, title="Trial",
+            title_fontsize=8,
+        )
 
     if title:
         fig.suptitle(title, fontsize=13, fontweight="bold")
@@ -1212,43 +1247,93 @@ def interactive_loop(
         Per-channel scale factors.
     """
     n = len(staircases)
+    overlay_mode = True  # toggled with "m"; controls behavior for multi-select
 
     while True:
+        mode_tag = "overlay" if overlay_mode else "separate"
         choice = input(
-            'Enter staircase number(s) to plot (e.g. "0", "0-5", "all"), '
-            'or "q" to quit: '
+            f'[{mode_tag}] Enter staircase number(s) to plot '
+            f'(e.g. "0", "0-5", "all"), "m" to toggle mode, or "q" to quit: '
         ).strip()
 
         if choice.lower() == "q":
             break
+        if choice.lower() in ("m", "mode"):
+            overlay_mode = not overlay_mode
+            new_tag = "overlay" if overlay_mode else "separate"
+            print(f"  Multi-select mode: {new_tag}\n")
+            continue
 
         indices = parse_selection(choice, n)
         if indices is None:
             print("Invalid selection. Try again.\n")
             continue
 
-        for idx in indices:
-            staircase = staircases[idx]
-            meta = staircase_meta[idx]
+        # Single index: plot alone, colored by amplitude.
+        # Multi-index in overlay mode: one figure colored by staircase index.
+        # Multi-index in separate mode: one figure per staircase (legacy).
+        if len(indices) == 1 or not overlay_mode:
+            for idx in indices:
+                staircase = staircases[idx]
+                meta = staircase_meta[idx]
+                _, steps = separate_hyperpol(
+                    staircase, protocol_runs,
+                    meta["apply_sample"], meta.get("stimulus_index", -1),
+                )
 
-            # Separate hyperpol from staircase steps for plotting
-            _, steps = separate_hyperpol(
-                staircase, protocol_runs,
-                meta["apply_sample"], meta.get("stimulus_index", -1),
-            )
+                if not steps:
+                    print(f"  Staircase {idx}: no steps to plot.")
+                    continue
 
-            if not steps:
-                print(f"  Staircase {idx}: no steps to plot.")
+                segments = extract_step_segments(data, steps, sr, display_scales)
+                fig, _ = plot_step_overlay([segments], title=None)
+                plt.show(block=False)
+                plt.pause(0.1)
+
+                save_choice = input(
+                    f"  Save staircase {idx} figure? [y/n]: "
+                ).strip().lower()
+                if save_choice == "y":
+                    fig_name = f"{h5_path.stem}_staircase{idx}_overlay"
+                    save_fig_both(fig, fig_name, overwrite=True)
+
+                plt.close(fig)
+        else:
+            segment_lists: list[list[dict]] = []
+            used_indices: list[int] = []
+            for idx in indices:
+                staircase = staircases[idx]
+                meta = staircase_meta[idx]
+                _, steps = separate_hyperpol(
+                    staircase, protocol_runs,
+                    meta["apply_sample"], meta.get("stimulus_index", -1),
+                )
+                if not steps:
+                    print(f"  Staircase {idx}: no steps, skipping.")
+                    continue
+                segment_lists.append(
+                    extract_step_segments(data, steps, sr, display_scales)
+                )
+                used_indices.append(idx)
+
+            if not segment_lists:
+                print("  No plottable staircases in selection.")
+                print()
                 continue
 
-            segments = extract_step_segments(data, steps, sr, display_scales)
-            fig, _ = plot_step_overlay([segments], title=None)
+            fig, _ = plot_step_overlay(
+                segment_lists, title=None,
+                sweep_labels=used_indices,
+            )
             plt.show(block=False)
             plt.pause(0.1)
 
-            save_choice = input(f"  Save staircase {idx} figure? [y/n]: ").strip().lower()
+            label = "_".join(str(i) for i in used_indices)
+            save_choice = input(
+                f"  Save overlay of staircases {used_indices}? [y/n]: "
+            ).strip().lower()
             if save_choice == "y":
-                fig_name = f"{h5_path.stem}_staircase{idx}_overlay"
+                fig_name = f"{h5_path.stem}_staircases_{label}_overlay"
                 save_fig_both(fig, fig_name, overwrite=True)
 
             plt.close(fig)
@@ -1345,7 +1430,7 @@ def main() -> None:
 
     # ── Save CSV ──────────────────────────────────────────────────────
     fig_date = datetime.today().strftime("%Y-%m-%d")
-    csv_path = Path(FIG_DIR) / "csv" / f"{fig_date}-{h5_path.stem}_intrinsics.csv"
+    csv_path = Path(FIG_DIR) / "csv" / f"{h5_path.stem}_intrinsics.csv"
     write_csv(intrinsics, csv_path)
 
     print("\nDone.")
