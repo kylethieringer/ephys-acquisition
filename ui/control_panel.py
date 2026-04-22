@@ -40,6 +40,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QSizePolicy,
+    QStyle,
     QVBoxLayout,
     QWidget,
 )
@@ -157,6 +158,19 @@ class ControlPanel(QWidget):
     def save_dir(self) -> str:
         """Currently selected save directory path."""
         return self._save_dir
+
+    @property
+    def protocol_folder(self) -> str:
+        """Folder scanned for saved protocol JSON files."""
+        return self._protocol_folder
+
+    def scan_protocols(self) -> list[tuple[str, str]]:
+        """Return ``[(stem, full_path), ...]`` of .json files in the protocol folder."""
+        from pathlib import Path as _Path
+        folder = _Path(self._protocol_folder)
+        if not folder.exists():
+            return []
+        return [(p.stem, str(p)) for p in sorted(folder.glob("*.json"))]
 
     def get_metadata(self) -> dict:
         """Read the subject metadata form and return it as a dict.
@@ -368,8 +382,12 @@ class ControlPanel(QWidget):
         self._protocol_combo.setPlaceholderText("Select saved protocol…")
         self._protocol_combo.activated.connect(self._on_protocol_selected)
 
-        self._refresh_protocols_btn = QPushButton("↻")
-        self._refresh_protocols_btn.setFixedWidth(30)
+        self._refresh_protocols_btn = QPushButton()
+        self._refresh_protocols_btn.setIcon(
+            self.style().standardIcon(QStyle.SP_BrowserReload)
+        )
+        self._refresh_protocols_btn.setFixedSize(30, 30)
+        self._refresh_protocols_btn.setProperty("icon", "true")
         self._refresh_protocols_btn.setToolTip("Refresh protocol list")
         self._refresh_protocols_btn.clicked.connect(self._scan_protocol_folder)
 

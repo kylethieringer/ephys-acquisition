@@ -6,11 +6,15 @@ Usage:
 """
 
 import sys
+from pathlib import Path
 
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import QApplication
 
 from ui.main_window import MainWindow
+
+
+ASSETS_DIR = Path(__file__).parent / "assets"
 
 
 STYLESHEET = """
@@ -213,14 +217,14 @@ QRadioButton::indicator, QCheckBox::indicator {
     border: 1px solid #4a525e;
     background-color: #2a2f38;
 }
-QRadioButton::indicator { border-radius: 7px; }
+QRadioButton::indicator { border-radius: 8px; }
 QCheckBox::indicator    { border-radius: 2px; }
 QRadioButton::indicator:hover, QCheckBox::indicator:hover { border-color: #a4afc1; }
 QRadioButton::indicator:checked {
     border: 1px solid #a4afc1;
-    background-color: qradialgradient(cx:0.5, cy:0.5, radius:0.5,
-                                      stop:0.0 #a4afc1, stop:0.45 #a4afc1,
-                                      stop:0.50 #2a2f38, stop:1.0 #2a2f38);
+    background-color: qradialgradient(cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5,
+                                      stop:0.0 #a4afc1, stop:0.38 #a4afc1,
+                                      stop:0.42 #2a2f38, stop:1.0 #2a2f38);
 }
 QCheckBox::indicator:checked {
     background-color: #a4afc1;
@@ -229,20 +233,21 @@ QCheckBox::indicator:checked {
 }
 
 /* ---------- ComboBox ---------- */
+QComboBox {
+    padding: 4px 26px 4px 6px;
+}
 QComboBox::drop-down {
     subcontrol-origin: padding;
     subcontrol-position: center right;
-    width: 20px;
-    border-left: 1px solid #3a414c;
+    width: 22px;
+    border: none;
     background: transparent;
+    padding-right: 6px;
 }
 QComboBox::down-arrow {
-    image: none;
-    width: 0; height: 0;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-top: 5px solid #b8bec9;
-    margin-right: 4px;
+    image: url("{CHEVRON_DOWN}");
+    width: 10px;
+    height: 6px;
 }
 QComboBox QAbstractItemView {
     background-color: #1b1e24;
@@ -254,14 +259,22 @@ QComboBox QAbstractItemView {
     padding: 2px;
 }
 
+/* Icon-only compact buttons (e.g. refresh) */
+QPushButton[icon="true"] {
+    padding: 2px 0;
+    font-size: 12pt;
+    font-weight: 500;
+    min-height: 0;
+}
+
 /* ---------- Splitter ---------- */
 QSplitter::handle {
-    background-color: #14161a;
+    background-color: #3a414c;
 }
-QSplitter::handle:horizontal { width: 3px; }
-QSplitter::handle:vertical   { height: 3px; }
+QSplitter::handle:horizontal { width: 4px; }
+QSplitter::handle:vertical   { height: 4px; }
 QSplitter::handle:hover {
-    background-color: rgba(164, 175, 193, 0.30);
+    background-color: #6b7585;
 }
 
 /* ---------- Scroll area / scrollbars ---------- */
@@ -356,7 +369,8 @@ def main() -> None:
     default_font = QFont("Segoe UI", 10)
     app.setFont(default_font)
 
-    app.setStyleSheet(STYLESHEET)
+    chevron_path = (ASSETS_DIR / "chevron-down.svg").as_posix()
+    app.setStyleSheet(STYLESHEET.replace("{CHEVRON_DOWN}", chevron_path))
 
     window = MainWindow()
     window.show()

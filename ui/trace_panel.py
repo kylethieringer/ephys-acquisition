@@ -87,6 +87,22 @@ class ChannelYControls(QWidget):
 
         self._apply_range()
 
+    @property
+    def min_spin(self) -> QDoubleSpinBox:
+        return self._min_spin
+
+    @property
+    def max_spin(self) -> QDoubleSpinBox:
+        return self._max_spin
+
+    @property
+    def auto_cb(self) -> QCheckBox:
+        return self._auto_cb
+
+    @property
+    def label_widget(self) -> QLabel:
+        return self._lbl
+
     def update_channel(self, name: str, units: str, y_min: float, y_max: float) -> None:
         """Update labels and Y-range defaults when the clamp mode changes.
 

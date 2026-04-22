@@ -1,54 +1,31 @@
 """
 MainWindow — top-level Qt window that assembles all panels.
 
-Layout (redesigned)::
+Layout::
 
     QMainWindow
     └── central widget (vertical)
         ├── TopChromeBar  (session label + mode/clamp pills + status badge)
         ├── QHBoxLayout
-        │   ├── Sidebar (icon rail: Acquire / Protocol / Camera / Channels / Setup)
+        │   ├── Sidebar (icon rail: Acquire / Protocol / Channels / Setup)
         │   └── QVBoxLayout
         │       ├── QStackedWidget
-        │       │   ├── AcquirePage
-        │       │   │   └── QSplitter (horizontal)
-        │       │   │       ├── LiveTracePanel
-        │       │   │       └── right column (vertical)
-        │       │   │           ├── Camera preview (top, ~280 px)
-        │       │   │           └── QScrollArea
-        │       │   │               └── Subject / Protocol / Stimulus / Channels
-        │       │   ├── ProtocolPage
-        │       │   ├── CameraPage
-        │       │   ├── ChannelsPage
-        │       │   └── SetupPage
+        │       │   ├── AcquirePage  (traces + camera + subject/protocol/stim)
+        │       │   ├── ProtocolPage (saved-list + inline ProtocolBuilderPanel)
+        │       │   ├── ChannelsPage (per-channel table)
+        │       │   └── SetupPage    (2x2 card grid: DAQ / Mapping / Save / Camera)
         │       └── Recording bar (always visible, bottom)
-
-Signal wiring summary
----------------------
-- :class:`~ui.control_panel.ControlPanel` signals → acquisition controller
-  methods (start, stop, record, stop_record, mode_changed).
-- :class:`~ui.camera_panel.CameraPanel` ``ttl_config_changed`` → both
-  :class:`~acquisition.continuous_mode.ContinuousAcquisition` and
-  :class:`~acquisition.trial_mode.TrialAcquisition` (kept in sync).
-- :class:`~ui.stimulus_panel.StimulusPanel` signals → continuous acquisition
-  ao0 control (apply / clear).
-- Acquisition ``started`` / ``stopped`` / ``error_occurred`` → UI state
-  updates (button enables, status label, top-chrome status badge).
-- Trial signals (``trial_started``, ``protocol_finished``, etc.) → status label.
 
 Developer notes
 ---------------
 Both acquisition controllers are always instantiated; only the **active** one
-is started when the user clicks Start.  The ring buffer from
+is started when the user clicks Start. The ring buffer from
 :class:`~acquisition.continuous_mode.ContinuousAcquisition` is shared by
 both modes.
 
-:class:`~ui.protocol_builder.ProtocolBuilderDialog` is created lazily on
-first use and kept alive (hidden) between uses to preserve edits.
-
-The camera preview widget is re-parented between the Acquire page (pinned
-top-right) and the full Camera page on page switch so only one
-``pg.ImageView`` instance exists.
+The per-channel QCheckBox + ChannelYControls widgets live on the
+**Channels** page (only page that owns them). ``_on_clamp_mode_changed``
+mutates those widgets in place so switching pages does not lose state.
 """
 
 from __future__ import annotations
@@ -59,11 +36,16 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QFrame,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMessageBox,
+    QPushButton,
     QScrollArea,
     QSizePolicy,
     QSplitter,
@@ -72,14 +54,26 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from config import AI_CHANNELS, AI_CHANNELS_VC, AI_Y_DEFAULTS, AI_Y_DEFAULTS_VC
+from config import (
+    AI_CHANNELS,
+    AI_CHANNELS_VC,
+    AI_Y_DEFAULTS,
+    AI_Y_DEFAULTS_VC,
+    AO_COMMAND_CH,
+    CHUNK_SIZE,
+    CTR_CHANNEL,
+    CTR_OUT_TERMINAL,
+    DEVICE_NAME,
+    SAMPLE_RATE,
+    TRACE_COLORS,
+)
 
 from acquisition.continuous_mode import ContinuousAcquisition
 from acquisition.trial_mode import TrialAcquisition
 from acquisition.trial_protocol import protocol_from_dict
 from ui.camera_panel import CameraPanel
 from ui.control_panel import ControlPanel
-from ui.protocol_builder import ProtocolBuilderDialog
+from ui.protocol_builder import ProtocolBuilderPanel
 from ui.stimulus_panel import StimulusPanel
 from ui.trace_panel import ChannelYControls, LiveTracePanel
 from ui.widgets import Sidebar, TopChromeBar
@@ -88,7 +82,6 @@ from ui.widgets import Sidebar, TopChromeBar
 SIDEBAR_ITEMS = [
     ("acquire",  "wave",   "Acquire"),
     ("protocol", "flask",  "Protocol"),
-    ("camera",   "camera", "Camera"),
     ("channels", "dot",    "Channels"),
     ("setup",    "gear",   "Setup"),
 ]
@@ -105,36 +98,34 @@ class MainWindow(QMainWindow):
         # --- Acquisition back-ends ---
         self._acq = ContinuousAcquisition(self)
         self._trial_acq = TrialAcquisition(self)
-        self._active_mode       = "continuous"
+        self._active_mode = "continuous"
         self._pending_protocol: dict | None = None
 
         # --- Panels ---
-        self._trace_panel  = LiveTracePanel()
+        self._trace_panel = LiveTracePanel()
         self._camera_panel = CameraPanel()
-        self._stim_panel   = StimulusPanel()
-        self._ctrl_panel   = ControlPanel()
+        self._stim_panel = StimulusPanel()
+        self._ctrl_panel = ControlPanel()
+        self._protocol_builder = ProtocolBuilderPanel()
 
-        self._protocol_builder: ProtocolBuilderDialog | None = None
         self._channel_cbs: list[QCheckBox] = []
-        self._y_controls:  list[ChannelYControls] = []
+        self._y_controls: list[ChannelYControls] = []
 
         # --- Top chrome ---
         self._chrome = TopChromeBar()
 
         # --- Sidebar + stacked pages ---
         self._sidebar = Sidebar(SIDEBAR_ITEMS)
-        self._stack   = QStackedWidget()
+        self._stack = QStackedWidget()
 
-        self._page_acquire  = self._build_acquire_page()
+        self._page_acquire = self._build_acquire_page()
         self._page_protocol = self._build_protocol_page()
-        self._page_camera   = self._build_camera_page()
         self._page_channels = self._build_channels_page()
-        self._page_setup    = self._build_setup_page()
+        self._page_setup = self._build_setup_page()
 
         self._page_index = {
             "acquire":  self._stack.addWidget(self._page_acquire),
             "protocol": self._stack.addWidget(self._page_protocol),
-            "camera":   self._stack.addWidget(self._page_camera),
             "channels": self._stack.addWidget(self._page_channels),
             "setup":    self._stack.addWidget(self._page_setup),
         }
@@ -169,17 +160,16 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(central)
 
-        # --- Wire signals ---
         self._wire_acquisition_signals()
         self._wire_control_signals()
         self._wire_chrome_and_sidebar()
+        self._wire_protocol_builder()
 
     # ------------------------------------------------------------------
-    # Signal wiring (called once from __init__)
+    # Signal wiring
     # ------------------------------------------------------------------
 
     def _wire_acquisition_signals(self) -> None:
-        """Connect acquisition back-end signals to UI slots."""
         self._acq.started.connect(self._on_acq_started)
         self._acq.stopped.connect(self._on_acq_stopped)
         self._acq.error_occurred.connect(self._on_error)
@@ -204,7 +194,6 @@ class MainWindow(QMainWindow):
         self._trial_acq.connect_data_callback(self._acq.ring_buffer.push)
 
     def _wire_control_signals(self) -> None:
-        """Connect control panel and peripheral widget signals."""
         self._ctrl_panel.start_requested.connect(self._on_start)
         self._ctrl_panel.stop_requested.connect(self._on_stop)
         self._ctrl_panel.record_requested.connect(self._on_record)
@@ -223,13 +212,8 @@ class MainWindow(QMainWindow):
         self._stim_panel.stimulus_cleared.connect(self._acq.clear_stimulus)
 
     def _wire_chrome_and_sidebar(self) -> None:
-        """Wire top-chrome pills / status badge and sidebar page switching."""
-        # Sidebar → QStackedWidget page switching
         self._sidebar.page_changed.connect(self._on_page_changed)
 
-        # Top-chrome pills ↔ control-panel pills (two-way sync).  Using
-        # separate PillToggle instances lets us place them in different
-        # parent widgets without parenting conflicts.
         self._chrome.mode_pill.changed.connect(self._ctrl_panel.mode_pill.set_value)
         self._chrome.mode_pill.changed.connect(self._ctrl_panel.mode_changed.emit)
         self._chrome.mode_pill.changed.connect(
@@ -238,20 +222,19 @@ class MainWindow(QMainWindow):
         self._chrome.clamp_pill.changed.connect(self._ctrl_panel.clamp_pill.set_value)
         self._chrome.clamp_pill.changed.connect(self._ctrl_panel.clamp_mode_changed.emit)
 
-        # Session label ← control-panel Experiment ID field
         self._ctrl_panel.expt_id_changed.connect(self._chrome.set_session_label)
-
-        # Status badge ← control-panel status text (and acquisition state).
-        # The text feeds the fallback label; state transitions below drive
-        # the LED color.
         self._ctrl_panel.status_text_changed.connect(self._chrome.status_badge.set_text)
+
+    def _wire_protocol_builder(self) -> None:
+        self._protocol_builder.protocol_run_requested.connect(self._on_run_protocol)
+        self._protocol_builder.set_save_dir(self._ctrl_panel.save_dir)
 
     # ------------------------------------------------------------------
     # Page builders
     # ------------------------------------------------------------------
 
     def _build_acquire_page(self) -> QWidget:
-        """Build the Acquire page: traces on the left, camera-pinned right column."""
+        """Acquire: traces (left) + camera-pinned right column (subject / protocol / stim)."""
         page = QWidget()
         page_layout = QHBoxLayout(page)
         page_layout.setContentsMargins(0, 0, 0, 0)
@@ -259,17 +242,13 @@ class MainWindow(QMainWindow):
 
         splitter = QSplitter(Qt.Horizontal)
         splitter.setChildrenCollapsible(False)
-
-        # --- Left: traces ---
         splitter.addWidget(self._trace_panel)
 
-        # --- Right: camera on top + scrollable controls below ---
         right = QWidget()
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(0)
 
-        # Camera mount (re-parentable between this page and the Camera page)
         self._acquire_camera_mount = QFrame()
         self._acquire_camera_mount.setFixedHeight(300)
         self._acquire_camera_mount.setFrameShape(QFrame.NoFrame)
@@ -277,7 +256,6 @@ class MainWindow(QMainWindow):
         cm_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.addWidget(self._acquire_camera_mount)
 
-        # Scrollable controls
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.NoFrame)
@@ -288,14 +266,12 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(self._ctrl_panel.subject_card)
         layout.addWidget(self._ctrl_panel.protocol_widget)
-        # StimulusPanel shown only in continuous mode (toggled by _on_mode_changed)
+
         self._stim_panel_wrap = QFrame()
         sw_layout = QVBoxLayout(self._stim_panel_wrap)
         sw_layout.setContentsMargins(0, 0, 0, 0)
         sw_layout.addWidget(self._stim_panel)
         layout.addWidget(self._stim_panel_wrap)
-
-        layout.addWidget(self._build_channels_groupbox())
 
         layout.addStretch(1)
         scroll.setWidget(container)
@@ -308,96 +284,81 @@ class MainWindow(QMainWindow):
 
         page_layout.addWidget(splitter)
 
-        # Initial camera mount → this page
         self._mount_camera(self._acquire_camera_mount)
-
         return page
 
-    def _build_channels_groupbox(self) -> QGroupBox:
-        """Build the channels/Y-range groupbox used inside the Acquire page."""
-        box = QGroupBox("Channels")
-        v = QVBoxLayout(box)
-        v.setContentsMargins(10, 14, 10, 10)
-        v.setSpacing(4)
-
-        for i, (name, _, _, _, units) in enumerate(AI_CHANNELS):
-            row = QHBoxLayout()
-            row.setSpacing(6)
-            cb = QCheckBox(f"{name} ({units})")
-            cb.setChecked(True)
-            cb.toggled.connect(lambda checked, idx=i: self._toggle_channel(idx, checked))
-            self._channel_cbs.append(cb)
-            ctrl = ChannelYControls(i, self._trace_panel.plots[i])
-            self._y_controls.append(ctrl)
-
-            row.addWidget(cb, stretch=1)
-            v.addLayout(row)
-            v.addWidget(ctrl)
-
-        return box
-
     def _build_protocol_page(self) -> QWidget:
-        """Full-page protocol view: reuses the control panel's protocol widget."""
+        """Protocol: saved-list (left) + embedded ProtocolBuilderPanel (right)."""
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(14, 14, 14, 14)
         layout.setSpacing(10)
 
-        header = QLabel("Protocol")
+        header = QLabel("Protocol library")
         header.setStyleSheet("font-size: 14pt; font-weight: 600; color: #e7ebf0;")
         layout.addWidget(header)
 
-        hint = QLabel(
-            "Pick a saved protocol below or open the full Builder to compose a new one. "
-            "Run and Stop also live on the Acquire page."
+        subtitle = QLabel(
+            "Define reusable stimulus sequences. Pick one from the list or "
+            "compose a new one and click 'Load Protocol' to stage it for Acquire."
         )
-        hint.setProperty("tier", "secondary")
-        hint.setWordWrap(True)
-        layout.addWidget(hint)
+        subtitle.setProperty("tier", "secondary")
+        subtitle.setWordWrap(True)
+        layout.addWidget(subtitle)
 
-        self._protocol_page_mount = QFrame()
-        self._protocol_page_mount.setFrameShape(QFrame.NoFrame)
-        pm = QVBoxLayout(self._protocol_page_mount)
-        pm.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self._protocol_page_mount)
-        layout.addStretch(1)
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.setChildrenCollapsible(False)
 
-        return page
+        # --- Left: saved protocols list ---
+        left = QFrame()
+        left.setProperty("card", True)
+        left_layout = QVBoxLayout(left)
+        left_layout.setContentsMargins(10, 10, 10, 10)
+        left_layout.setSpacing(6)
 
-    def _build_camera_page(self) -> QWidget:
-        """Full-screen camera view + TTL controls beneath."""
-        page = QWidget()
-        layout = QHBoxLayout(page)
-        layout.setContentsMargins(14, 14, 14, 14)
-        layout.setSpacing(14)
+        left_header = QLabel("Saved protocols")
+        left_header.setProperty("tier", "tiny")
+        left_layout.addWidget(left_header)
 
-        # Preview mount (camera preview is re-parented here when this page shows)
-        self._camera_page_mount = QFrame()
-        self._camera_page_mount.setFrameShape(QFrame.NoFrame)
-        cm = QVBoxLayout(self._camera_page_mount)
-        cm.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self._camera_page_mount, stretch=3)
+        self._proto_filter = QLineEdit()
+        self._proto_filter.setPlaceholderText("Filter protocols…")
+        self._proto_filter.textChanged.connect(self._refresh_protocol_list)
+        left_layout.addWidget(self._proto_filter)
 
-        # TTL controls on the right
-        side = QVBoxLayout()
-        side.setSpacing(10)
-        side.addWidget(self._camera_panel.ttl_widget)
-        side.addStretch(1)
+        self._proto_list = QListWidget()
+        self._proto_list.itemDoubleClicked.connect(self._on_saved_protocol_picked)
+        left_layout.addWidget(self._proto_list, stretch=1)
 
-        side_wrap = QWidget()
-        side_wrap.setLayout(side)
-        side_wrap.setFixedWidth(320)
-        layout.addWidget(side_wrap)
+        btn_row = QHBoxLayout()
+        self._proto_refresh_btn = QPushButton("Refresh")
+        self._proto_refresh_btn.clicked.connect(self._refresh_protocol_list)
+        self._proto_new_btn = QPushButton("New")
+        self._proto_new_btn.setProperty("accent", "primary")
+        self._proto_new_btn.clicked.connect(self._protocol_builder.clear)
+        btn_row.addWidget(self._proto_refresh_btn)
+        btn_row.addWidget(self._proto_new_btn)
+        left_layout.addLayout(btn_row)
 
+        splitter.addWidget(left)
+
+        # --- Right: embedded ProtocolBuilderPanel ---
+        right = QFrame()
+        right_layout = QVBoxLayout(right)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.addWidget(self._protocol_builder)
+        splitter.addWidget(right)
+
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 3)
+        splitter.setSizes([320, 900])
+
+        layout.addWidget(splitter, stretch=1)
+
+        self._refresh_protocol_list()
         return page
 
     def _build_channels_page(self) -> QWidget:
-        """Full-page channel list and Y-range controls.
-
-        Note: the Acquire page owns the per-channel ``QCheckBox`` / ``ChannelYControls``
-        widgets; duplicating them here would diverge state. Instead, this page
-        shows a summary and directs the user to the Acquire page.
-        """
+        """Channels: full-page per-channel table (owns QCheckBox + ChannelYControls)."""
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(14, 14, 14, 14)
@@ -407,32 +368,72 @@ class MainWindow(QMainWindow):
         header.setStyleSheet("font-size: 14pt; font-weight: 600; color: #e7ebf0;")
         layout.addWidget(header)
 
-        hint = QLabel(
-            "Channel visibility and Y-range controls live in the right column "
-            "of the Acquire page so they're adjustable while viewing traces."
-        )
-        hint.setProperty("tier", "secondary")
-        hint.setWordWrap(True)
-        layout.addWidget(hint)
+        subtitle = QLabel("Display, save, and axis settings per channel.")
+        subtitle.setProperty("tier", "secondary")
+        layout.addWidget(subtitle)
 
-        # Static summary of the channel configuration from config.py
-        summary = QGroupBox("Configured channels")
-        sl = QVBoxLayout(summary)
-        sl.setContentsMargins(10, 14, 10, 10)
+        card = QFrame()
+        card.setProperty("card", True)
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(10, 10, 10, 10)
+
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(12)
+        grid.setVerticalSpacing(8)
+
+        # Column widths: color | port | name/units | Y-min | Y-max | Auto | Save
+        headers = ["", "Port", "Signal (units)", "Y min", "Y max", "Auto", "Save"]
+        for col, text in enumerate(headers):
+            lbl = QLabel(text)
+            lbl.setProperty("tier", "tiny")
+            grid.addWidget(lbl, 0, col)
+
         for i, (name, ai, _, _, units) in enumerate(AI_CHANNELS):
-            y_min, y_max = AI_Y_DEFAULTS[i]
-            row = QLabel(
-                f"{i}.  {name}   ({ai}, {units})   Y default: {y_min} … {y_max} {units}"
+            row = i + 1
+
+            swatch = QFrame()
+            swatch.setFixedSize(14, 14)
+            swatch.setStyleSheet(
+                f"background-color: {TRACE_COLORS[i]}; border-radius: 3px;"
             )
-            row.setProperty("mono", True)
-            row.setStyleSheet("font-family: 'JetBrains Mono', 'Consolas', monospace;")
-            sl.addWidget(row)
-        layout.addWidget(summary)
+            grid.addWidget(swatch, row, 0)
+
+            port_lbl = QLabel(ai.upper())
+            port_lbl.setProperty("mono", True)
+            port_lbl.setStyleSheet(
+                "font-family: 'JetBrains Mono', 'Consolas', monospace;"
+                " color: #a4afc1; font-weight: 600;"
+            )
+            grid.addWidget(port_lbl, row, 1)
+
+            cb = QCheckBox(f"{name} ({units})")
+            cb.setChecked(True)
+            cb.toggled.connect(lambda checked, idx=i: self._toggle_channel(idx, checked))
+            self._channel_cbs.append(cb)
+            grid.addWidget(cb, row, 2)
+
+            ctrl = ChannelYControls(i, self._trace_panel.plots[i])
+            ctrl.label_widget.setVisible(False)  # name shown in col 2
+            self._y_controls.append(ctrl)
+            grid.addWidget(ctrl.min_spin, row, 3)
+            grid.addWidget(ctrl.max_spin, row, 4)
+            grid.addWidget(ctrl.auto_cb, row, 5)
+
+            save_cb = QCheckBox()
+            save_cb.setChecked(True)
+            save_cb.setEnabled(False)
+            save_cb.setToolTip("All channels are saved by default.")
+            grid.addWidget(save_cb, row, 6)
+
+        grid.setColumnStretch(2, 1)
+        card_layout.addLayout(grid)
+        layout.addWidget(card)
         layout.addStretch(1)
+
         return page
 
     def _build_setup_page(self) -> QWidget:
-        """Setup page: save-directory picker, TTL (camera) settings."""
+        """Setup: 2x2 card grid — DAQ device / channel mapping / save dir / camera TTL."""
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(14, 14, 14, 14)
@@ -442,30 +443,164 @@ class MainWindow(QMainWindow):
         header.setStyleSheet("font-size: 14pt; font-weight: 600; color: #e7ebf0;")
         layout.addWidget(header)
 
-        layout.addWidget(self._ctrl_panel.recording_settings)
+        subtitle = QLabel("Hardware config, sample rate, channel mapping, save location.")
+        subtitle.setProperty("tier", "secondary")
+        layout.addWidget(subtitle)
 
-        # TTL widget (camera trigger settings) mounts here when the Setup page shows.
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(12)
+        grid.setVerticalSpacing(12)
+
+        grid.addWidget(self._build_setup_daq_card(),     0, 0)
+        grid.addWidget(self._build_setup_mapping_card(), 0, 1)
+        grid.addWidget(self._build_setup_save_card(),    1, 0)
+        grid.addWidget(self._build_setup_camera_card(),  1, 1)
+
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
+
+        layout.addLayout(grid)
+        layout.addStretch(1)
+        return page
+
+    def _build_setup_daq_card(self) -> QWidget:
+        box = QGroupBox("DAQ Device")
+        v = QVBoxLayout(box)
+        v.setContentsMargins(12, 16, 12, 12)
+        v.setSpacing(6)
+
+        device_row = QHBoxLayout()
+        led = QFrame()
+        led.setFixedSize(10, 10)
+        led.setProperty("led", "ok")
+        device_row.addWidget(led)
+        dev_lbl = QLabel(DEVICE_NAME)
+        dev_lbl.setProperty("mono", True)
+        dev_lbl.setStyleSheet(
+            "font-family: 'JetBrains Mono', 'Consolas', monospace;"
+            " font-weight: 600; color: #e7ebf0;"
+        )
+        device_row.addWidget(dev_lbl)
+        device_row.addStretch()
+        v.addLayout(device_row)
+
+        def _field(label: str, value: str) -> QHBoxLayout:
+            row = QHBoxLayout()
+            l = QLabel(label)
+            l.setProperty("tier", "secondary")
+            l.setFixedWidth(110)
+            val = QLabel(value)
+            val.setProperty("mono", True)
+            val.setStyleSheet(
+                "font-family: 'JetBrains Mono', 'Consolas', monospace;"
+            )
+            row.addWidget(l)
+            row.addWidget(val)
+            row.addStretch()
+            return row
+
+        v.addLayout(_field("Sample rate", f"{SAMPLE_RATE} Hz"))
+        v.addLayout(_field("Chunk size",  f"{CHUNK_SIZE} samples"))
+        v.addLayout(_field("Counter",     f"{CTR_CHANNEL} -> {CTR_OUT_TERMINAL}"))
+        v.addLayout(_field("AO command",  AO_COMMAND_CH))
+
+        v.addStretch()
+        return box
+
+    def _build_setup_mapping_card(self) -> QWidget:
+        box = QGroupBox("Channel Mapping")
+        v = QVBoxLayout(box)
+        v.setContentsMargins(12, 16, 12, 12)
+        v.setSpacing(6)
+
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(4)
+
+        for col, text in enumerate(["Port", "Signal", "Scale", "Units"]):
+            lbl = QLabel(text)
+            lbl.setProperty("tier", "tiny")
+            grid.addWidget(lbl, 0, col)
+
+        def _mono(text: str) -> QLabel:
+            lbl = QLabel(text)
+            lbl.setStyleSheet(
+                "font-family: 'JetBrains Mono', 'Consolas', monospace;"
+            )
+            return lbl
+
+        row_idx = 1
+        for name, ai, _, scale, units in AI_CHANNELS:
+            port = _mono(ai.upper())
+            port.setStyleSheet(
+                "font-family: 'JetBrains Mono', 'Consolas', monospace;"
+                " color: #a4afc1; font-weight: 600;"
+            )
+            grid.addWidget(port, row_idx, 0)
+            grid.addWidget(_mono(name), row_idx, 1)
+            grid.addWidget(_mono(f"×{scale:g}"), row_idx, 2)
+            grid.addWidget(_mono(units), row_idx, 3)
+            row_idx += 1
+
+        # AO rows
+        ao_cmd = _mono(AO_COMMAND_CH.upper())
+        ao_cmd.setStyleSheet(
+            "font-family: 'JetBrains Mono', 'Consolas', monospace;"
+            " color: #a4afc1; font-weight: 600;"
+        )
+        grid.addWidget(ao_cmd, row_idx, 0)
+        grid.addWidget(_mono("AmpCmd (out)"), row_idx, 1)
+        grid.addWidget(_mono("-"), row_idx, 2)
+        grid.addWidget(_mono("V"), row_idx, 3)
+        row_idx += 1
+
+        ctr_lbl = _mono(CTR_OUT_TERMINAL)
+        ctr_lbl.setStyleSheet(
+            "font-family: 'JetBrains Mono', 'Consolas', monospace;"
+            " color: #a4afc1; font-weight: 600;"
+        )
+        grid.addWidget(ctr_lbl, row_idx, 0)
+        grid.addWidget(_mono("Camera TTL"), row_idx, 1)
+        grid.addWidget(_mono("-"), row_idx, 2)
+        grid.addWidget(_mono("V"), row_idx, 3)
+
+        grid.setColumnStretch(1, 1)
+        v.addLayout(grid)
+        v.addStretch()
+        return box
+
+    def _build_setup_save_card(self) -> QWidget:
+        """Host the existing recording-settings groupbox inside a card frame."""
+        box = QGroupBox("Data Save Location")
+        v = QVBoxLayout(box)
+        v.setContentsMargins(12, 16, 12, 12)
+        v.addWidget(self._ctrl_panel.recording_settings)
+        v.addStretch()
+        return box
+
+    def _build_setup_camera_card(self) -> QWidget:
+        """Host the camera TTL widget inside a card frame."""
+        self._setup_camera_card = QGroupBox("Camera")
+        v = QVBoxLayout(self._setup_camera_card)
+        v.setContentsMargins(12, 16, 12, 12)
         self._setup_ttl_mount = QFrame()
         tm = QVBoxLayout(self._setup_ttl_mount)
         tm.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self._setup_ttl_mount)
-
-        layout.addStretch(1)
-        return page
+        tm.addWidget(self._camera_panel.ttl_widget)
+        v.addWidget(self._setup_ttl_mount)
+        v.addStretch()
+        return self._setup_camera_card
 
     # ------------------------------------------------------------------
     # Widget re-parenting helpers
     # ------------------------------------------------------------------
 
     def _mount_camera(self, frame: QFrame) -> None:
-        """Re-parent the camera preview widget into ``frame``."""
         prev = self._camera_panel.preview_widget
-        # Remove from current parent's layout, if any
         if prev.parent() is not None:
             parent_layout = prev.parent().layout()
             if parent_layout is not None:
                 parent_layout.removeWidget(prev)
-        # Add to new mount
         target_layout = frame.layout()
         if target_layout is None:
             target_layout = QVBoxLayout(frame)
@@ -473,60 +608,51 @@ class MainWindow(QMainWindow):
         target_layout.addWidget(prev)
         prev.setVisible(True)
 
-    def _mount_protocol_widget(self, frame: QFrame) -> None:
-        w = self._ctrl_panel.protocol_widget
-        if w.parent() is not None and w.parent().layout() is not None:
-            w.parent().layout().removeWidget(w)
-        frame.layout().addWidget(w)
-        w.setVisible(True)
-
-    def _mount_ttl(self, frame: QFrame) -> None:
-        w = self._camera_panel.ttl_widget
-        if w.parent() is not None and w.parent().layout() is not None:
-            w.parent().layout().removeWidget(w)
-        frame.layout().addWidget(w)
-        w.setVisible(True)
-
     # ------------------------------------------------------------------
     # Page switching
     # ------------------------------------------------------------------
 
     def _on_page_changed(self, key: str) -> None:
-        """Switch the stacked widget and re-parent shared panels as needed."""
         idx = self._page_index.get(key)
         if idx is None:
             return
         self._stack.setCurrentIndex(idx)
+        # Camera preview is pinned to Acquire; no re-parenting needed
+        # since we removed the Camera page.
 
-        if key == "acquire":
-            self._mount_camera(self._acquire_camera_mount)
-        elif key == "camera":
-            self._mount_camera(self._camera_page_mount)
-            self._mount_ttl(self._camera_page_mount)
-        elif key == "setup":
-            self._mount_ttl(self._setup_ttl_mount)
-        elif key == "protocol":
-            self._mount_protocol_widget(self._protocol_page_mount)
-        else:  # channels — nothing to re-parent
-            pass
+    # ------------------------------------------------------------------
+    # Protocol list (Protocol page)
+    # ------------------------------------------------------------------
+
+    def _refresh_protocol_list(self) -> None:
+        filter_text = self._proto_filter.text().lower() if hasattr(self, "_proto_filter") else ""
+        self._proto_list.clear()
+        for stem, path in self._ctrl_panel.scan_protocols():
+            if filter_text and filter_text not in stem.lower():
+                continue
+            item = QListWidgetItem(stem)
+            item.setData(Qt.UserRole, path)
+            self._proto_list.addItem(item)
+        # Keep the control-panel's combobox in sync
+        self._ctrl_panel._scan_protocol_folder()
+
+    def _on_saved_protocol_picked(self, item: QListWidgetItem) -> None:
+        path = item.data(Qt.UserRole)
+        if path:
+            self._protocol_builder.load_protocol_from_file(path)
 
     # ------------------------------------------------------------------
     # Mode switching
     # ------------------------------------------------------------------
 
     def _on_mode_changed(self, mode: str) -> None:
-        """Update the active acquisition mode and toggle StimulusPanel visibility."""
         self._active_mode = mode
-        # StimulusPanel is continuous-only; hide it in trial mode
         self._stim_panel_wrap.setVisible(mode == "continuous")
-        # Keep chrome and control-panel pills in sync (changed signal comes
-        # from whichever pill the user clicked).
         self._chrome.mode_pill.set_value(mode)
         self._ctrl_panel.mode_pill.set_value(mode)
 
     def _on_clamp_mode_changed(self, mode: str) -> None:
-        """Propagate a clamp mode change to the trace panel, channel list, and acquisition."""
-        channels   = AI_CHANNELS_VC  if mode == "voltage_clamp" else AI_CHANNELS
+        channels = AI_CHANNELS_VC if mode == "voltage_clamp" else AI_CHANNELS
         y_defaults = AI_Y_DEFAULTS_VC if mode == "voltage_clamp" else AI_Y_DEFAULTS
         self._trace_panel.set_clamp_mode(mode)
         for i, ((name, _, _, _, units), (y_min, y_max)) in enumerate(
@@ -609,19 +735,14 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _on_open_protocol_builder(self) -> None:
-        if self._protocol_builder is None:
-            self._protocol_builder = ProtocolBuilderDialog(self)
-            self._protocol_builder.protocol_run_requested.connect(
-                self._on_run_protocol
-            )
+        """'Open Builder' button now jumps to the Protocol sidebar tab."""
         self._protocol_builder.set_save_dir(self._ctrl_panel.save_dir)
-        self._protocol_builder.show()
-        self._protocol_builder.raise_()
-        self._protocol_builder.activateWindow()
+        self._sidebar.set_current("protocol")
+        self._on_page_changed("protocol")
 
     def _apply_channel_defs(self, mode: str) -> None:
-        channel_defs = AI_CHANNELS_VC  if mode == "voltage_clamp" else AI_CHANNELS
-        y_defaults   = AI_Y_DEFAULTS_VC if mode == "voltage_clamp" else AI_Y_DEFAULTS
+        channel_defs = AI_CHANNELS_VC if mode == "voltage_clamp" else AI_CHANNELS
+        y_defaults = AI_Y_DEFAULTS_VC if mode == "voltage_clamp" else AI_Y_DEFAULTS
         self._trace_panel.set_clamp_mode(mode)
         for i, ctrl in enumerate(self._y_controls):
             name, _, _, _, units = channel_defs[i]
@@ -705,7 +826,7 @@ class MainWindow(QMainWindow):
             self._ctrl_panel.set_status("Acquiring — camera armed, waiting for Record")
         else:
             self._ctrl_panel.set_status(
-                "Acquisition started — open Protocol Builder to run a protocol"
+                "Acquisition started — open Protocol tab to run a protocol"
             )
 
     def _on_acq_stopped(self) -> None:
