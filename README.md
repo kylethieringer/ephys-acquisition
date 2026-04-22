@@ -13,6 +13,9 @@ A real-time electrophysiology data acquisition system with integrated camera tri
 - **Continuous Protocol Mode**: Run a stimulus protocol within a single unbroken recording; stimulus timing is saved as sample-accurate events in the HDF5 file for post-processing
 - **Trial-Based Mode**: Per-trial HDF5 recording with pre-allocated datasets for fast sequential reads
 - **Binary-First Save**: Raw data is written to a `.bin` file during acquisition for minimal overhead; converted to HDF5 in a background thread when recording stops. The `.bin` file is always preserved as a backup
+- **Automatic Post-Recording QC**: Every saved recording triggers a background QC pass that emits a self-contained HTML report (`*_qc_report.html`) with sample-count consistency, finite-value check, stimulus-event integrity, TTL ↔ video frame-count drift, an interactive multi-channel overview, and a per-stimulus commanded-vs-recorded overlay (trial mode)
+- **Standalone Hardware Alignment Check**: `python -m analysis.qc_alignment` drives the rig directly with the Axon Patch-1U model cell to verify AO→AI loopback latency, channel crosstalk, TTL clock stability, CC/VC scaling and linearity, noise floor, and the analysis pipeline. Each run appends to `qc_alignment_history.csv` for long-term drift tracking
+- **Buffer-Fill Instrumentation**: The DAQ worker watches `avail_samp_per_chan` after every chunk read; near-overflow events are drained at recording stop into `*_acquisition.log` and surfaced as warnings in the QC report
 - **Dark UI**: Easy-on-the-eyes Qt interface optimised for lab environments
 
 ## System Requirements
@@ -43,32 +46,47 @@ python main.py
 ### Main Window Layout
 
 ```
-┌────────────────────────────────────────────────────────────────┐
-│  Live Traces (left, 65%)          │  Controls (right, 35%)     │
-│                                   │  ┌──────────────────────┐  │
-│  5 rolling AI traces at 20 kHz    │  │  Acquisition Tab     │  │
-│                                   │  │  Experiment Tab      │  │
-│                                   │  └──────────────────────┘  │
-├───────────────────────────────────────────────────────────────-┤
-│  Bottom bar:  [Start] [Stop] [Record] [Stop Recording] Status  │
-└────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│  TopChromeBar: [Session]  [Continuous|Trial]  [CC|VC]  [Status]      │
+├──────┬───────────────────────────────────────────────────────────────┤
+│  S   │                                                               │
+│  i   │                    Page content (stacked)                     │
+│  d   │                                                               │
+│  e   ├───────────────────────────────────────────────────────────────┤
+│  b   │  Recording bar: [Start] [Stop] [● Record] [Stop Recording]    │
+│  a   │                                                               │
+│  r   │                                                               │
+└──────┴───────────────────────────────────────────────────────────────┘
 ```
 
-**Acquisition Tab**
-- Acquisition mode (Continuous / Trial-based)
-- Clamp mode (Current clamp / Voltage clamp)
-- Protocol dropdown — select a `.json` from `D:/protocols`; click **↻** to refresh
-- Open Protocol Builder button — design new protocols
-- **Run Protocol** button — starts the protocol in whichever mode is active
-- Save directory and subject metadata
-- Camera TTL settings
-- Channel visibility toggles
-- Per-channel Y-range controls
+The sidebar has four tabs: **Acquire**, **Protocol**, **Channels**, **Setup**. The recording bar and TopChromeBar are always visible.
 
-**Experiment Tab**
-- Camera preview
-- Stimulus panel (ad-hoc staircase stimulus for continuous mode)
-  - Labels and ranges switch between pA (CC) and mV (VC) automatically
+**Acquire page**
+- Left (65%): Live rolling traces for all analog input channels
+- Right (35%):
+  - Camera preview (fixed, 300 px)
+  - Subject card (experiment ID, genotype, age, sex, cell type)
+  - Protocol widget — dropdown to select a `.json` from `D:/protocols`, **Run Protocol** / **Stop Protocol** buttons
+  - Stimulus panel — ad-hoc staircase stimulus (continuous mode only); labels switch between pA (CC) and mV (VC) automatically
+
+**Protocol page**
+- Left: Saved-protocol list with filter box and Refresh / New buttons
+- Right: Inline Protocol Builder editor
+
+**Channels page**
+- Per-channel table: color swatch, port, signal name/units, Y-min/Y-max spinboxes, Auto-range toggle, Save checkbox
+
+**Setup page** (2×2 card grid)
+- DAQ Device: device name, sample rate, chunk size, counter, AO command channel
+- Channel Mapping: AI/AO/CTR port → signal → scale → units table
+- Data Save Location: save directory picker
+- Camera: TTL frame rate and exposure settings
+
+**TopChromeBar**
+- Session label (experiment ID)
+- Mode pill — toggle Continuous / Trial-based
+- Clamp pill — toggle Current clamp / Voltage clamp (visible in continuous mode only)
+- Status badge — live acquisition state
 
 ### Continuous Protocol Mode
 
@@ -99,6 +117,47 @@ The resulting file can be sliced into pseudo-trials in post-processing using the
 | ai2 (AmpCmd) | 400.0 pA/V → pA | 20.0 mV/V → mV |
 | ai3 (Camera TTL) | 1.0 V/V | 1.0 V/V |
 | ai4 (TTL loopback) | 1.0 V/V | 1.0 V/V |
+
+## Quality Control
+
+### Post-recording QC (automatic)
+
+When a recording finishes saving, [`analysis.qc.hook.schedule_qc`](analysis/qc/hook.py) spawns a daemon thread that runs the full QC pipeline against the freshly-written HDF5. The GUI thread is never blocked.
+
+Outputs land next to the recording:
+
+| File | Contents |
+|------|----------|
+| `<stem>_qc_report.html` | Self-contained report — status badges per check, JSON-formatted metrics, interactive plotly overview of every channel (min/max-decimated above 600 k samples per channel so spikes stay visible at all zoom levels), and (trial mode) commanded-vs-recorded `AmpCmd` overlays |
+| `<stem>_qc_report.json` | Same data, machine-readable |
+| `<stem>_acquisition.log` | Buffer-fill warnings drained from the DAQ worker (only written if events occurred) |
+
+Checks are grouped into three sections (see [`analysis/qc/`](analysis/qc/)):
+
+- **Acquisition integrity** — sample-count consistency across HDF5/bin/sidecar, HDF5↔sidecar metadata agreement, finite values, stimulus event table (continuous) or trial table (trial), camera TTL ↔ video frame-count drift, acquisition-log severity
+- **Signal sanity** — per-channel range/RMS sanity ([`analysis/qc/signal.py`](analysis/qc/signal.py))
+- **Commanded vs recorded** — protocol playback fidelity ([`analysis/qc/stimulus.py`](analysis/qc/stimulus.py))
+
+Every check returns one of `pass / warn / fail / skip`; checks catch their own exceptions and downgrade to `fail` so the report always renders.
+
+### Hardware alignment check (manual, weekly)
+
+Run with the Axon Instruments Patch-1U model cell (CELL mode, 500 MΩ) patched in place of a real pipette:
+
+```bash
+python -m analysis.qc_alignment --save-dir D:/data
+# Phase A only (no model cell required):
+python -m analysis.qc_alignment --save-dir D:/data --no-phase-b
+```
+
+Output goes under `D:/data/_alignment_checks/`:
+
+- `qc_alignment_<timestamp>.html` / `.json` — per-run report
+- `qc_alignment_history.csv` — one row per run with key numeric metrics (loopback lag, observed TTL rate, fitted CC slope MΩ, R², τ, computed Ri…) for long-term drift plotting
+
+**Phase A — rig only** (no model cell): AO → AmpCmd loopback latency, inter-channel crosstalk, counter-TTL period stability.
+
+**Phase B — model cell**: resting baseline, noise floor (incl. 60/120/180 Hz line fraction), CC scaling and linearity (ΔV = I·R staircase), VC scaling, capacitance τ, and an end-to-end self-test that feeds a fresh CC recording through `analysis.analyze_steps.compute_input_resistance`.
 
 ## Project Structure
 
@@ -135,6 +194,22 @@ ephys_acquisition/
 │   ├── trial_saver.py                   # TrialSaver (binary → per-trial HDF5)
 │   └── __init__.py
 │
+├── analysis/
+│   ├── analyze_steps.py                 # Input-resistance / step analysis
+│   ├── align_video.py                   # Align video frames to TTL edges
+│   ├── qc_alignment.py                  # CLI for the standalone hardware alignment check
+│   ├── qc_report.py                     # CLI for re-running post-recording QC on an existing file
+│   └── qc/
+│       ├── alignment.py                 # Phase A/B alignment checks (Axon model cell)
+│       ├── descriptions.py              # Human-readable text for the HTML report
+│       ├── hook.py                      # Fire-and-forget QC runner + acquisition-log writer
+│       ├── integrity.py                 # Sample-count, finite-values, TTL↔video, …
+│       ├── load.py                      # Recording loader (HDF5 + sidecar + video + log)
+│       ├── report.py                    # Orchestrator + Plotly/matplotlib plot builders
+│       ├── signal.py                    # Per-channel signal-sanity checks
+│       ├── stimulus.py                  # Commanded-vs-recorded checks
+│       └── templates/                   # Jinja2 HTML report templates
+│
 └── utils/
     ├── stimulus_generator.py            # Waveform generation utilities
     ├── data_loader.py                   # Load saved HDF5 files
@@ -162,7 +237,7 @@ ephys_acquisition/
     stimulus_index   int32
 ```
 
-A companion `.bin` file (raw float64 data) and `metadata.json` sidecar are always written alongside the `.h5`.
+A companion `.bin` file (raw float64 data) and `metadata.json` sidecar are always written alongside the `.h5`. After save, QC adds `*_qc_report.html` + `*_qc_report.json`, and (only if the DAQ worker recorded buffer-fill events) `*_acquisition.log`.
 
 ### Trial Recording (`_trials.h5`)
 
@@ -186,6 +261,9 @@ A companion `.bin` file (raw float64 data) and `metadata.json` sidecar are alway
 | Camera not triggering | Verify TTL levels (`TTL_HIGH_V`, `TTL_LOW_V`) and PFI12 wiring |
 | HDF5 conversion failed | Raw `.bin` file preserved — re-run conversion manually using `np.fromfile` |
 | Protocol not in dropdown | Place `.json` protocol files in `D:/protocols`; click **↻** to refresh |
+| `*_acquisition.log` written | DAQ driver buffer crossed 70 % of capacity at least once; see line(s) for the offending sample index. A few isolated events are tolerable; sustained warnings indicate the GUI/save thread is starving the AI reader |
+| QC report shows TTL ↔ video drift | Check camera frame rate matches `TTL_FRAME_RATE_HZ`; verify the trigger cable from PFI12 → camera Line1 |
+| `analysis.qc_alignment` Phase B failing | Verify the Patch-1U is in CELL mode (not HEAD), 500 MΩ; check amplifier gain settings haven't drifted |
 
 ## Dependencies
 
@@ -196,7 +274,10 @@ A companion `.bin` file (raw float64 data) and `metadata.json` sidecar are alway
 - **numpy** — Numerical computing
 - **h5py** — HDF5 file I/O
 - **scipy** — Signal processing utilities
-- **opencv-python** — Video recording
+- **opencv-python** — Video recording (and reading frame counts during QC)
+- **plotly** — Interactive multi-channel overview in QC reports
+- **matplotlib** — Static plots in QC reports
+- **jinja2** — HTML report templating
 
 ## Contact
 

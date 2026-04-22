@@ -622,7 +622,7 @@
             {% endif %}
 
             <div class="hero-stats animate-in delay-5">
-                <span class="hero-stat"><strong>5</strong> packages</span>
+                <span class="hero-stat"><strong>6</strong> packages</span>
                 <span class="hero-stat"><strong>20 kS/s</strong> sample rate</span>
                 <span class="hero-stat"><strong>CC &amp; VC</strong> clamp modes</span>
                 <span class="hero-stat"><strong>HDF5</strong> output</span>
@@ -688,6 +688,15 @@
                 </div>
                 <div class="module-card-arrow">&rarr;</div>
             </a>
+            <a class="module-card card-acq animate-in delay-7" href="analysis/qc/report.html">
+                <div class="module-card-icon">&#10003;</div>
+                <div class="module-card-name">analysis</div>
+                <div class="module-card-desc">
+                    Post-recording QC (integrity, signal, stimulus), hardware alignment
+                    checks (Phase A rig + Phase B model cell), and analysis utilities.
+                </div>
+                <div class="module-card-arrow">&rarr;</div>
+            </a>
         </div>
 
         <hr class="section-divider">
@@ -710,6 +719,28 @@ d = <span class="fn">load_hdf5</span>(<span class="st">"recording_2025-06-01.h5"
 
 <span class="cm"># Plot first 10 seconds, one subplot per channel</span>
 <span class="fn">plot_data</span>(<span class="st">"recording_2025-06-01.h5"</span>, time_range=(<span class="nb">0</span>, <span class="nb">10</span>))</pre>
+        </div>
+
+        <hr class="section-divider">
+
+        <!-- ── QC quick-start ── -->
+        <p class="section-label">Quality Control</p>
+        <h2 class="section-title">Re-run QC or run alignment</h2>
+
+        <div class="quickstart">
+            <p>
+                QC runs automatically after every save. To re-run it on an existing file,
+                or to run the standalone hardware-alignment check, use these CLI entry points.
+            </p>
+            <pre><span class="cm"># Re-run the full post-recording QC pipeline on an existing file</span>
+<span class="kw">from</span> analysis.qc.report <span class="kw">import</span> run_qc
+result = <span class="fn">run_qc</span>(<span class="st">"recording_2025-06-01.h5"</span>)
+<span class="nb">print</span>(result[<span class="st">'status'</span>])      <span class="cm"># 'pass', 'warn', or 'fail'</span>
+<span class="nb">print</span>(result[<span class="st">'html_path'</span>])   <span class="cm"># path to the generated HTML report</span>
+
+<span class="cm"># Standalone hardware alignment (run with Axon Patch-1U model cell)</span>
+<span class="cm"># python -m analysis.qc_alignment --save-dir D:/data</span>
+<span class="cm"># python -m analysis.qc_alignment --save-dir D:/data --no-phase-b</span></pre>
         </div>
 
         <hr class="section-divider">
@@ -765,6 +796,22 @@ d = <span class="fn">load_hdf5</span>(<span class="st">"recording_2025-06-01.h5"
                 <div class="feature-card-body">
                     <code>/data/analog_input</code> — float64 (n_ch &times; n_samp),
                     LZF compressed. Full metadata in <code>/metadata</code> group.
+                </div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-card-title">Post-recording QC</div>
+                <div class="feature-card-body">
+                    Automatic background QC after every save: sample-count consistency,
+                    finite values, stimulus events, TTL&nbsp;&harr;&nbsp;video frame-count drift,
+                    and an interactive plotly channel overview.
+                </div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-card-title">Hardware Alignment</div>
+                <div class="feature-card-body">
+                    Weekly rig check via <code>python -m analysis.qc_alignment</code>.
+                    Phase A (no model cell): loopback latency, crosstalk, TTL jitter.
+                    Phase B (Axon Patch-1U, 500 MΩ): CC/VC scaling, noise, τ.
                 </div>
             </div>
         </div>
