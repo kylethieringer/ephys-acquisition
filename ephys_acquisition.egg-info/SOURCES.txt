@@ -15,8 +15,12 @@ acquisition/trial_waveforms.py
 analysis/align_video.py
 analysis/analysis_gui.py
 analysis/analyze_steps.py
+analysis/qc_alignment.py
 analysis/qc_report.py
 analysis/qc/__init__.py
+analysis/qc/alignment.py
+analysis/qc/descriptions.py
+analysis/qc/hook.py
 analysis/qc/integrity.py
 analysis/qc/load.py
 analysis/qc/report.py
