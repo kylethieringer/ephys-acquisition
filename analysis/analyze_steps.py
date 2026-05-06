@@ -44,9 +44,10 @@ if _STYLE_PATH.exists():
 VM_CH = 0       # ScAmpOut channel index (membrane potential)
 CMD_CH = 2      # AmpCmd channel index (command current loopback)
 MIN_STEP_MS = 50    # minimum plateau duration to count as a step (ms)
-MIN_AMP_PA = 10     # ignore plateaus with |amplitude| below this (pA)
+MIN_AMP_PA = 5      # ignore plateaus with |amplitude| below this (pA)
 MAX_GAP_MS = 2500   # max silence between steps in the same staircase (ms)
 PAD_MS = 100        # pre-step baseline shown before each step onset (ms)
+BASELINE_MS = 500   # window before first pulse used to estimate RMP (ms)
 FIG_DIR = r"D:\results"
 
 # Black -> medium blue colormap for step-amplitude coloring
@@ -214,10 +215,17 @@ def load_protocol_metadata(h5_path: Path) -> list[dict]:
 
 def smooth_cmd(data: np.ndarray, sr: int, display_scales: np.ndarray,
                cmd_ch: int = CMD_CH) -> np.ndarray:
-    """Median-filter the command-current channel and scale to pA.
+    """Median-filter the command-current channel, scale to pA, and
+    de-offset against the silent baseline.
 
     A 1 ms median-filter kernel removes fast transition artifacts while
-    preserving the flat plateaus of each current step.
+    preserving the flat plateaus of each current step.  The amplifier
+    command-monitor loopback typically sits a few pA above or below true
+    zero; without correction this offset eats into the detection
+    threshold margin and can hide small-amplitude steps (e.g. a nominal
+    -10 pA step reading -7.9 pA on the loopback falls under a 10 pA
+    threshold).  We estimate the offset as the median of the bulk of
+    near-baseline samples and subtract it.
 
     Parameters
     ----------
@@ -233,10 +241,19 @@ def smooth_cmd(data: np.ndarray, sr: int, display_scales: np.ndarray,
     Returns
     -------
     ndarray, shape (n_samples,)
-        Smoothed command current in pA.
+        Smoothed, offset-corrected command current in pA.
     """
     kernel = max(3, ms_to_samples(1.0, sr) | 1)  # odd, >= 3
-    return median_filter(data[cmd_ch] * display_scales[cmd_ch], size=kernel)
+    smoothed = median_filter(data[cmd_ch] * display_scales[cmd_ch], size=kernel)
+
+    # Estimate baseline offset: coarse median, then refine using only
+    # samples within ±5 pA of that coarse estimate (i.e. the silent
+    # regions between pulses).  Two-pass form handles offsets larger
+    # than the refinement window.
+    coarse = float(np.median(smoothed))
+    near = smoothed[np.abs(smoothed - coarse) < 5.0]
+    offset = float(np.median(near)) if near.size else coarse
+    return smoothed - offset
 
 
 def find_pulses(cmd_pA: np.ndarray, sr: int,
@@ -245,8 +262,11 @@ def find_pulses(cmd_pA: np.ndarray, sr: int,
     """Find contiguous current-injection pulses above a threshold.
 
     Detects every run of samples where ``|cmd| >= min_amp_pA`` that lasts
-    at least ``min_step_ms``.  The amplitude of each pulse is the median
-    of the smoothed command signal during the run.
+    at least ``min_step_ms``.  Each pulse's onset and offset are then
+    refined to the sample of peak ``|d cmd/dt|`` within a short window
+    around the threshold crossing — this anchors the edge to the centre
+    of the physical transition independently of step amplitude, so steps
+    of different sizes overlay without amplitude-dependent jitter.
 
     Parameters
     ----------
@@ -277,10 +297,39 @@ def find_pulses(cmd_pA: np.ndarray, sr: int,
     if above[-1]:
         falling = np.concatenate((falling, [len(above)]))
 
+    # Merge pulses separated by gaps shorter than gap_fill_ms.  Loopback
+    # noise on small-amplitude pulses can briefly push |cmd| below the
+    # threshold, splitting one real pulse into several short detections.
+    # Real inter-step gaps are far longer than a few ms.
+    gap_fill_samples = ms_to_samples(5.0, sr)
+    if rising.size > 1 and gap_fill_samples > 0:
+        merged_r = [int(rising[0])]
+        merged_f = [int(falling[0])]
+        for r, f in zip(rising[1:], falling[1:]):
+            if r - merged_f[-1] <= gap_fill_samples:
+                merged_f[-1] = int(f)
+            else:
+                merged_r.append(int(r))
+                merged_f.append(int(f))
+        rising = np.array(merged_r)
+        falling = np.array(merged_f)
+
+    abs_dcmd = np.abs(np.diff(cmd_pA))
+    search_samples = max(1, ms_to_samples(2.0, sr))
+
+    def refine_edge(crossing: int) -> int:
+        lo = max(0, crossing - search_samples)
+        hi = min(len(abs_dcmd), crossing + search_samples)
+        if hi <= lo:
+            return crossing
+        return lo + int(np.argmax(abs_dcmd[lo:hi]))
+
     pulses = []
-    for onset, offset in zip(rising, falling):
-        if offset - onset < min_samples:
+    for onset_thr, offset_thr in zip(rising, falling):
+        if offset_thr - onset_thr < min_samples:
             continue
+        onset = refine_edge(onset_thr)
+        offset = refine_edge(offset_thr)
         amp = float(np.median(cmd_pA[onset:offset]))
         pulses.append({
             "onset": int(onset),
@@ -340,6 +389,70 @@ def _expected_step_count(stim_def: dict,
     return n * repeats
 
 
+def _group_pulses_by_gap(
+    pulses: list[dict],
+    sr: int,
+    max_gap_ms: float = MAX_GAP_MS,
+) -> list[list[dict]]:
+    """Group ordered pulses into staircases by silence gap or amplitude reset.
+
+    Pulses must share a common timebase and be sorted by ``onset``.  A new
+    group begins when either:
+
+    * the silence between consecutive pulses exceeds ``max_gap_ms``, or
+    * the amplitude jumps against the dominant ramp direction by more than
+      ~1.5× the typical step size — i.e. the staircase has "reset" to its
+      starting value.  This catches back-to-back staircases when the
+      inter-trial interval is no longer than the inter-step interval.
+
+    Parameters
+    ----------
+    pulses : list[dict]
+        Pulse dicts with ``onset``, ``offset``, and ``amplitude_pA``.
+    sr : int
+        Sampling rate in Hz.
+    max_gap_ms : float
+        Maximum silence (ms) between consecutive pulses in the same staircase.
+
+    Returns
+    -------
+    list[list[dict]]
+        Each inner list is one staircase.  Empty list if no pulses.
+    """
+    if not pulses:
+        return []
+    max_gap_samples = ms_to_samples(max_gap_ms, sr)
+
+    # Estimate ramp direction and step size from consecutive amplitude
+    # diffs.  Within a monotonic staircase, diffs share a sign and a
+    # rough magnitude; resets between staircases are large diffs of the
+    # opposite sign.  Sign-agnostic so descending ramps work too.
+    amps = np.array([p["amplitude_pA"] for p in pulses])
+    amp_diffs = np.diff(amps)
+    if amp_diffs.size:
+        ramp_sign = 1.0 if np.median(amp_diffs) >= 0 else -1.0
+        in_ramp = amp_diffs * ramp_sign > 0
+        step_estimate = (
+            float(np.median(np.abs(amp_diffs[in_ramp])))
+            if in_ramp.any() else 0.0
+        )
+    else:
+        ramp_sign = 1.0
+        step_estimate = 0.0
+    reset_threshold = 1.5 * step_estimate
+
+    groups: list[list[dict]] = [[pulses[0]]]
+    for prev, pulse in zip(pulses[:-1], pulses[1:]):
+        gap_split = pulse["onset"] - prev["offset"] > max_gap_samples
+        signed_diff = (pulse["amplitude_pA"] - prev["amplitude_pA"]) * ramp_sign
+        reset_split = reset_threshold > 0 and signed_diff < -reset_threshold
+        if gap_split or reset_split:
+            groups.append([pulse])
+        else:
+            groups[-1].append(pulse)
+    return groups
+
+
 def find_staircases_from_events(
     data: np.ndarray,
     stimulus_events: dict,
@@ -347,11 +460,19 @@ def find_staircases_from_events(
     sr: int,
     display_scales: np.ndarray,
 ) -> tuple[list[list[dict]], list[dict]]:
-    """Detect one staircase per apply->clear stimulus-event window.
+    """Detect staircases inside apply->clear windows and one-off stimuli outside them.
 
-    Pulses are found within each window by thresholding the smoothed AmpCmd
-    channel.  When protocol metadata is available, the expected step count
-    is included in the per-staircase metadata for validation.
+    Pulses are found within each apply->clear window by thresholding the
+    smoothed AmpCmd channel.  When protocol metadata is available, the
+    expected step count is included in the per-staircase metadata for
+    validation.
+
+    Regions outside any apply->clear window are also scanned so that
+    manual current injections delivered without a running protocol are
+    still detected.  Standalone staircases are tagged with
+    ``stimulus_name="manual"`` and ``stimulus_index=-1`` and grouped
+    using the same ``MAX_GAP_MS`` heuristic as the waveform fallback.
+    The combined list is returned in chronological order.
 
     Parameters
     ----------
@@ -420,18 +541,24 @@ def find_staircases_from_events(
             for p in pulses
         ]
 
-        # Check expected step count from protocol if available
+        # Check expected pulse count from protocol if available.
+        # Note: this counts every pulse the detector should find in the
+        # window — staircase steps plus the hyperpolarization pulse if
+        # the protocol defines one — so it can be compared directly to
+        # ``found_steps`` (which is the total pulse count from
+        # :func:`find_pulses`).
         expected = None
-        protocol_runs_raw = [
-            r.get("protocol_dict") for r in protocol_runs if r.get("protocol_dict")
-        ]
         if protocol_runs:
             run = _find_protocol_run(start_sample, protocol_runs)
             if run is not None:
-                stim_list = run.get("protocol_dict", {}).get("stimuli", [])
+                proto_dict = run.get("protocol_dict", {})
+                stim_list = proto_dict.get("stimuli", [])
                 sidx = int(ev_idx[i])
                 if 0 <= sidx < len(stim_list):
                     expected = _expected_step_count(stim_list[sidx])
+                    if (expected is not None
+                            and proto_dict.get("hyperpolarization") is not None):
+                        expected += 1
 
         staircases.append(steps)
         meta.append({
@@ -442,6 +569,70 @@ def find_staircases_from_events(
             "expected_steps": expected,
             "found_steps": len(steps),
         })
+
+    # Also scan regions outside any apply->clear window for one-off
+    # (manual) staircases that were not run through a protocol.
+    covered: list[list[int]] = []
+    for i, etype in enumerate(ev_types):
+        if etype != "apply":
+            continue
+        s = int(ev_samples[i])
+        e = n_total
+        for j in range(i + 1, n_ev):
+            if ev_types[j] in ("apply", "clear"):
+                e = int(ev_samples[j])
+                break
+        s = max(0, min(s, n_total))
+        e = max(s, min(e, n_total))
+        covered.append([s, e])
+    covered.sort()
+    merged: list[list[int]] = []
+    for s, e in covered:
+        if merged and s <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], e)
+        else:
+            merged.append([s, e])
+
+    gaps: list[tuple[int, int]] = []
+    prev_end = 0
+    for s, e in merged:
+        if s > prev_end:
+            gaps.append((prev_end, s))
+        prev_end = e
+    if prev_end < n_total:
+        gaps.append((prev_end, n_total))
+
+    min_gap_samples = ms_to_samples(MIN_STEP_MS, sr)
+    for gap_start, gap_end in gaps:
+        if gap_end - gap_start < min_gap_samples:
+            continue
+        gap_pulses = find_pulses(cmd_smooth[gap_start:gap_end], sr)
+        if not gap_pulses:
+            continue
+        abs_pulses = [
+            {
+                "onset": p["onset"] + gap_start,
+                "offset": p["offset"] + gap_start,
+                "amplitude_pA": p["amplitude_pA"],
+            }
+            for p in gap_pulses
+        ]
+        for group in _group_pulses_by_gap(abs_pulses, sr):
+            staircases.append(group)
+            meta.append({
+                "apply_sample": group[0]["onset"],
+                "clear_sample": group[-1]["offset"],
+                "stimulus_name": "manual",
+                "stimulus_index": -1,
+                "expected_steps": None,
+                "found_steps": len(group),
+            })
+
+    # Sort everything chronologically so output ordering matches recording time.
+    order = sorted(range(len(staircases)),
+                   key=lambda k: meta[k]["apply_sample"])
+    staircases = [staircases[k] for k in order]
+    meta = [meta[k] for k in order]
 
     return staircases, meta
 
@@ -478,17 +669,10 @@ def find_staircases_from_waveform(
     """
     cmd_smooth = smooth_cmd(data, sr, display_scales)
     all_pulses = find_pulses(cmd_smooth, sr)
-
-    max_gap_samples = ms_to_samples(max_gap_ms, sr)
     if not all_pulses:
         return [], []
 
-    staircases: list[list[dict]] = [[all_pulses[0]]]
-    for prev, pulse in zip(all_pulses[:-1], all_pulses[1:]):
-        if pulse["onset"] - prev["offset"] > max_gap_samples:
-            staircases.append([pulse])
-        else:
-            staircases[-1].append(pulse)
+    staircases = _group_pulses_by_gap(all_pulses, sr, max_gap_ms)
 
     meta = [
         {
@@ -516,10 +700,10 @@ def separate_hyperpol(
 ) -> tuple[dict | None, list[dict]]:
     """Separate the hyperpolarization pulse from staircase steps.
 
-    The hyperpolarization pulse is the first negative-amplitude pulse in
-    the window, provided the protocol metadata confirms one should exist.
-    If no protocol metadata is available, the first negative pulse is
-    still treated as hyperpol if it precedes ascending staircase steps.
+    A hyperpolarization pulse is only stripped when the protocol metadata
+    explicitly declares one — without a protocol (waveform fallback or
+    gap-grouped manual staircases) there is no leading hyperpol pulse,
+    so the first detected pulse belongs to the staircase itself.
 
     Parameters
     ----------
@@ -542,7 +726,6 @@ def separate_hyperpol(
     if not pulses:
         return None, []
 
-    # Check if protocol says hyperpol should exist
     expects_hyperpol = False
     if protocol_runs:
         run = _find_protocol_run(apply_sample, protocol_runs)
@@ -552,7 +735,7 @@ def separate_hyperpol(
                 expects_hyperpol = True
 
     first = pulses[0]
-    if first["amplitude_pA"] < 0 and (expects_hyperpol or len(pulses) > 1):
+    if expects_hyperpol and first["amplitude_pA"] < 0:
         return first, pulses[1:]
 
     return None, pulses
@@ -677,11 +860,12 @@ def compute_all_intrinsics(
     -------
     list[dict]
         One dict per staircase with keys: ``staircase_index``,
-        ``stimulus_name``, ``t_start_s``, ``t_end_s``, ``n_steps``,
+        ``stimulus_name``, ``start_sample``, ``end_sample``, ``n_steps``,
         ``min_amp_pA``, ``max_amp_pA``, ``rmp_mV``,
         ``input_resistance_MOhm``.
     """
     margin_samples = ms_to_samples(10, sr)
+    baseline_window_samples = ms_to_samples(BASELINE_MS, sr)
     results = []
 
     for idx, (staircase, meta) in enumerate(zip(staircases, staircase_meta)):
@@ -693,15 +877,27 @@ def compute_all_intrinsics(
             staircase, protocol_runs, apply_sample, stim_index
         )
 
-        # Baseline: from apply_sample to first pulse onset (minus margin)
+        # Baseline window: ends just before the first pulse, looks back by
+        # BASELINE_MS.  For protocol-mode staircases ``apply_sample`` is well
+        # before ``first_pulse_onset`` so it's a valid lower bound; for
+        # manual/waveform staircases ``apply_sample == first_pulse_onset``,
+        # so we fall back to the look-back window.
         first_pulse_onset = staircase[0]["onset"]
-        baseline_end = max(apply_sample, first_pulse_onset - margin_samples)
-        rmp = compute_rmp(data, display_scales, apply_sample, baseline_end)
+        baseline_end = first_pulse_onset - margin_samples
+        baseline_start = max(0, min(apply_sample, baseline_end - baseline_window_samples))
+        rmp = compute_rmp(data, display_scales, baseline_start, baseline_end)
 
-        # Input resistance from hyperpol pulse
-        if hyperpol is not None:
+        # Input resistance: prefer a protocol-declared hyperpol pulse; if
+        # none, use the first negative step in the staircase (it remains
+        # part of the staircase for plotting/counting).
+        ri_pulse = hyperpol
+        if ri_pulse is None:
+            ri_pulse = next(
+                (s for s in staircase if s["amplitude_pA"] < 0), None
+            )
+        if ri_pulse is not None:
             ri = compute_input_resistance(
-                data, display_scales, hyperpol, rmp, sr
+                data, display_scales, ri_pulse, rmp, sr
             )
         else:
             ri = float("nan")
@@ -709,18 +905,18 @@ def compute_all_intrinsics(
         # Step amplitudes (from staircase steps only, not hyperpol)
         if steps:
             amps = [s["amplitude_pA"] for s in steps]
-            t_start = steps[0]["onset"] / sr
-            t_end = steps[-1]["offset"] / sr
+            start_sample = steps[0]["onset"]
+            end_sample = steps[-1]["offset"]
         else:
             amps = [s["amplitude_pA"] for s in staircase]
-            t_start = staircase[0]["onset"] / sr
-            t_end = staircase[-1]["offset"] / sr
+            start_sample = staircase[0]["onset"]
+            end_sample = staircase[-1]["offset"]
 
         results.append({
             "staircase_index": idx,
             "stimulus_name": meta.get("stimulus_name", "unknown"),
-            "t_start_s": round(t_start, 2),
-            "t_end_s": round(t_end, 2),
+            "start_sample": int(start_sample),
+            "end_sample": int(end_sample),
             "n_steps": len(steps),
             "min_amp_pA": round(min(amps), 1) if amps else float("nan"),
             "max_amp_pA": round(max(amps), 1) if amps else float("nan"),
@@ -1093,8 +1289,8 @@ def write_csv(intrinsics: list[dict], output_path: Path) -> None:
     fieldnames = [
         "staircase_index",
         "stimulus_name",
-        "t_start_s",
-        "t_end_s",
+        "start_sample",
+        "end_sample",
         "n_steps",
         "min_amp_pA",
         "max_amp_pA",
@@ -1202,7 +1398,7 @@ def print_summary(
             else "Ri=N/A"
         )
         print(
-            f"  [{idx:>2d}]  t={props['t_start_s']:.1f}-{props['t_end_s']:.1f}s  "
+            f"  [{idx:>2d}]  samples={props['start_sample']}-{props['end_sample']}  "
             f"{props['n_steps']} steps  "
             f"{props['min_amp_pA']:+.0f} to {props['max_amp_pA']:+.0f} pA  "
             f"RMP={props['rmp_mV']:.0f} mV  {ri_str}"
@@ -1345,32 +1541,30 @@ def interactive_loop(
 # Main
 # =========================================================================
 
-def main() -> None:
-    """Entry point: load file, detect staircases, compute intrinsics,
-    and run the interactive plotting loop."""
+def process_file(h5_path: Path) -> dict | None:
+    """Load h5, detect staircases, compute intrinsics, and write the CSV.
 
-    # ── File selection ────────────────────────────────────────────────
-    h5_path = select_file()
-    if h5_path is None:
-        print("No file selected. Exiting.")
-        return
+    This is the non-interactive core of the analysis pipeline, suitable
+    for batch use. Returns a dict with all intermediate results so callers
+    can also plot interactively, or ``None`` if loading or staircase
+    detection failed.
 
-    # ── Load data ─────────────────────────────────────────────────────
+    Returned dict keys: ``info``, ``staircases``, ``staircase_meta``,
+    ``intrinsics``, ``protocol_runs``, ``detection_source``, ``csv_path``.
+    """
     try:
         info = load_continuous_h5(h5_path)
     except ValueError as e:
         print(f"Error: {e}")
-        return
+        return None
 
     data = info["data"]
     sr = info["sample_rate"]
     display_scales = info["display_scales"]
     stimulus_events = info["stimulus_events"]
 
-    # ── Load protocol metadata ────────────────────────────────────────
     protocol_runs = load_protocol_metadata(h5_path)
 
-    # ── Detect staircases ─────────────────────────────────────────────
     if stimulus_events is not None:
         staircases, staircase_meta = find_staircases_from_events(
             data, stimulus_events, protocol_runs, sr, display_scales,
@@ -1380,7 +1574,6 @@ def main() -> None:
         staircases, staircase_meta = [], []
         detection_source = None
 
-    # Fallback to waveform detection if no events or no staircases found
     if not staircases:
         if detection_source is None:
             print("No stimulus events found. Falling back to waveform detection.")
@@ -1393,15 +1586,13 @@ def main() -> None:
         detection_source = "waveform"
 
     if not staircases:
-        print("No staircases detected in this recording. Exiting.")
-        return
+        print("No staircases detected in this recording.")
+        return None
 
-    # ── Compute intrinsic properties ──────────────────────────────────
     intrinsics = compute_all_intrinsics(
         data, staircases, staircase_meta, protocol_runs, sr, display_scales,
     )
 
-    # Check for missing Ri values
     n_missing_ri = sum(
         1 for r in intrinsics if math.isnan(r["input_resistance_MOhm"])
     )
@@ -1416,22 +1607,51 @@ def main() -> None:
             f"of {len(intrinsics)} trials."
         )
 
-    # ── Print summary ─────────────────────────────────────────────────
+    csv_path = Path(FIG_DIR) / "csv" / f"{h5_path.stem}_intrinsics.csv"
+    write_csv(intrinsics, csv_path)
+
+    return {
+        "info": info,
+        "staircases": staircases,
+        "staircase_meta": staircase_meta,
+        "intrinsics": intrinsics,
+        "protocol_runs": protocol_runs,
+        "detection_source": detection_source,
+        "csv_path": csv_path,
+    }
+
+
+def main() -> None:
+    """Entry point: load file, detect staircases, compute intrinsics,
+    write CSV, and run the interactive plotting loop."""
+
+    h5_path = select_file()
+    if h5_path is None:
+        print("No file selected. Exiting.")
+        return
+
+    result = process_file(h5_path)
+    if result is None:
+        return
+
+    info = result["info"]
+    data = info["data"]
+    sr = info["sample_rate"]
+    display_scales = info["display_scales"]
+    staircases = result["staircases"]
+    staircase_meta = result["staircase_meta"]
+    intrinsics = result["intrinsics"]
+    protocol_runs = result["protocol_runs"]
+
     print_summary(
         h5_path, info, staircases, staircase_meta, intrinsics,
-        detection_source,
+        result["detection_source"],
     )
 
-    # ── Interactive plotting ──────────────────────────────────────────
     interactive_loop(
         h5_path, data, staircases, staircase_meta, protocol_runs,
         intrinsics, sr, display_scales,
     )
-
-    # ── Save CSV ──────────────────────────────────────────────────────
-    fig_date = datetime.today().strftime("%Y-%m-%d")
-    csv_path = Path(FIG_DIR) / "csv" / f"{h5_path.stem}_intrinsics.csv"
-    write_csv(intrinsics, csv_path)
 
     print("\nDone.")
 
