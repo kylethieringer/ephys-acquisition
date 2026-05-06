@@ -577,6 +577,8 @@ class ExportDialog(QDialog):
         self._video_path = video_path
         self._start_frame = start_frame
         self._end_frame = end_frame
+        self._auto_y_lo = y_lo
+        self._auto_y_hi = y_hi
 
         layout = QVBoxLayout(self)
 
@@ -640,6 +642,33 @@ class ExportDialog(QDialog):
 
         layout.addWidget(adj_box)
 
+        # Trace Y range controls
+        y_box = QGroupBox("Trace Y Range")
+        y_layout = QHBoxLayout(y_box)
+
+        y_layout.addWidget(QLabel("Y min:"))
+        self._y_min_spin = QDoubleSpinBox()
+        self._y_min_spin.setRange(-1e6, 1e6)
+        self._y_min_spin.setDecimals(1)
+        self._y_min_spin.setSuffix(" mV")
+        self._y_min_spin.setValue(y_lo)
+        y_layout.addWidget(self._y_min_spin)
+
+        y_layout.addWidget(QLabel("Y max:"))
+        self._y_max_spin = QDoubleSpinBox()
+        self._y_max_spin.setRange(-1e6, 1e6)
+        self._y_max_spin.setDecimals(1)
+        self._y_max_spin.setSuffix(" mV")
+        self._y_max_spin.setValue(y_hi)
+        y_layout.addWidget(self._y_max_spin)
+
+        y_auto_btn = QPushButton("Auto")
+        y_auto_btn.setToolTip("Reset Y range to auto-computed values from the clip.")
+        y_auto_btn.clicked.connect(self._auto_y_range)
+        y_layout.addWidget(y_auto_btn)
+
+        layout.addWidget(y_box)
+
         self._progress = QProgressBar()
         self._progress.setValue(0)
         layout.addWidget(self._progress)
@@ -657,6 +686,10 @@ class ExportDialog(QDialog):
     def _reset_adjustments(self) -> None:
         self._brightness_spin.setValue(0.0)
         self._contrast_spin.setValue(1.0)
+
+    def _auto_y_range(self) -> None:
+        self._y_min_spin.setValue(self._auto_y_lo)
+        self._y_max_spin.setValue(self._auto_y_hi)
 
     def _auto_adjust(self) -> None:
         """Sample frames from the clip range and pick brightness/contrast
@@ -723,7 +756,7 @@ class ExportDialog(QDialog):
             video_path, self._path_label.text(),
             vm, sr, frame_samples,
             start_frame, end_frame, fps,
-            y_lo, y_hi, rmp,
+            self._y_min_spin.value(), self._y_max_spin.value(), rmp,
             brightness=self._brightness_spin.value(),
             contrast=self._contrast_spin.value(),
         )
@@ -1057,6 +1090,13 @@ class AnalysisWindow(QMainWindow):
         start_frame = max(0, min(start_frame, self._n_frames - 1))
         end_frame = max(start_frame + 1, min(end_frame, self._n_frames))
 
+        clip_start_sample = int(self._frame_samples[start_frame])
+        clip_end_sample = int(self._frame_samples[min(end_frame,
+                                                      len(self._frame_samples) - 1)])
+        clip_end_sample = min(max(clip_end_sample, clip_start_sample + 1),
+                              len(self._vm))
+        y_lo, y_hi = _y_range(self._vm[clip_start_sample:clip_end_sample])
+
         h5_stem = Path(self._h5_path).stem
         default_out = str(Path(self._h5_path).parent / f"{h5_stem}_clip.avi")
 
@@ -1065,7 +1105,7 @@ class AnalysisWindow(QMainWindow):
             self._video_path,
             self._vm, self._sr, self._frame_samples,
             start_frame, end_frame, self._fps,
-            self._y_lo, self._y_hi, self._rmp,
+            y_lo, y_hi, self._rmp,
             default_out,
         )
         dlg.exec()
