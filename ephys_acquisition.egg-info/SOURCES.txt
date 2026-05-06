@@ -13,8 +13,10 @@ acquisition/trial_protocol.py
 acquisition/trial_saver.py
 acquisition/trial_waveforms.py
 analysis/align_video.py
+analysis/align_video_skeleton.py
 analysis/analysis_gui.py
 analysis/analyze_steps.py
+analysis/batch_intrinsics.py
 analysis/qc_alignment.py
 analysis/qc_report.py
 analysis/qc/__init__.py
