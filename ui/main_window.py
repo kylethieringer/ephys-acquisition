@@ -99,6 +99,7 @@ class MainWindow(QMainWindow):
         self._acq = ContinuousAcquisition(self)
         self._trial_acq = TrialAcquisition(self)
         self._active_mode = "continuous"
+        self._current_clamp_mode = "current_clamp"
         self._pending_protocol: dict | None = None
 
         # --- Panels ---
@@ -666,6 +667,7 @@ class MainWindow(QMainWindow):
         self._acq.set_clamp_mode(mode)
         self._chrome.clamp_pill.set_value(mode)
         self._ctrl_panel.clamp_pill.set_value(mode)
+        self._current_clamp_mode = mode
 
     # ------------------------------------------------------------------
     # Acquisition slots
@@ -741,6 +743,8 @@ class MainWindow(QMainWindow):
         self._on_page_changed("protocol")
 
     def _apply_channel_defs(self, mode: str) -> None:
+        if mode == self._current_clamp_mode:
+            return
         channel_defs = AI_CHANNELS_VC if mode == "voltage_clamp" else AI_CHANNELS
         y_defaults = AI_Y_DEFAULTS_VC if mode == "voltage_clamp" else AI_Y_DEFAULTS
         self._trace_panel.set_clamp_mode(mode)
@@ -748,6 +752,7 @@ class MainWindow(QMainWindow):
             name, _, _, _, units = channel_defs[i]
             y_min, y_max = y_defaults[i]
             ctrl.update_channel(name, units, y_min, y_max)
+        self._current_clamp_mode = mode
 
     def _on_run_protocol(self, protocol_dict: dict) -> None:
         self._pending_protocol = dict(protocol_dict)
@@ -868,7 +873,6 @@ class MainWindow(QMainWindow):
     def _on_protocol_finished(self, path: Path) -> None:
         self._ctrl_panel.set_status(f"Protocol complete. Saved: {path.name}")
         self._ctrl_panel.enable_stop_protocol_button(False)
-        self._apply_channel_defs("current_clamp")
         self._trial_acq.stop()
 
     def _on_continuous_protocol_finished(self) -> None:
@@ -888,7 +892,6 @@ class MainWindow(QMainWindow):
     def _on_protocol_cancelled(self, n_completed: int) -> None:
         self._ctrl_panel.set_status(f"Protocol cancelled after {n_completed} trial(s).")
         self._ctrl_panel.enable_stop_protocol_button(False)
-        self._apply_channel_defs("current_clamp")
         if self._pending_protocol is not None:
             self._ctrl_panel.enable_run_protocol_button(True)
 
