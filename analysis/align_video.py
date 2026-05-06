@@ -239,28 +239,15 @@ def _draw_trace(
     for dy in range(pad_top, baseline, 6):
         cv2.line(img, (cx, dy), (cx, min(dy + 3, baseline)), _CL, 1)
 
-    # ---- trace (min-max envelope as polylines) ----
+    # ---- trace (filled min-max envelope as vertical lines) ----
     col_min, col_max = _minmax_envelope(window, draw_w)
-    seg_max: list[tuple[int, int]] = []
-    seg_min: list[tuple[int, int]] = []
-    segs_max: list[list[tuple[int, int]]] = []
-    segs_min: list[list[tuple[int, int]]] = []
     for col in range(draw_w):
         if np.isnan(col_min[col]):
-            if seg_max:
-                segs_max.append(seg_max); segs_min.append(seg_min)
-                seg_max = []; seg_min = []
             continue
         x = pad_lft + col
-        seg_max.append((x, _y_px(float(col_max[col]))))
-        seg_min.append((x, _y_px(float(col_min[col]))))
-    if seg_max:
-        segs_max.append(seg_max); segs_min.append(seg_min)
-
-    for seg in segs_max:
-        cv2.polylines(img, [np.array(seg, dtype=np.int32)], False, _FG, 1, cv2.LINE_AA)
-    for seg in segs_min:
-        cv2.polylines(img, [np.array(seg, dtype=np.int32)], False, _FG, 1, cv2.LINE_AA)
+        y_top = _y_px(float(col_max[col]))
+        y_bot = _y_px(float(col_min[col]))
+        cv2.line(img, (x, y_top), (x, y_bot), _FG, 1)
 
     return img
 
