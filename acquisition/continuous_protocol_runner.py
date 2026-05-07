@@ -153,9 +153,12 @@ class ContinuousProtocolRunner:
 
             # Silent pre-baseline window before apply
             apply_offset = cursor + _ms_to_samples(protocol.pre_ms)
-            # Clear fires after stim + post window ends
+            # Clear fires at the natural waveform end. The waveform already
+            # contains post_ms of trailing zeros; do not add another post_ms
+            # here, or the AO task (ALLOW_REGENERATION) will wrap around and
+            # briefly replay the start of the next cycle before clear stops it.
             stim_duration = len(waveform) if waveform is not None else 0
-            clear_offset  = apply_offset + stim_duration + _ms_to_samples(protocol.post_ms)
+            clear_offset  = apply_offset + stim_duration
 
             self._events.append(_Event(
                 sample_offset = apply_offset,
