@@ -15,8 +15,8 @@ Current-clamp (CC) trial waveform layout
 
     [zeros × pre_samples]
     [hyperpol_pulse × hyperpol_samples]   ← access-resistance measurement
-    [zeros × gap_samples]                 ← gap between hyperpol and staircase
-    [staircase waveform × staircase_samples]
+    [zeros × gap_samples]                 ← gap between hyperpol and step protocol
+    [step_protocol waveform × step_protocol_samples]
     [zeros × post_samples]
 
 The hyperpolarization section is omitted when
@@ -45,7 +45,7 @@ from numpy.typing import NDArray
 
 from config import AO_MV_PER_VOLT, AO_PA_PER_VOLT, SAMPLE_RATE
 from acquisition.trial_protocol import HyperpolarizationParams, StimulusDefinition, TrialProtocol
-from utils.stimulus_generator import generate_staircase_pa_array
+from utils.stimulus_generator import generate_step_protocol_pa_array
 
 
 # ---------------------------------------------------------------------------
@@ -87,29 +87,29 @@ def build_cc_trial_waveform(
     Waveform layout::
 
         [0 V × pre_samples]
-        [hyperpol_V × hyperpol_samples]   ← only when hyperpol is not None
-        [0 V × gap_samples]               ← stim_def.gap_ms reused as post-hyperpol gap
-        [staircase_V × staircase_samples]
+        [hyperpol_V × hyperpol_samples]       ← only when hyperpol is not None
+        [0 V × gap_samples]                   ← stim_def.gap_ms reused as post-hyperpol gap
+        [step_protocol_V × step_protocol_samples]
         [0 V × post_samples]
 
     Args:
-        stim_def: Staircase stimulus definition containing ``min_pA``,
+        stim_def: Step-protocol stimulus definition containing ``min_pA``,
             ``max_pA``, ``step_pA``, ``step_width_ms``, ``gap_ms``, and
-            ``staircase_repeats``.
+            ``step_protocol_repeats``.
         pre_ms: Silent baseline duration before the stimulus in ms.
         post_ms: Silent tail duration after the stimulus in ms.
         hyperpol: Optional hyperpolarization pulse parameters.  When provided,
             a negative current pulse of ``hyperpol.amplitude_pA`` pA lasting
             ``hyperpol.duration_ms`` ms is prepended, followed by a gap of
-            ``stim_def.gap_ms`` ms before the staircase begins.
+            ``stim_def.gap_ms`` ms before the step protocol begins.
             Pass ``None`` to omit the pulse.
         sample_rate: DAQ sample rate in Hz.  Defaults to
             :data:`~config.SAMPLE_RATE`.
 
     Returns:
         1-D float64 array of ao0 voltages in V.  Total length =
-        ``pre_samples + hyperpol_samples + gap_samples + staircase_samples
-        + post_samples``.
+        ``pre_samples + hyperpol_samples + gap_samples
+        + step_protocol_samples + post_samples``.
     """
     pre_samples  = _ms_to_samples(pre_ms,  sample_rate)
     post_samples = _ms_to_samples(post_ms, sample_rate)
@@ -126,22 +126,22 @@ def build_cc_trial_waveform(
         hyperpol_v = np.empty(0, dtype=np.float64)
         gap_v      = np.empty(0, dtype=np.float64)
 
-    # Staircase (pA → Volts)
-    staircase_pa = generate_staircase_pa_array(
+    # Step protocol (pA → Volts)
+    step_protocol_pa = generate_step_protocol_pa_array(
         min_pa   = stim_def.min_pA or 0.0,
         max_pa   = stim_def.max_pA or 0.0,
         step_pa  = stim_def.step_pA or 1.0,
         width_ms = stim_def.step_width_ms or 500.0,
         gap_ms   = stim_def.gap_ms or 0.0,
-        repeats  = stim_def.staircase_repeats or 1,
+        repeats  = stim_def.step_protocol_repeats or 1,
     )
-    staircase_v = staircase_pa / AO_PA_PER_VOLT
+    step_protocol_v = step_protocol_pa / AO_PA_PER_VOLT
 
     return np.concatenate([
         np.zeros(pre_samples,  dtype=np.float64),
         hyperpol_v,
         gap_v,
-        staircase_v,
+        step_protocol_v,
         np.zeros(post_samples, dtype=np.float64),
     ])
 

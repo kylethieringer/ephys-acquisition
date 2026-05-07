@@ -8,7 +8,7 @@ A real-time electrophysiology data acquisition system with integrated camera tri
 - **Live Visualization**: 5-second rolling window display of all analog input channels
 - **Camera Integration**: Basler Pylon camera with TTL triggering and exposure control
 - **Current Clamp & Voltage Clamp Modes**: Switch between CC and VC with automatic channel relabelling and scaling
-- **Protocol Builder**: Design staircase (CC) and voltage-step (VC) stimulus protocols with a GUI editor
+- **Protocol Builder**: Design step-protocol (CC) and voltage-step (VC) stimulus protocols with a GUI editor
 - **Protocol Dropdown**: Load saved protocols from `D:/protocols` directly from the main window
 - **Continuous Protocol Mode**: Run a stimulus protocol within a single unbroken recording; stimulus timing is saved as sample-accurate events in the HDF5 file for post-processing
 - **Trial-Based Mode**: Per-trial HDF5 recording with pre-allocated datasets for fast sequential reads
@@ -67,7 +67,7 @@ The sidebar has four tabs: **Acquire**, **Protocol**, **Channels**, **Setup**. T
   - Camera preview (fixed, 300 px)
   - Subject card (experiment ID, genotype, age, sex, cell type)
   - Protocol widget — dropdown to select a `.json` from `D:/protocols`, **Run Protocol** / **Stop Protocol** buttons
-  - Stimulus panel — ad-hoc staircase stimulus (continuous mode only); labels switch between pA (CC) and mV (VC) automatically
+  - Stimulus panel — ad-hoc step-protocol stimulus (continuous mode only); labels switch between pA (CC) and mV (VC) automatically
 
 **Protocol page**
 - Left: Saved-protocol list with filter box and Refresh / New buttons
@@ -157,7 +157,7 @@ Output goes under `D:/data/_alignment_checks/`:
 
 **Phase A — rig only** (no model cell): AO → AmpCmd loopback latency, inter-channel crosstalk, counter-TTL period stability.
 
-**Phase B — model cell**: resting baseline, noise floor (incl. 60/120/180 Hz line fraction), CC scaling and linearity (ΔV = I·R staircase), VC scaling, capacitance τ, and an end-to-end self-test that feeds a fresh CC recording through `analysis.analyze_steps.compute_input_resistance`.
+**Phase B — model cell**: resting baseline, noise floor (incl. 60/120/180 Hz line fraction), CC scaling and linearity (ΔV = I·R step protocol), VC scaling, capacitance τ, and an end-to-end self-test that feeds a fresh CC recording through `analysis.analyze_steps.compute_input_resistance`.
 
 ## Project Structure
 
@@ -171,7 +171,7 @@ ephys_acquisition/
 │   ├── main_window.py                   # Top-level Qt window
 │   ├── control_panel.py                 # Mode selector, protocol dropdown, recording bar
 │   ├── camera_panel.py                  # Camera preview and TTL settings
-│   ├── stimulus_panel.py                # Ad-hoc staircase stimulus (continuous mode)
+│   ├── stimulus_panel.py                # Ad-hoc step-protocol stimulus (continuous mode)
 │   ├── trace_panel.py                   # Rolling trace display and Y-range controls
 │   ├── protocol_builder.py              # Protocol editor dialog
 │   └── __init__.py

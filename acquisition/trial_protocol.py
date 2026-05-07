@@ -27,10 +27,10 @@ Trial order is randomised at run-time: each stimulus index appears
 
 Stimulus types
 --------------
-- **Staircase (CC)**: a sequence of current pulses of increasing amplitude.
+- **Step protocol (CC)**: a sequence of current pulses of increasing amplitude.
   The amplitudes span ``min_pA`` to ``max_pA`` in ``step_pA`` increments.
   Each pulse lasts ``step_width_ms`` followed by ``gap_ms`` of silence.
-  The pattern repeats ``staircase_repeats`` times within a single trial.
+  The pattern repeats ``step_protocol_repeats`` times within a single trial.
 
 - **Voltage step (VC)**: a single voltage command step of ``step_mV``
   held for ``duration_ms``.  The holding potential is set on the amplifier;
@@ -67,7 +67,7 @@ class HyperpolarizationParams:
 
     The pulse occupies the first ``duration_ms`` of the stimulus window,
     followed by ``gap_ms`` of silence (taken from the stimulus definition)
-    before the staircase steps begin.
+    before the step protocol steps begin.
 
     Attributes:
         amplitude_pA: Hyperpolarization current amplitude in pA.  Must be
@@ -86,44 +86,44 @@ class StimulusDefinition:
 
     The ``type`` field selects which set of fields is active:
 
-    - ``"staircase"``: current-clamp staircase.  Uses ``min_pA``,
+    - ``"step_protocol"``: current-clamp step protocol.  Uses ``min_pA``,
       ``max_pA``, ``step_pA``, ``step_width_ms``, ``gap_ms``,
-      ``staircase_repeats``.
+      ``step_protocol_repeats``.
     - ``"voltage_step"``: voltage-clamp step.  Uses ``step_mV``,
       ``duration_ms``.  The holding potential is set on the amplifier;
       the AO command is 0 V during pre/post windows.
 
     Attributes:
-        type: Stimulus type — ``"staircase"`` or ``"voltage_step"``.
+        type: Stimulus type — ``"step_protocol"`` or ``"voltage_step"``.
         name: Human-readable label shown in the protocol builder and
             stored in the HDF5 file.
-        min_pA: Lowest current step amplitude in pA (staircase only).
-        max_pA: Highest current step amplitude in pA (staircase only).
-        step_pA: Step size between amplitudes in pA (staircase only).
+        min_pA: Lowest current step amplitude in pA (step protocol only).
+        max_pA: Highest current step amplitude in pA (step protocol only).
+        step_pA: Step size between amplitudes in pA (step protocol only).
             Must be positive.
         step_width_ms: Duration each current step is held in ms
-            (staircase only).
-        gap_ms: Silent gap between current steps in ms (staircase only).
+            (step protocol only).
+        gap_ms: Silent gap between current steps in ms (step protocol only).
             Also used as the gap after the hyperpolarization pulse when
             :class:`HyperpolarizationParams` is present.
-        staircase_repeats: Number of times the full staircase pattern
+        step_protocol_repeats: Number of times the full step protocol pattern
             (all steps from min to max) is repeated within one trial
-            (staircase only).
+            (step protocol only).
         step_mV: Voltage step amplitude in mV (voltage step only).
             Relative to the holding potential set on the amplifier.
         duration_ms: Duration of the voltage step in ms (voltage step only).
     """
 
-    type: str = "staircase"
+    type: str = "step_protocol"
     name: str = "Unnamed stimulus"
 
-    # Staircase fields (CC)
-    min_pA:            Optional[float] = -50.0
-    max_pA:            Optional[float] = 50.0
-    step_pA:           Optional[float] = 10.0
-    step_width_ms:     Optional[float] = 500.0
-    gap_ms:            Optional[float] = 500.0
-    staircase_repeats: Optional[int]   = 1
+    # Step-protocol fields (CC)
+    min_pA:                Optional[float] = -50.0
+    max_pA:                Optional[float] = 50.0
+    step_pA:               Optional[float] = 10.0
+    step_width_ms:         Optional[float] = 500.0
+    gap_ms:                Optional[float] = 500.0
+    step_protocol_repeats: Optional[int]   = 1
 
     # Voltage-step fields (VC)
     step_mV:     Optional[float] = -40.0
@@ -179,6 +179,32 @@ class TrialProtocol:
 # Serialisation helpers
 # ---------------------------------------------------------------------------
 
+def _normalize_legacy_stim_dict(s: dict) -> dict:
+    """Rewrite a legacy stimulus dict to the current schema.
+
+    Older protocols used ``"staircase"`` as the stimulus ``type`` and
+    stored the repeat count under ``"staircase_repeats"``.  Both keys
+    were renamed to ``"step_protocol"`` / ``"step_protocol_repeats"``.
+    This helper converts old → new in place on a copy and is safe to
+    apply to dicts that already use the new schema (it is a no-op).
+
+    Args:
+        s: Raw stimulus dict, typically loaded from JSON or from the
+            ``/metadata/protocol`` field of an HDF5 recording.
+
+    Returns:
+        A new dict with legacy keys rewritten to the current schema.
+    """
+    s = dict(s)
+    if s.get("type") == "staircase":
+        s["type"] = "step_protocol"
+    if "staircase_repeats" in s and "step_protocol_repeats" not in s:
+        s["step_protocol_repeats"] = s.pop("staircase_repeats")
+    else:
+        s.pop("staircase_repeats", None)
+    return s
+
+
 def protocol_to_dict(p: TrialProtocol) -> dict:
     """Serialise a :class:`TrialProtocol` to a JSON-compatible dict.
 
@@ -222,7 +248,9 @@ def protocol_from_dict(d: dict) -> TrialProtocol:
     )
 
     stimuli_raw = d.pop("stimuli", [])
-    stimuli = [StimulusDefinition(**s) for s in stimuli_raw]
+    stimuli = [
+        StimulusDefinition(**_normalize_legacy_stim_dict(s)) for s in stimuli_raw
+    ]
 
     return TrialProtocol(hyperpolarization=hyperpol, stimuli=stimuli, **d)
 
@@ -285,18 +313,18 @@ def build_trial_order(p: TrialProtocol) -> list[int]:
 # Duration estimation
 # ---------------------------------------------------------------------------
 
-def _staircase_duration_ms(stim: StimulusDefinition) -> float:
-    """Estimate the waveform duration of one staircase stimulus in ms.
+def _step_protocol_duration_ms(stim: StimulusDefinition) -> float:
+    """Estimate the waveform duration of one step-protocol stimulus in ms.
 
-    Accounts for step count, step width, gap, and staircase repeats.
+    Accounts for step count, step width, gap, and step-protocol repeats.
     Returns 0 if any required field is missing or invalid.
 
     Args:
-        stim: A staircase-type :class:`StimulusDefinition`.
+        stim: A step-protocol-type :class:`StimulusDefinition`.
 
     Returns:
-        Estimated staircase duration in ms (excludes hyperpol pulse and
-        pre/post windows).
+        Estimated step-protocol duration in ms (excludes hyperpol pulse
+        and pre/post windows).
     """
     if stim.step_pA is None or stim.step_pA <= 0:
         return 0.0
@@ -304,7 +332,7 @@ def _staircase_duration_ms(stim: StimulusDefinition) -> float:
         return 0.0
     n_steps = max(1, round((stim.max_pA - stim.min_pA) / stim.step_pA) + 1)
     step_dur = (stim.step_width_ms or 0.0) + (stim.gap_ms or 0.0)
-    repeats = stim.staircase_repeats or 1
+    repeats = stim.step_protocol_repeats or 1
     return n_steps * step_dur * repeats
 
 
@@ -314,8 +342,8 @@ def _stim_duration_ms(
 ) -> float:
     """Estimate the total stimulus window duration in ms for one trial.
 
-    For staircase stimuli this includes the optional hyperpolarization
-    pulse and gap before the staircase steps.  For voltage-step stimuli
+    For step-protocol stimuli this includes the optional hyperpolarization
+    pulse and gap before the step-protocol steps.  For voltage-step stimuli
     this is simply ``stim.duration_ms``.
 
     Args:
@@ -326,14 +354,14 @@ def _stim_duration_ms(
     Returns:
         Estimated stimulus window duration in ms.
     """
-    if stim.type == "staircase":
+    if stim.type == "step_protocol":
         if hyperpol is not None:
             hyperpol_dur = hyperpol.duration_ms
             gap_dur      = stim.gap_ms or 0.0
         else:
             hyperpol_dur = 0.0
             gap_dur      = 0.0
-        return hyperpol_dur + gap_dur + _staircase_duration_ms(stim)
+        return hyperpol_dur + gap_dur + _step_protocol_duration_ms(stim)
     elif stim.type == "voltage_step":
         return stim.duration_ms or 0.0
     elif stim.type == "baseline":

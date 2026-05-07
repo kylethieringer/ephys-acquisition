@@ -8,7 +8,7 @@ Waveforms are returned as 1-D ``float64`` NumPy arrays unless otherwise noted.
 
 Waveform units
 --------------
-- **Stimulus functions** (``generate_ao0_waveform``, ``generate_staircase_pa_array``):
+- **Stimulus functions** (``generate_ao0_waveform``, ``generate_step_protocol_pa_array``):
   see individual docstrings — some return pA, others return Volts.
 - **TTL functions**: return Volts, switching between
   :data:`~config.TTL_HIGH_V` (5 V) and :data:`~config.TTL_LOW_V` (0 V).
@@ -107,7 +107,7 @@ def generate_preview_steps(
     return t_ms, traces
 
 
-def generate_staircase_pa_array(
+def generate_step_protocol_pa_array(
     min_pa: float,
     max_pa: float,
     step_pa: float,
@@ -115,9 +115,9 @@ def generate_staircase_pa_array(
     gap_ms: float,
     repeats: int = 1,
 ) -> NDArray[np.float64]:
-    """Generate a staircase current waveform in pA units (not scaled to Volts).
+    """Generate a step-protocol current waveform in pA units (not scaled to Volts).
 
-    The staircase consists of ``n_steps`` pulses from ``min_pa`` to
+    The step protocol consists of ``n_steps`` pulses from ``min_pa`` to
     ``max_pa``, each held for ``width_ms`` followed by ``gap_ms`` of
     silence.  The pattern is tiled ``repeats`` times.
 
@@ -131,7 +131,7 @@ def generate_staircase_pa_array(
         step_pa: Step size in pA.  Must be positive.
         width_ms: Duration each step is held in ms.
         gap_ms: Silent gap between steps in ms.
-        repeats: Number of times the full staircase pattern is tiled.
+        repeats: Number of times the full step-protocol pattern is tiled.
 
     Returns:
         1-D float64 array in pA.  Length =
@@ -158,7 +158,7 @@ def generate_ao0_waveform(
     gap_ms: float,
     scale_pa_per_v: float = AO_PA_PER_VOLT,
 ) -> NDArray[np.float64]:
-    """Generate a staircase ao0 command waveform in Volts for direct AO output.
+    """Generate a step-protocol ao0 command waveform in Volts for direct AO output.
 
     Converts user-unit values → Volts using ``scale_pa_per_v``.  Defaults to
     :data:`~config.AO_PA_PER_VOLT` for current-clamp; pass

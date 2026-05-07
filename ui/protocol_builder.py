@@ -15,9 +15,9 @@ Layout::
     │  Clamp mode: ○ Current clamp  ○ Voltage clamp │
     ├────────────────────┬─────────────────────────-┤
     │  Stimuli           │  Edit selected stimulus   │
-    │  ┌──────────────┐  │  (stacked widget)         │
-    │  │ staircase 0  │  │                           │
-    │  │ staircase 1  │  │                           │
+    │  ┌────────────────┐│  (stacked widget)         │
+    │  │ step protocol 0││                           │
+    │  │ step protocol 1││                           │
     │  └──────────────┘  │                           │
     │  [+Add][−Remove]   │                           │
     │  [↑Up ][↓Down  ]   │                           │
@@ -217,12 +217,12 @@ class ProtocolBuilderPanel(QWidget):
         top_form = QFormLayout()
         top_form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
         self._stim_name_edit = QLineEdit()
-        self._stim_name_edit.setPlaceholderText("e.g. 0-50 pA staircase")
+        self._stim_name_edit.setPlaceholderText("e.g. 0-50 pA step protocol")
         self._stim_name_edit.textChanged.connect(self._on_stim_name_changed)
         top_form.addRow("Stimulus name:", self._stim_name_edit)
 
         type_row = QHBoxLayout()
-        self._sc_type_rb = QRadioButton("Staircase (CC)")
+        self._sc_type_rb = QRadioButton("Step protocol (CC)")
         self._vc_type_rb = QRadioButton("Voltage step (VC)")
         self._bl_type_rb = QRadioButton("Baseline")
         self._sc_type_rb.setChecked(True)
@@ -237,7 +237,7 @@ class ProtocolBuilderPanel(QWidget):
         outer.addLayout(top_form)
 
         self._stim_stack = QStackedWidget()
-        self._stim_stack.addWidget(self._build_staircase_page())
+        self._stim_stack.addWidget(self._build_step_protocol_page())
         self._stim_stack.addWidget(self._build_vstep_page())
         self._stim_stack.addWidget(self._build_baseline_page())
         outer.addWidget(self._stim_stack)
@@ -245,7 +245,7 @@ class ProtocolBuilderPanel(QWidget):
 
         return box
 
-    def _build_staircase_page(self) -> QWidget:
+    def _build_step_protocol_page(self) -> QWidget:
         w = QWidget()
         form = QFormLayout(w)
         form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
@@ -421,8 +421,8 @@ class ProtocolBuilderPanel(QWidget):
 
     def _on_add(self) -> None:
         stim = StimulusDefinition(
-            type="staircase",
-            name=f"Staircase {len(self._stimuli)}",
+            type="step_protocol",
+            name=f"Step protocol {len(self._stimuli)}",
         )
         self._stimuli.append(stim)
         item = QListWidgetItem(stim.name)
@@ -488,7 +488,7 @@ class ProtocolBuilderPanel(QWidget):
         if row < 0:
             return
         if self._sc_type_rb.isChecked():
-            new_type = "staircase"
+            new_type = "step_protocol"
             page = 0
         elif self._vc_type_rb.isChecked():
             new_type = "voltage_step"
@@ -505,31 +505,38 @@ class ProtocolBuilderPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _populate_editor(self, stim: StimulusDefinition) -> None:
-        self._stim_name_edit.blockSignals(True)
-        self._stim_name_edit.setText(stim.name)
-        self._stim_name_edit.blockSignals(False)
+        widgets = (
+            self._stim_name_edit,
+            self._sc_type_rb, self._vc_type_rb, self._bl_type_rb,
+            self._sc_min, self._sc_max, self._sc_step,
+            self._sc_width, self._sc_gap, self._sc_reps,
+            self._vs_step_mv, self._vs_duration,
+        )
+        for w in widgets:
+            w.blockSignals(True)
+        try:
+            self._stim_name_edit.setText(stim.name)
 
-        for rb in (self._sc_type_rb, self._vc_type_rb, self._bl_type_rb):
-            rb.blockSignals(True)
-        self._sc_type_rb.setChecked(stim.type == "staircase")
-        self._vc_type_rb.setChecked(stim.type == "voltage_step")
-        self._bl_type_rb.setChecked(stim.type == "baseline")
-        for rb in (self._sc_type_rb, self._vc_type_rb, self._bl_type_rb):
-            rb.blockSignals(False)
+            self._sc_type_rb.setChecked(stim.type == "step_protocol")
+            self._vc_type_rb.setChecked(stim.type == "voltage_step")
+            self._bl_type_rb.setChecked(stim.type == "baseline")
 
-        page = {"staircase": 0, "voltage_step": 1, "baseline": 2}.get(stim.type, 0)
-        self._stim_stack.setCurrentIndex(page)
+            page = {"step_protocol": 0, "voltage_step": 1, "baseline": 2}.get(stim.type, 0)
+            self._stim_stack.setCurrentIndex(page)
 
-        if stim.type == "staircase":
-            self._sc_min.setValue(stim.min_pA or -50.0)
-            self._sc_max.setValue(stim.max_pA or 50.0)
-            self._sc_step.setValue(stim.step_pA or 10.0)
-            self._sc_width.setValue(stim.step_width_ms or 500.0)
-            self._sc_gap.setValue(stim.gap_ms or 500.0)
-            self._sc_reps.setValue(stim.staircase_repeats or 1)
-        elif stim.type == "voltage_step":
-            self._vs_step_mv.setValue(stim.step_mV or -40.0)
-            self._vs_duration.setValue(stim.duration_ms or 500.0)
+            if stim.type == "step_protocol":
+                self._sc_min.setValue(stim.min_pA if stim.min_pA is not None else -50.0)
+                self._sc_max.setValue(stim.max_pA if stim.max_pA is not None else 50.0)
+                self._sc_step.setValue(stim.step_pA if stim.step_pA is not None else 10.0)
+                self._sc_width.setValue(stim.step_width_ms if stim.step_width_ms is not None else 500.0)
+                self._sc_gap.setValue(stim.gap_ms if stim.gap_ms is not None else 500.0)
+                self._sc_reps.setValue(stim.step_protocol_repeats if stim.step_protocol_repeats is not None else 1)
+            elif stim.type == "voltage_step":
+                self._vs_step_mv.setValue(stim.step_mV if stim.step_mV is not None else -40.0)
+                self._vs_duration.setValue(stim.duration_ms if stim.duration_ms is not None else 500.0)
+        finally:
+            for w in widgets:
+                w.blockSignals(False)
 
     def _sync_editor_to_stim(self) -> None:
         row = self._stim_list.currentRow()
@@ -538,19 +545,19 @@ class ProtocolBuilderPanel(QWidget):
         stim = self._stimuli[row]
         stim.name = self._stim_name_edit.text()
         if self._sc_type_rb.isChecked():
-            stim.type = "staircase"
+            stim.type = "step_protocol"
         elif self._vc_type_rb.isChecked():
             stim.type = "voltage_step"
         else:
             stim.type = "baseline"
 
-        if stim.type == "staircase":
+        if stim.type == "step_protocol":
             stim.min_pA = self._sc_min.value()
             stim.max_pA = self._sc_max.value()
             stim.step_pA = self._sc_step.value()
             stim.step_width_ms = self._sc_width.value()
             stim.gap_ms = self._sc_gap.value()
-            stim.staircase_repeats = self._sc_reps.value()
+            stim.step_protocol_repeats = self._sc_reps.value()
         elif stim.type == "voltage_step":
             stim.step_mV = self._vs_step_mv.value()
             stim.duration_ms = self._vs_duration.value()

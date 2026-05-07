@@ -19,7 +19,7 @@ assumptions:
 
 Phase B checks use the 500 MΩ model cell as ground truth:
 
-* :func:`check_cc_scaling_and_linearity` — ΔV = I · R across a staircase
+* :func:`check_cc_scaling_and_linearity` — ΔV = I · R across a step protocol
 * :func:`check_vc_scaling`          — ΔI = ΔV / R across voltage steps
 * :func:`check_resting_baseline`    — zero-stim DC offset on ScAmpOut
 * :func:`check_noise_floor`         — zero-stim RMS + line-noise fraction
@@ -478,7 +478,7 @@ def check_cc_scaling_and_linearity(
     width_ms: float = 500.0,
     gap_ms: float   = 500.0,
 ) -> Check:
-    """Inject a current staircase; verify ΔV = I · R per step and overall slope.
+    """Inject a current step protocol; verify ΔV = I · R per step and overall slope.
 
     With the model cell at CELL (500 MΩ), a +100 pA step should produce
     a +50 mV deflection.  A per-step mismatch >5 % flags WARN; a slope

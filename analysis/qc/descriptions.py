@@ -301,7 +301,7 @@ CHECK_DESCRIPTIONS: dict[str, str] = {
         "new mains-powered equipment has been added near the rig."
     ),
     "CC scaling & linearity (model cell)": (
-        "Injects a current staircase (default −100 → +100 pA in 20 pA "
+        "Injects a current step protocol (default −100 → +100 pA in 20 pA "
         "steps) and measures the steady-state voltage deflection on "
         "<code>ScAmpOut</code> at each step. With the 500 MΩ model cell, "
         "Ohm's law predicts ΔV = I·R, so a +100 pA step should give a "

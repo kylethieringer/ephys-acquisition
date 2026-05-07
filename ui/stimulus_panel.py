@@ -1,5 +1,5 @@
 """
-StimulusPanel — quick staircase current-injection stimulus builder and preview.
+StimulusPanel — quick step-protocol current-injection stimulus builder and preview.
 
 This panel is for **continuous mode** ad-hoc stimulation.  For structured,
 repeatable stimulation use the Protocol Builder and trial-based mode instead.
@@ -8,7 +8,7 @@ Parameters (all in pA / ms):
     min_pA, max_pA, step_pA  — amplitude range and step size
     step_width_ms             — duration each current step is held
     gap_ms                    — silent gap between steps (ao0 = 0 V)
-    repeats                   — number of times to tile the staircase
+    repeats                   — number of times to tile the step protocol
 
 Preview:
     All steps overlaid on a single plot, each drawn in a distinct colour,
@@ -61,7 +61,7 @@ _STEP_COLORS: list[str] = [
 
 
 class StimulusPanel(QWidget):
-    """Panel for defining a staircase stimulus and applying it in continuous mode.
+    """Panel for defining a step-protocol stimulus and applying it in continuous mode.
 
     Signals:
         stimulus_applied(object): Emitted when the user clicks "Stimulate".

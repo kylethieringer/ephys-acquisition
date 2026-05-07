@@ -416,7 +416,7 @@ class TrialAcquisition(QObject):
         Sequence:
 
         1. Look up the next stimulus in ``_trial_order``.
-        2. Build the full AO waveform (pre zeros + hyperpol + staircase + post zeros).
+        2. Build the full AO waveform (pre zeros + hyperpol + step protocol + post zeros).
         3. Pre-allocate the trial data buffer.
         4. Load the waveform into the AO task (rebuilds the nidaqmx task).
         5. Fire the camera TTL.
