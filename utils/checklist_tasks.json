@@ -1,0 +1,21 @@
+{
+  "tasks": [
+    { "id": "pull_electrodes",       "label": "Pull electrodes" },
+    { "id": "filter_saline",         "label": "Filter saline" },
+    { "id": "make_solutions",        "label": "Make solutions" },
+    { "id": "get_ice",               "label": "Get ice" },
+    { "id": "prep_fly",              "label": "Prep fly" },
+    { "id": "record_experiments",    "label": "Record experiments",     "action": "ephys_gui" },
+    { "id": "dissect_brain",         "label": "Dissect brain" },
+    { "id": "stain_brain",           "label": "Stain brain" },
+    { "id": "update_experiment_log", "label": "Update experiment log",
+      "actions": [
+        { "key": "update_log", "label": "Refresh" },
+        { "key": "open_log",   "label": "Open" }
+      ]
+    },
+    { "id": "copy_to_drive",         "label": "Copy data to Google Drive" },
+    { "id": "visualize_data",        "label": "Visualize data",         "action": "analysis_gui" },
+    { "id": "analyze_steps",         "label": "Analyze steps",          "action": "analyze_steps" }
+  ]
+}
