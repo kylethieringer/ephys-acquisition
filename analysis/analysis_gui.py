@@ -23,6 +23,7 @@ import h5py
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QThread, QTimer, Qt, Signal
+from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -456,6 +457,39 @@ class TimelineController(QWidget):
 
 
 # ============================================================================
+# Frame overlays
+# ============================================================================
+
+def _draw_speed_label(frame: np.ndarray, speed: float) -> None:
+    """Draw a 'Nx' playback-speed label in the top-left corner, in place."""
+    text = f"{speed:g}x"
+    h = frame.shape[0]
+    scale = max(0.5, h / 400.0)
+    thickness = max(1, int(round(scale * 2)))
+    (_, th), _ = cv2.getTextSize(
+        text, cv2.FONT_HERSHEY_SIMPLEX, scale, thickness,
+    )
+    pad = max(6, int(round(scale * 8)))
+    org = (pad, pad + th)
+    cv2.putText(frame, text, org, cv2.FONT_HERSHEY_SIMPLEX, scale,
+                (0, 0, 0), thickness + 2, cv2.LINE_AA)
+    cv2.putText(frame, text, org, cv2.FONT_HERSHEY_SIMPLEX, scale,
+                (255, 255, 255), thickness, cv2.LINE_AA)
+
+
+def _bgr_to_qpixmap(bgr: np.ndarray) -> QPixmap:
+    """Convert an OpenCV BGR/gray uint8 frame to a QPixmap."""
+    if bgr.ndim == 2:
+        rgb = cv2.cvtColor(bgr, cv2.COLOR_GRAY2RGB)
+    else:
+        rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+    rgb = np.ascontiguousarray(rgb)
+    h, w = rgb.shape[:2]
+    qimg = QImage(rgb.data, w, h, w * 3, QImage.Format.Format_RGB888)
+    return QPixmap.fromImage(qimg.copy())
+
+
+# ============================================================================
 # ExportWorker
 # ============================================================================
 
@@ -480,6 +514,7 @@ class ExportWorker(QThread):
         rmp: float,
         brightness: float = 0.0,
         contrast: float = 1.0,
+        speed: float = 1.0,
     ) -> None:
         super().__init__()
         self._cap_path = cap_path
@@ -495,6 +530,7 @@ class ExportWorker(QThread):
         self._rmp = rmp
         self._brightness = brightness
         self._contrast = contrast
+        self._speed = speed
 
     def run(self) -> None:
         cap = cv2.VideoCapture(self._cap_path)
@@ -505,14 +541,16 @@ class ExportWorker(QThread):
         vid_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         vid_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         out_h = vid_h + TRACE_HEIGHT
-        fourcc = cv2.VideoWriter_fourcc(*"MJPG")
-        writer = cv2.VideoWriter(self._output_path, fourcc, self._fps,
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        out_fps = self._fps * self._speed
+        writer = cv2.VideoWriter(self._output_path, fourcc, out_fps,
                                  (vid_w, out_h))
         if not writer.isOpened():
             cap.release()
             self.finished.emit(f"Error: cannot write to {self._output_path}")
             return
 
+        show_speed = abs(self._speed - 1.0) > 1e-6
         n_clip = self._end - self._start
         cap.set(cv2.CAP_PROP_POS_FRAMES, self._start)
 
@@ -535,6 +573,9 @@ class ExportWorker(QThread):
                 frame = cv2.convertScaleAbs(
                     frame, alpha=self._contrast, beta=self._brightness,
                 )
+
+            if show_speed:
+                _draw_speed_label(frame, self._speed)
 
             composite = np.vstack([frame, trace_img])
             writer.write(composite)
@@ -571,7 +612,7 @@ class ExportDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Export Clip")
-        self.setMinimumWidth(400)
+        self.setMinimumWidth(480)
 
         self._worker: ExportWorker | None = None
         self._video_path = video_path
@@ -579,6 +620,7 @@ class ExportDialog(QDialog):
         self._end_frame = end_frame
         self._auto_y_lo = y_lo
         self._auto_y_hi = y_hi
+        self._preview_frame: np.ndarray | None = self._load_preview_frame()
 
         layout = QVBoxLayout(self)
 
@@ -615,6 +657,7 @@ class ExportDialog(QDialog):
         self._brightness_spin.setToolTip(
             "Additive offset (beta). Positive = brighter, negative = darker."
         )
+        self._brightness_spin.valueChanged.connect(self._update_preview)
         adj_layout.addWidget(self._brightness_spin)
 
         adj_layout.addWidget(QLabel("Contrast:"))
@@ -626,6 +669,7 @@ class ExportDialog(QDialog):
         self._contrast_spin.setToolTip(
             "Multiplicative gain (alpha). 1.0 = unchanged, >1 = more contrast."
         )
+        self._contrast_spin.valueChanged.connect(self._update_preview)
         adj_layout.addWidget(self._contrast_spin)
 
         auto_btn = QPushButton("Auto")
@@ -641,6 +685,37 @@ class ExportDialog(QDialog):
         adj_layout.addWidget(reset_btn)
 
         layout.addWidget(adj_box)
+
+        # Playback speed
+        speed_box = QGroupBox("Playback Speed")
+        speed_layout = QHBoxLayout(speed_box)
+        speed_layout.addWidget(QLabel("Speed:"))
+        self._speed_spin = QDoubleSpinBox()
+        self._speed_spin.setRange(0.1, 10.0)
+        self._speed_spin.setValue(1.0)
+        self._speed_spin.setSingleStep(0.1)
+        self._speed_spin.setDecimals(2)
+        self._speed_spin.setSuffix("x")
+        self._speed_spin.setToolTip(
+            "Multiplier applied to the exported video's frame rate.\n"
+            ">1 = faster playback, <1 = slow motion."
+        )
+        self._speed_spin.valueChanged.connect(self._update_preview)
+        speed_layout.addWidget(self._speed_spin)
+        speed_layout.addStretch()
+        layout.addWidget(speed_box)
+
+        # Preview
+        preview_box = QGroupBox("Preview")
+        preview_layout = QVBoxLayout(preview_box)
+        self._preview_label = QLabel()
+        self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._preview_label.setMinimumHeight(240)
+        self._preview_label.setStyleSheet("background-color: #000;")
+        if self._preview_frame is None:
+            self._preview_label.setText("(preview unavailable)")
+        preview_layout.addWidget(self._preview_label)
+        layout.addWidget(preview_box)
 
         # Trace Y range controls
         y_box = QGroupBox("Trace Y Range")
@@ -682,6 +757,50 @@ class ExportDialog(QDialog):
 
         self._status_label = QLabel("")
         layout.addWidget(self._status_label)
+
+    def _load_preview_frame(self) -> np.ndarray | None:
+        """Grab a representative frame from the middle of the clip."""
+        cap = cv2.VideoCapture(self._video_path)
+        if not cap.isOpened():
+            return None
+        try:
+            mid = (self._start_frame + self._end_frame) // 2
+            cap.set(cv2.CAP_PROP_POS_FRAMES, mid)
+            ret, frame = cap.read()
+        finally:
+            cap.release()
+        if not ret:
+            return None
+        return frame
+
+    def _update_preview(self) -> None:
+        if self._preview_frame is None:
+            return
+        alpha = self._contrast_spin.value()
+        beta = self._brightness_spin.value()
+        speed = self._speed_spin.value()
+        frame = self._preview_frame.copy()
+        if alpha != 1.0 or beta != 0.0:
+            frame = cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
+        if abs(speed - 1.0) > 1e-6:
+            _draw_speed_label(frame, speed)
+        pixmap = _bgr_to_qpixmap(frame)
+        target = self._preview_label.size()
+        if target.width() > 0 and target.height() > 0:
+            pixmap = pixmap.scaled(
+                target,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        self._preview_label.setPixmap(pixmap)
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        self._update_preview()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        self._update_preview()
 
     def _reset_adjustments(self) -> None:
         self._brightness_spin.setValue(0.0)
@@ -732,7 +851,7 @@ class ExportDialog(QDialog):
     def _browse(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
             self, "Save Clip", self._path_label.text(),
-            "AVI Video (*.avi)")
+            "MP4 Video (*.mp4)")
         if path:
             self._path_label.setText(path)
 
@@ -759,6 +878,7 @@ class ExportDialog(QDialog):
             self._y_min_spin.value(), self._y_max_spin.value(), rmp,
             brightness=self._brightness_spin.value(),
             contrast=self._contrast_spin.value(),
+            speed=self._speed_spin.value(),
         )
         self._worker.progress.connect(self._progress.setValue)
         self._worker.finished.connect(self._on_finished)
@@ -1098,7 +1218,7 @@ class AnalysisWindow(QMainWindow):
         y_lo, y_hi = _y_range(self._vm[clip_start_sample:clip_end_sample])
 
         h5_stem = Path(self._h5_path).stem
-        default_out = str(Path(self._h5_path).parent / f"{h5_stem}_clip.avi")
+        default_out = str(Path(self._h5_path).parent / f"{h5_stem}_clip.mp4")
 
         dlg = ExportDialog(
             self,
