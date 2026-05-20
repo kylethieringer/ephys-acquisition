@@ -2,8 +2,9 @@
 experiment_dashboard.py — Interactive experiment browser.
 
 Run with:
-    streamlit run experiment_dashboard.py
-    streamlit run experiment_dashboard.py -- --data-dir D:/data
+    uv run streamlit run utils/experiment_dashboard.py
+
+    uv run streamlit run utils/experiment_dashboard.py -- --data-dir D:/data
 """
 
 from __future__ import annotations
@@ -131,7 +132,7 @@ def load_csv(csv_path: str) -> pd.DataFrame:
         df["end_time"] = pd.to_datetime(df["end_time"], errors="coerce")
     if "duration_seconds" in df.columns:
         df["duration_seconds"] = pd.to_numeric(df["duration_seconds"], errors="coerce")
-    for col in ("has_video", "has_trials", "drug_applied"):
+    for col in ("has_video", "has_trials", "drug_applied", "keep"):
         if col in df.columns:
             df[col] = df[col].astype(str).str.lower().isin(("true", "1", "yes"))
     return df
@@ -222,7 +223,14 @@ with st.sidebar:
     st.markdown("---")
 
     # Drug filter
-    only_drug = st.checkbox("Drug applied")
+    drug_filter = "All"
+    if "drug_applied" in df_full.columns:
+        drug_filter = st.radio(
+            "Drug",
+            options=("All", "Drug applied", "No drug"),
+            horizontal=False,
+            index=0,
+        )
 
     st.markdown("---")
 
@@ -241,6 +249,15 @@ with st.sidebar:
     # Boolean flags
     only_video  = st.checkbox("Has video")
     only_trials = st.checkbox("Has trials")
+
+    keep_filter = "All"
+    if "keep" in df_full.columns:
+        keep_filter = st.radio(
+            "Keep",
+            options=("All", "Keep only", "Excluded only"),
+            horizontal=False,
+            index=0,
+        )
 
     st.markdown("---")
     if st.button("↺  Refresh data", use_container_width=True):
@@ -269,8 +286,17 @@ if only_video and "has_video" in df.columns:
     df = df[df["has_video"]]
 if only_trials and "has_trials" in df.columns:
     df = df[df["has_trials"]]
-if only_drug and "drug_applied" in df.columns:
-    df = df[df["drug_applied"].astype(str).str.lower().isin(("true", "1", "yes"))]
+if "drug_applied" in df.columns:
+    drug_bool = df["drug_applied"].astype(str).str.lower().isin(("true", "1", "yes"))
+    if drug_filter == "Drug applied":
+        df = df[drug_bool]
+    elif drug_filter == "No drug":
+        df = df[~drug_bool]
+if "keep" in df.columns:
+    if keep_filter == "Keep only":
+        df = df[df["keep"]]
+    elif keep_filter == "Excluded only":
+        df = df[~df["keep"]]
 
 
 # ── Header ────────────────────────────────────────────────────────────────────
@@ -325,6 +351,7 @@ col_cfg: dict = {}
 if "has_video"    in df_display.columns: col_cfg["has_video"]    = st.column_config.CheckboxColumn("video")
 if "has_trials"   in df_display.columns: col_cfg["has_trials"]   = st.column_config.CheckboxColumn("trials")
 if "drug_applied" in df_display.columns: col_cfg["drug_applied"] = st.column_config.CheckboxColumn("drug")
+if "keep"         in df_display.columns: col_cfg["keep"]         = st.column_config.CheckboxColumn("keep")
 if "start_time" in df_display.columns: col_cfg["start_time"] = st.column_config.TextColumn("date / time")
 if "expt_id"    in df_display.columns: col_cfg["expt_id"]    = st.column_config.TextColumn("experiment")
 
@@ -334,7 +361,7 @@ event = st.dataframe(
     use_container_width=True,
     hide_index=True,
     on_select="rerun",
-    selection_mode="single-row",
+    selection_mode="multi-row",
     height=min(40 + 35 * len(df_display), 520),
 )
 
@@ -346,9 +373,25 @@ selected_rows = event.selection.get("rows", []) if hasattr(event, "selection") e
 if not selected_rows:
     st.markdown(
         '<p style="color:#8b949e;font-size:0.85rem;margin-top:8px;">'
-        'Click a row to inspect experiment details.</p>',
+        'Click a row to inspect experiment details. Shift- or Ctrl-click to select multiple.</p>',
         unsafe_allow_html=True,
     )
+    st.stop()
+
+# ── Selected metadata IDs (copyable) ─────────────────────────────────────────
+
+if "metadata_file" in df.columns:
+    selected_meta = [
+        Path(str(m)).name
+        for m in df.iloc[selected_rows]["metadata_file"].dropna().tolist()
+        if str(m).strip()
+    ]
+    if selected_meta:
+        st.markdown("---")
+        st.markdown(f"**Selected metadata IDs ({len(selected_meta)})** — hover the block, click the copy icon")
+        st.code("\n".join(selected_meta), language="text")
+
+if len(selected_rows) > 1:
     st.stop()
 
 row_idx = selected_rows[0]
@@ -400,6 +443,7 @@ with left:
             ("Clamp mode",    row.get("clamp_mode", "") or "—"),
             ("Sample rate",   f"{row.get('sample_rate_hz', '')} Hz" if row.get("sample_rate_hz") else "—"),
             ("Channels",      chan_str),
+            ("Metadata file", meta_file or "—"),
         ]
         if camera:
             fields += [
