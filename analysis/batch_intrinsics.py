@@ -71,11 +71,14 @@ def collect_intrinsics(
     -------
     pandas.DataFrame
         Columns: ``expt_id``, ``targeted_cell_type``, ``metadata_file``,
-        ``h5_path``, ``intrinsics_csv_path``, ``drug_applied``,
-        ``drug_name``, ``drug_concentration``, ``status`` (one of
-        ``cached``, ``computed``, ``error``), ``error`` (str, only set
-        when status is ``error``). Drug columns are passed through
-        verbatim from the experiment log so callers can group on them.
+        ``h5_path``, ``intrinsics_csv_path``, ``step_rates_csv_path``,
+        ``drug_applied``, ``drug_name``, ``drug_concentration``,
+        ``status`` (one of ``cached``, ``computed``, ``error``),
+        ``error`` (str, only set when status is ``error``). Drug columns
+        are passed through verbatim from the experiment log so callers
+        can group on them.  ``process_file`` is invoked whenever either
+        the intrinsics CSV or the step-rates CSV is missing, so both
+        files are kept in sync.
     """
     if isinstance(cell_types, str):
         cell_types = [cell_types]
@@ -107,6 +110,7 @@ def collect_intrinsics(
 
         h5_path = _h5_path_from_metadata_file(metadata_file, data_root)
         csv_path = results_csv_dir / f"{h5_path.stem}_intrinsics.csv"
+        rates_path = results_csv_dir / f"{h5_path.stem}_step_rates.csv"
 
         out = {
             "expt_id": row.get("expt_id", ""),
@@ -114,6 +118,7 @@ def collect_intrinsics(
             "metadata_file": metadata_file,
             "h5_path": str(h5_path),
             "intrinsics_csv_path": str(csv_path),
+            "step_rates_csv_path": str(rates_path),
             "drug_applied": row.get("drug_applied", ""),
             "drug_name": row.get("drug_name", ""),
             "drug_concentration": row.get("drug_concentration", ""),
@@ -121,14 +126,14 @@ def collect_intrinsics(
             "error": "",
         }
 
-        if csv_path.exists():
+        if csv_path.exists() and rates_path.exists():
             out["status"] = "cached"
         elif not h5_path.exists():
             out["status"] = "error"
             out["error"] = f"h5 file not found: {h5_path}"
             print(f"[error] {metadata_file}: {out['error']}")
         else:
-            print(f"[compute] {metadata_file} -> {csv_path.name}")
+            print(f"[compute] {metadata_file} -> {csv_path.name} + {rates_path.name}")
             try:
                 result = analyze_steps.process_file(h5_path)
                 if result is None:
@@ -137,6 +142,9 @@ def collect_intrinsics(
                 elif not csv_path.exists():
                     out["status"] = "error"
                     out["error"] = f"process_file finished but {csv_path} was not written"
+                elif not rates_path.exists():
+                    out["status"] = "error"
+                    out["error"] = f"process_file finished but {rates_path} was not written"
                 else:
                     out["status"] = "computed"
             except Exception as exc:
@@ -154,6 +162,7 @@ def collect_intrinsics(
             "metadata_file",
             "h5_path",
             "intrinsics_csv_path",
+            "step_rates_csv_path",
             "drug_applied",
             "drug_name",
             "drug_concentration",

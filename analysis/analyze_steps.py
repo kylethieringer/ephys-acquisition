@@ -34,6 +34,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from acquisition.trial_protocol import protocol_from_dict
+from analysis.detect_spikes import detect_spikes
 
 # ── Apply custom matplotlib style ────────────────────────────────────────
 _STYLE_PATH = Path(__file__).resolve().parent / "kt.mplstyle"
@@ -937,6 +938,85 @@ def compute_all_intrinsics(
 # Segment extraction
 # =========================================================================
 
+def compute_step_firing_rates(
+    data: np.ndarray,
+    step_protocols: list[list[dict]],
+    step_protocol_meta: list[dict],
+    protocol_runs: list[dict],
+    sr: int,
+    display_scales: np.ndarray,
+    detector_kwargs: dict | None = None,
+    vm_ch: int = VM_CH,
+) -> list[dict]:
+    """Detect spikes during each step and compute per-step firing rates.
+
+    The hyperpolarization pulse is excluded.  Spikes are counted only
+    within the step's commanded-current window (``onset`` to ``offset``),
+    so rebound spikes in the post-step relaxation are not counted.
+
+    Parameters
+    ----------
+    data : ndarray, shape (n_channels, n_samples)
+        Raw recording.
+    step_protocols : list[list[dict]]
+        Each step_protocol is a list of pulse dicts with ``onset``,
+        ``offset``, ``amplitude_pA``.
+    step_protocol_meta : list[dict]
+        Per-step_protocol metadata (used to identify the hyperpol pulse).
+    protocol_runs : list[dict]
+        Parsed protocol runs.
+    sr : int
+        Sampling rate in Hz.
+    display_scales : ndarray
+        Per-channel scale factors.
+    detector_kwargs : dict, optional
+        Forwarded to :func:`detect_spikes`.
+
+    Returns
+    -------
+    list[dict]
+        One row per step.  Keys: ``step_protocol_index``,
+        ``step_index_in_protocol``, ``amplitude_pA``, ``duration_ms``,
+        ``n_spikes``, ``firing_rate_hz``.
+    """
+    if detector_kwargs is None:
+        detector_kwargs = {}
+
+    rows: list[dict] = []
+    for proto_idx, (step_protocol, meta) in enumerate(
+        zip(step_protocols, step_protocol_meta)
+    ):
+        apply_sample = meta["apply_sample"]
+        stim_index = meta.get("stimulus_index", -1)
+        _, steps = separate_hyperpol(
+            step_protocol, protocol_runs, apply_sample, stim_index
+        )
+        if not steps:
+            continue
+
+        for step_idx, step in enumerate(steps):
+            onset = step["onset"]
+            offset = step["offset"]
+            duration_samples = max(1, offset - onset)
+            duration_ms = duration_samples / sr * 1000.0
+
+            vm = data[vm_ch, onset:offset] * display_scales[vm_ch]
+            spike_idx = detect_spikes(vm, sr, **detector_kwargs)
+            n_spikes = int(len(spike_idx))
+            firing_rate_hz = n_spikes / (duration_samples / sr)
+
+            rows.append({
+                "step_protocol_index": proto_idx,
+                "step_index_in_protocol": step_idx,
+                "amplitude_pA": round(float(step["amplitude_pA"]), 1),
+                "duration_ms": round(duration_ms, 2),
+                "n_spikes": n_spikes,
+                "firing_rate_hz": round(firing_rate_hz, 2),
+            })
+
+    return rows
+
+
 def extract_step_segments(
     data: np.ndarray,
     steps: list[dict],
@@ -1312,6 +1392,39 @@ def write_csv(intrinsics: list[dict], output_path: Path) -> None:
     print(f"\nIntrinsic properties saved to: {output_path}")
 
 
+def write_step_rates_csv(rows: list[dict], output_path: Path) -> None:
+    """Write per-step firing rates to a CSV file.
+
+    Parameters
+    ----------
+    rows : list[dict]
+        Output of :func:`compute_step_firing_rates`.
+    output_path : Path
+        Destination file path.
+    """
+    if not rows:
+        print("No step rates to write.")
+        return
+
+    os.makedirs(output_path.parent, exist_ok=True)
+
+    fieldnames = [
+        "step_protocol_index",
+        "step_index_in_protocol",
+        "amplitude_pA",
+        "duration_ms",
+        "n_spikes",
+        "firing_rate_hz",
+    ]
+
+    with open(output_path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    print(f"Step firing rates saved to: {output_path}")
+
+
 # =========================================================================
 # Interactive loop
 # =========================================================================
@@ -1547,7 +1660,11 @@ def interactive_loop(
 # Main
 # =========================================================================
 
-def process_file(h5_path: Path) -> dict | None:
+def process_file(
+    h5_path: Path,
+    compute_step_rates: bool = True,
+    spike_detector_kwargs: dict | None = None,
+) -> dict | None:
     """Load h5, detect step_protocols, compute intrinsics, and write the CSV.
 
     This is the non-interactive core of the analysis pipeline, suitable
@@ -1555,8 +1672,21 @@ def process_file(h5_path: Path) -> dict | None:
     can also plot interactively, or ``None`` if loading or step_protocol
     detection failed.
 
+    Parameters
+    ----------
+    h5_path
+        Path to the continuous HDF5 recording.
+    compute_step_rates
+        When True (default), additionally count spikes per step and write
+        a ``{stem}_step_rates.csv`` next to ``{stem}_intrinsics.csv``.
+    spike_detector_kwargs
+        Forwarded to :func:`detect_spikes` (e.g. to override
+        ``height_mV``/``prominence_mV``).
+
     Returned dict keys: ``info``, ``step_protocols``, ``step_protocol_meta``,
-    ``intrinsics``, ``protocol_runs``, ``detection_source``, ``csv_path``.
+    ``intrinsics``, ``protocol_runs``, ``detection_source``, ``csv_path``,
+    ``step_rates`` (list[dict] when computed, else None),
+    ``step_rates_csv_path`` (Path when computed, else None).
     """
     try:
         info = load_continuous_h5(h5_path)
@@ -1616,6 +1746,19 @@ def process_file(h5_path: Path) -> dict | None:
     csv_path = Path(FIG_DIR) / "csv" / f"{h5_path.stem}_intrinsics.csv"
     write_csv(intrinsics, csv_path)
 
+    step_rates: list[dict] | None = None
+    step_rates_csv_path: Path | None = None
+    if compute_step_rates:
+        step_rates = compute_step_firing_rates(
+            data, step_protocols, step_protocol_meta, protocol_runs,
+            sr, display_scales,
+            detector_kwargs=spike_detector_kwargs,
+        )
+        step_rates_csv_path = (
+            Path(FIG_DIR) / "csv" / f"{h5_path.stem}_step_rates.csv"
+        )
+        write_step_rates_csv(step_rates, step_rates_csv_path)
+
     return {
         "info": info,
         "step_protocols": step_protocols,
@@ -1624,6 +1767,8 @@ def process_file(h5_path: Path) -> dict | None:
         "protocol_runs": protocol_runs,
         "detection_source": detection_source,
         "csv_path": csv_path,
+        "step_rates": step_rates,
+        "step_rates_csv_path": step_rates_csv_path,
     }
 
 
