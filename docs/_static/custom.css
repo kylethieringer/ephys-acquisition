@@ -1,0 +1,54 @@
+/* Ephys Acquisition — theme accents.
+   Colors track the acquisition GUI's dark palette (#14161a base, #e7ebf0 text)
+   so the docs and the application read as one system. */
+
+html[data-theme="light"] {
+    --pst-color-primary: #0f6d8c;
+    --pst-color-primary-highlight: #0b556e;
+    --pst-color-secondary: #b4531f;
+    --pst-color-secondary-highlight: #8f4118;
+    --pst-color-link: #0f6d8c;
+    --pst-color-link-hover: #0b556e;
+    --pst-color-inline-code: #b4531f;
+}
+
+html[data-theme="dark"] {
+    --pst-color-primary: #4db8d8;
+    --pst-color-primary-highlight: #7fd0e8;
+    --pst-color-secondary: #e8965a;
+    --pst-color-secondary-highlight: #f0b184;
+    --pst-color-link: #4db8d8;
+    --pst-color-link-hover: #7fd0e8;
+    --pst-color-inline-code: #e8965a;
+}
+
+/* Status badges used in the QC pages — mirrors the QC report's own key. */
+.qc-status {
+    display: inline-block;
+    padding: 0.1em 0.6em;
+    border-radius: 0.8em;
+    font-size: 0.85em;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+.qc-status-pass { background: #1f7a4d; color: #ffffff; }
+.qc-status-warn { background: #b8860b; color: #ffffff; }
+.qc-status-fail { background: #a32d2d; color: #ffffff; }
+.qc-status-skip { background: #5c6470; color: #ffffff; }
+
+/* Tighten the landing-page card grid a little. */
+.sd-card {
+    border-radius: 0.5rem;
+}
+
+.sd-card .sd-card-title {
+    font-weight: 600;
+}
+
+/* Channel/units tables read better without full-width stretch. */
+table.docutils td,
+table.docutils th {
+    padding: 0.4em 0.8em;
+}

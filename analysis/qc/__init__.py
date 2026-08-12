@@ -1,10 +1,16 @@
 """
 Post-recording QC checks.
 
-Public surface:
+Public surface::
 
-    from analysis.qc import Check, Status, run_qc
+    from analysis.qc import Check, Status, worst
+    from analysis.qc.report import run_qc
+
     result = run_qc("path/to/recording.h5")
+
+``run_qc`` deliberately lives in :mod:`analysis.qc.report` rather than being
+re-exported here: importing it pulls in matplotlib, plotly, and jinja2, while
+this package stays cheap to import for the check modules themselves.
 
 Each check returns a :class:`Check` with a status (pass / warn / fail),
 a short message, and a dict of numeric metrics that also lands in the

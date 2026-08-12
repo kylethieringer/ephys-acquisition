@@ -44,11 +44,11 @@ units.  Each channel entry in :data:`AI_CHANNELS` carries its own scale:
 ===========  ====================  =====================================
 Channel      Raw → Display         Physical meaning
 ===========  ====================  =====================================
-ScAmpOut     V × 10.0 → mV        Scaled amplifier output (membrane V)
-RawAmpOut    V × 2.0  → nA        Raw current monitor
-AmpCmd       V × 400  → pA        Amplifier command signal (loopback)
-Camera       V × 1.0  → V         Camera TTL loopback / sync pulse
-TTLLoopback  V × 1.0  → V         DAQ TTL output loopback
+ScAmpOut     V × 10.0 → mV         Scaled amplifier output (membrane V)
+RawAmpOut    V × 2.0 → nA          Raw current monitor
+AmpCmd       V × 400 → pA          Amplifier command signal (loopback)
+Camera       V × 1.0 → V           Camera TTL loopback / sync pulse
+TTLLoopback  V × 1.0 → V           DAQ TTL output loopback
 ===========  ====================  =====================================
 
 Developer notes
