@@ -22,20 +22,40 @@ import numpy as np
 def load_recording(h5_path: str | Path) -> dict[str, Any]:
     """Load an ephys recording and all companion artifacts for QC.
 
-    Returns a dict with:
-        h5_path, bin_path, sidecar_path (Paths; may not all exist)
-        video_paths: list[Path] of AVI files associated with this recording
-        acquisition_log_path: Path or None (live buffer-fill log if present)
-        recording_mode: "continuous" or "trial"
-        sample_rate, channel_names, display_scales, units, start_time
-        data: (n_ch, n_samp) float64, only for continuous mode
-        trials: list of dict for trial mode, each with
-                 trial_index, stimulus_index, stimulus_name, onset_time,
-                 video_file, data (n_ch, n_samp)
-        clamp_mode, n_trials, protocol_json (trial mode only)
-        subject: dict of subject attributes (may be empty)
-        stimulus_events: list of dicts or [] (continuous mode)
-        sidecar: parsed _metadata.json dict or None
+    Returns:
+        A bundle dict.  Keys present for every recording:
+
+        ``h5_path``, ``bin_path``, ``sidecar_path``
+            Paths to the recording and its companions.  Not all are
+            guaranteed to exist on disk.
+        ``video_paths``
+            ``list[Path]`` of AVI files associated with this recording.
+        ``acquisition_log_path``
+            ``Path`` to the buffer-fill log, or ``None`` if none was written.
+        ``recording_mode``
+            ``"continuous"`` or ``"trial"``.
+        ``sample_rate``, ``channel_names``, ``display_scales``, ``units``, ``start_time``
+            Acquisition metadata read from ``/metadata/``.
+        ``subject``
+            Dict of subject attributes; may be empty.
+        ``sidecar``
+            Parsed ``_metadata.json`` contents, or ``None``.
+
+        Continuous mode adds:
+
+        ``data``
+            ``(n_channels, n_samples)`` float64 array.
+        ``stimulus_events``
+            List of event dicts; empty when no protocol was run.
+
+        Trial mode adds:
+
+        ``trials``
+            List of dicts, each with ``trial_index``, ``stimulus_index``,
+            ``stimulus_name``, ``onset_time``, ``video_file``, and
+            ``data`` of shape ``(n_channels, n_samples)``.
+        ``clamp_mode``, ``n_trials``, ``protocol_json``
+            Protocol metadata for the trial set.
     """
     h5_path = Path(h5_path)
     if not h5_path.exists():

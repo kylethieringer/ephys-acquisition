@@ -1,0 +1,56 @@
+name: Documentation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Allow one concurrent deployment; a newer push supersedes an in-flight one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # sphinx-autoapi parses the source statically, so the docs build needs
+      # only the docs dependency group — no NI-DAQmx driver, Basler SDK, or Qt.
+      # --only-group (not --group) omits the project and its dependencies:
+      # 47 packages in ~1s instead of pulling PySide6, pypylon, and OpenCV.
+      # -W turns warnings into errors; the build is currently warning-clean.
+      - name: Build docs
+        run: uv run --only-group docs sphinx-build -W --keep-going -b html docs docs/_build/html
+
+      - name: Upload artifact
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/_build/html
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

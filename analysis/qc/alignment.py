@@ -228,7 +228,8 @@ def check_ao_ai_latency() -> Check:
 def check_inter_channel_crosstalk() -> Check:
     """Drive AO0 hard and measure narrowband coupling onto the Camera/TTL channels.
 
-    Mechanics:
+    **Mechanics**
+
     - TTL counter runs during the test so PFI12 is actively driven (not
       floating); floating RSE inputs give false-positive pickup.
     - Drive frequency (137 Hz) is offset from the 100 Hz TTL rate and the

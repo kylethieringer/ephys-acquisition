@@ -1150,12 +1150,13 @@ def plot_step_overlay(
     ratio) and command current on the bottom, with minimal aesthetics
     (no spines/ticks), L-shaped scale bars, and an RMP marker.
 
-    Coloring:
-        - If ``sweep_labels`` is None, traces are colored by injection
-          amplitude (black→blue CMAP).
-        - If ``sweep_labels`` is provided (one label per sweep), each
-          sweep gets a single distinct color sampled from ``Spectral``
-          (all traces in that sweep share it). A legend is drawn.
+    **Coloring**
+
+    - If ``sweep_labels`` is None, traces are colored by injection
+      amplitude (black→blue CMAP).
+    - If ``sweep_labels`` is provided (one label per sweep), each
+      sweep gets a single distinct color sampled from ``Spectral``
+      (all traces in that sweep share it). A legend is drawn.
 
     Parameters
     ----------
@@ -1683,10 +1684,14 @@ def process_file(
         Forwarded to :func:`detect_spikes` (e.g. to override
         ``height_mV``/``prominence_mV``).
 
-    Returned dict keys: ``info``, ``step_protocols``, ``step_protocol_meta``,
-    ``intrinsics``, ``protocol_runs``, ``detection_source``, ``csv_path``,
-    ``step_rates`` (list[dict] when computed, else None),
-    ``step_rates_csv_path`` (Path when computed, else None).
+    Returns
+    -------
+    dict or None
+        ``None`` if loading or step-protocol detection failed.  Otherwise a
+        dict with keys ``info``, ``step_protocols``, ``step_protocol_meta``,
+        ``intrinsics``, ``protocol_runs``, ``detection_source``, ``csv_path``,
+        ``step_rates`` (``list[dict]`` when computed, else ``None``), and
+        ``step_rates_csv_path`` (``Path`` when computed, else ``None``).
     """
     try:
         info = load_continuous_h5(h5_path)

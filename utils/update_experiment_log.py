@@ -1,7 +1,7 @@
 """
 update_experiment_log.py — Build / refresh an experiment database CSV.
 
-Scans a data directory for all *_metadata.json sidecar files produced by the
+Scans a data directory for all ``*_metadata.json`` sidecar files produced by the
 acquisition system and merges their contents into a CSV log.  User-added
 columns (notes, quality scores, etc.) are never overwritten.
 

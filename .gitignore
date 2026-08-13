@@ -2,3 +2,7 @@ __pycache__
 .venv/
 utils/.checklist_state.json
 logs/
+
+# Sphinx build output and AutoAPI-generated sources
+docs/_build/
+docs/autoapi/
