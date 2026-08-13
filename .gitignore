@@ -6,6 +6,10 @@ logs/
 # setuptools metadata, regenerated on every install/sync
 *.egg-info/
 
+# Editor and tool state
+.idea/
+.claude/
+
 # Sphinx build output and AutoAPI-generated sources
 docs/_build/
 docs/autoapi/
