@@ -3,6 +3,9 @@ __pycache__
 utils/.checklist_state.json
 logs/
 
+# setuptools metadata, regenerated on every install/sync
+*.egg-info/
+
 # Sphinx build output and AutoAPI-generated sources
 docs/_build/
 docs/autoapi/
