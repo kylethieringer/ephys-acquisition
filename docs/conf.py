@@ -134,7 +134,13 @@ html_theme = "pydata_sphinx_theme"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 html_favicon = "_static/favicon.ico"
-html_title = "Ephys Acquisition"
+# Empty drops the site-name suffix from every <title>, so tabs read
+# "Post-recording QC" rather than "Post-recording QC — Ephys Acquisition".
+# Setting it to the project name instead would make the landing page read
+# "Ephys Acquisition — Ephys Acquisition", since Sphinx appends the suffix
+# even when it duplicates the page title.  The navbar brand is unaffected —
+# that comes from html_theme_options["logo"]["text"] below.
+html_title = ""
 html_show_sourcelink = False
 
 html_theme_options = {
