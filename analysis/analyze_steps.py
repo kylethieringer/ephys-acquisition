@@ -49,6 +49,8 @@ MIN_AMP_PA = 5      # ignore plateaus with |amplitude| below this (pA)
 MAX_GAP_MS = 2500   # max silence between steps in the same step_protocol (ms)
 PAD_MS = 100        # pre-step baseline shown before each step onset (ms)
 BASELINE_MS = 500   # window before first pulse used to estimate RMP (ms)
+BASELINE_SETTLE_MS = 50   # settling time allowed after the preceding pulse (ms)
+MIN_BASELINE_MS = 50      # shortest usable baseline window; below this RMP is NaN
 FIG_DIR = r"D:\results"
 
 # Black -> medium blue colormap for step-amplitude coloring
@@ -873,6 +875,16 @@ def compute_all_intrinsics(
     """
     margin_samples = ms_to_samples(10, sr)
     baseline_window_samples = ms_to_samples(BASELINE_MS, sr)
+    settle_samples = ms_to_samples(BASELINE_SETTLE_MS, sr)
+    min_baseline_samples = ms_to_samples(MIN_BASELINE_MS, sr)
+
+    # Offsets of every pulse in the recording, so the baseline window can be
+    # clamped to the end of whatever last drove the cell — the previous
+    # protocol's final step, most often.
+    pulse_offsets = np.array(
+        sorted(p["offset"] for proto in step_protocols for p in proto)
+    )
+
     results = []
 
     for idx, (step_protocol, meta) in enumerate(zip(step_protocols, step_protocol_meta)):
@@ -892,7 +904,20 @@ def compute_all_intrinsics(
         first_pulse_onset = step_protocol[0]["onset"]
         baseline_end = first_pulse_onset - margin_samples
         baseline_start = max(0, min(apply_sample, baseline_end - baseline_window_samples))
-        rmp = compute_rmp(data, display_scales, baseline_start, baseline_end)
+
+        # Back-to-back protocols can sit closer together than BASELINE_MS, in
+        # which case the look-back reaches into the previous protocol's final
+        # step and the median lands on driven Vm rather than rest.  Clamp to
+        # the last pulse that ended before this window, plus settling time.
+        prior = pulse_offsets[pulse_offsets < baseline_end]
+        if prior.size:
+            baseline_start = max(baseline_start, int(prior[-1]) + settle_samples)
+
+        # Too little settled baseline left to trust a median.
+        if baseline_end - baseline_start < min_baseline_samples:
+            rmp = float("nan")
+        else:
+            rmp = compute_rmp(data, display_scales, baseline_start, baseline_end)
 
         # Input resistance: prefer a protocol-declared hyperpol pulse; if
         # none, use the first negative step in the step_protocol (it remains
