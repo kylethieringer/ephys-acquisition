@@ -49,6 +49,8 @@ into the {doc}`API reference <../autoapi/index>` for the details.
   - Basler camera worker thread
 * - {py:mod}`hardware.camera_config`
   - Camera settings
+* - {py:mod}`hardware.audio_monitor`
+  - Streams the membrane channel to the speaker; no Qt widgets
 :::
 
 ## `acquisition/` — recording
@@ -140,12 +142,9 @@ Nothing here touches hardware; everything operates on saved files.
   - Streamlit browser over the experiment log
 * - {py:mod}`utils.update_experiment_log`
   - Builds the experiment log CSV from sidecars
+* - {py:mod}`utils.expt_id`
+  - Derives the next experiment ID from folder names — pure, no Qt
 :::
-
-## Not documented
-
-`analysis/_head_sf.py` and `analysis/align_video_skeleton.py` are work in
-progress and deliberately excluded from the API reference.
 
 ## Import boundaries worth knowing
 
