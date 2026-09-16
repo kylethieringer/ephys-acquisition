@@ -88,9 +88,6 @@ autoapi_ignore = [
     "*/assets/*",
     "*/*.egg-info/*",
     "*/conftest.py",
-    # work in progress — excluded deliberately, see docs/reference/code-map.md
-    "*/_head_sf.py",
-    "*/align_video_skeleton.py",
 ]
 
 # -- Napoleon (docstring styles) ---------------------------------------------
