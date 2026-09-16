@@ -10,6 +10,10 @@ logs/
 .idea/
 .claude/
 
+# Local MCP server registry: the PyCharm entry points at a localhost
+# port that differs per machine and per IDE session.
+.mcp.json
+
 # Sphinx build output and AutoAPI-generated sources
 docs/_build/
 docs/autoapi/
