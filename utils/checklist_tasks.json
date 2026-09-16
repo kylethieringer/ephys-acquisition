@@ -14,7 +14,12 @@
         { "key": "open_log",   "label": "Open" }
       ]
     },
-    { "id": "copy_to_drive",         "label": "Copy data to Google Drive" },
+    { "id": "copy_to_drive",         "label": "Copy data to Google Drive",
+      "actions": [
+        { "key": "sync_gdrive_dryrun", "label": "Dry run" },
+        { "key": "sync_gdrive",        "label": "Sync" }
+      ]
+    },
     { "id": "visualize_data",        "label": "Visualize data",         "action": "analysis_gui" },
     { "id": "analyze_steps",         "label": "Analyze steps",          "action": "analyze_steps" }
   ]
