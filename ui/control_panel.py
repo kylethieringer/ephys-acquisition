@@ -48,6 +48,7 @@ from PySide6.QtWidgets import (
 
 from hardware.audio_monitor import gain_from_volume
 from ui.widgets import PillToggle
+from utils.expt_id import next_expt_id
 
 
 class ControlPanel(QWidget):
@@ -281,6 +282,21 @@ class ControlPanel(QWidget):
         self._expt_id_edit.setProperty("mono", True)
         self._expt_id_edit.textChanged.connect(self.expt_id_changed.emit)
 
+        # Refresh button: fill in the next unused ID found in the save folder.
+        self._next_id_btn = QPushButton()
+        self._next_id_btn.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload))
+        self._next_id_btn.setFixedSize(30, 30)
+        self._next_id_btn.setProperty("icon", "true")
+        self._next_id_btn.setToolTip("Fill in the next experiment ID from the save folder")
+        self._next_id_btn.clicked.connect(self._fill_next_expt_id)
+
+        expt_id_row = QWidget()
+        expt_id_layout = QHBoxLayout(expt_id_row)
+        expt_id_layout.setContentsMargins(0, 0, 0, 0)
+        expt_id_layout.setSpacing(4)
+        expt_id_layout.addWidget(self._expt_id_edit, stretch=1)
+        expt_id_layout.addWidget(self._next_id_btn)
+
         self._genotype_edit  = QLineEdit()
         self._genotype_edit.setPlaceholderText("e.g. gal4-uas")
 
@@ -301,7 +317,7 @@ class ControlPanel(QWidget):
         grid.addWidget(_tiny("Sex"),               0, 3)
         grid.addWidget(_tiny("Target cell"),       0, 4)
 
-        grid.addWidget(self._expt_id_edit,   1, 0)
+        grid.addWidget(expt_id_row,          1, 0)
         grid.addWidget(self._genotype_edit,  1, 1)
         grid.addWidget(self._age_edit,       1, 2)
         grid.addWidget(self._sex_combo,      1, 3)
@@ -517,6 +533,31 @@ class ControlPanel(QWidget):
         if folder.exists():
             for p in sorted(folder.glob("*.json")):
                 self._protocol_combo.addItem(p.stem, userData=str(p))
+
+    def _fill_next_expt_id(self) -> None:
+        """Fill the Experiment ID field with the next ID in the save folder.
+
+        Experiment folders are scanned newest-modified first, so the series
+        continued is whichever one was recorded most recently.  Typing a letter
+        prefix into the field first selects that series instead — the way to
+        start a new one.  The field is left untouched if no ID can be derived.
+        """
+        from pathlib import Path as _Path
+        folder = _Path(self._save_dir)
+        try:
+            subdirs = [p for p in folder.iterdir() if p.is_dir()]
+            subdirs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        except OSError as exc:
+            self.set_status(f"Could not read save directory: {exc}")
+            return
+
+        next_id = next_expt_id([p.name for p in subdirs], self._expt_id_edit.text())
+        if next_id is None:
+            self.set_status(
+                "No experiment folders found — type a prefix (e.g. fre) and click again."
+            )
+            return
+        self._expt_id_edit.setText(next_id)
 
     def _on_protocol_selected(self, index: int) -> None:
         path = self._protocol_combo.itemData(index)
