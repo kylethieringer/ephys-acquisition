@@ -31,35 +31,35 @@ an automatic quality-control pass on every recording.
 :gutter: 3
 
 :::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Getting started
-:link: getting-started/installation
+:link: getting-started/index
 :link-type: doc
 
 Requirements, installation, wiring, and your first recording.
 :::
 
 :::{grid-item-card} {octicon}`beaker;1.5em;sd-mr-1` Running experiments
-:link: guide/main-window
+:link: guide/index
 :link-type: doc
 
 The interface, clamp modes, protocols, and the two acquisition modes.
 :::
 
 :::{grid-item-card} {octicon}`database;1.5em;sd-mr-1` Data
-:link: data/file-layout
+:link: data/index
 :link-type: doc
 
 What gets written, the HDF5 layouts, and loading recordings in Python.
 :::
 
 :::{grid-item-card} {octicon}`checklist;1.5em;sd-mr-1` Quality control
-:link: qc/post-recording
+:link: qc/index
 :link-type: doc
 
 The automatic QC pass, how to read it, and the weekly rig alignment check.
 :::
 
 :::{grid-item-card} {octicon}`graph;1.5em;sd-mr-1` Analysis
-:link: analysis/experiment-log
+:link: analysis/index
 :link-type: doc
 
 The experiment log, intrinsic properties, summary figures, video alignment.
@@ -105,59 +105,13 @@ accurate without anyone remembering to regenerate it.
 
 ```{toctree}
 :hidden:
-:caption: Getting started
+:maxdepth: 2
 
-getting-started/installation
-getting-started/quickstart
-getting-started/hardware-setup
-```
-
-```{toctree}
-:hidden:
-:caption: User guide
-
-guide/main-window
-guide/clamp-modes
-guide/protocols
-guide/continuous-mode
-guide/trial-mode
-guide/experiment-checklist
-```
-
-```{toctree}
-:hidden:
-:caption: Data
-
-data/file-layout
-data/hdf5-format
-data/loading-data
-```
-
-```{toctree}
-:hidden:
-:caption: Quality control
-
-qc/post-recording
-qc/interpreting-reports
-qc/alignment-check
-```
-
-```{toctree}
-:hidden:
-:caption: Analysis
-
-analysis/experiment-log
-analysis/intrinsics
-analysis/summary-figures
-analysis/video-alignment
-```
-
-```{toctree}
-:hidden:
-:caption: Reference
-
-reference/configuration
-reference/troubleshooting
-reference/code-map
+getting-started/index
+guide/index
+data/index
+qc/index
+analysis/index
+reference/index
 autoapi/index
 ```

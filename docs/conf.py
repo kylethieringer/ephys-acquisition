@@ -151,7 +151,9 @@ html_theme_options = {
     "show_toc_level": 2,
     "show_nav_level": 1,
     "navigation_depth": 3,
-    "header_links_before_dropdown": 5,
+    # Seven top-level toctree entries (six sections + the API reference) —
+    # keep them all in the navbar rather than folding two into a "More" menu.
+    "header_links_before_dropdown": 7,
     "navbar_align": "left",
     "navbar_end": ["theme-switcher", "navbar-icon-links"],
     "back_to_top_button": True,
