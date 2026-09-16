@@ -51,6 +51,7 @@ PAD_MS = 100        # pre-step baseline shown before each step onset (ms)
 BASELINE_MS = 500   # window before first pulse used to estimate RMP (ms)
 BASELINE_SETTLE_MS = 50   # settling time allowed after the preceding pulse (ms)
 MIN_BASELINE_MS = 50      # shortest usable baseline window; below this RMP is NaN
+SPIKE_BLANK_MS = 2.0      # ignore detections this soon after step onset
 FIG_DIR = r"D:\results"
 
 # Black -> medium blue colormap for step-amplitude coloring
@@ -1027,6 +1028,12 @@ def compute_step_firing_rates(
 
             vm = data[vm_ch, onset:offset] * display_scales[vm_ch]
             spike_idx = detect_spikes(vm, sr, **detector_kwargs)
+            # The capacitive transient at step onset is fast and tall
+            # enough to pass as a spike at large amplitudes.  Real first
+            # spikes arrive no earlier than ~3.6 ms (5th percentile across
+            # the dataset); the artifacts all land within 0.2 ms.  The
+            # rate denominator stays the full step duration.
+            spike_idx = spike_idx[spike_idx >= ms_to_samples(SPIKE_BLANK_MS, sr)]
             n_spikes = int(len(spike_idx))
             firing_rate_hz = n_spikes / (duration_samples / sr)
 
