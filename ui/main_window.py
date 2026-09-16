@@ -32,7 +32,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QFrame,
@@ -71,6 +71,7 @@ from config import (
 from acquisition.continuous_mode import ContinuousAcquisition
 from acquisition.trial_mode import TrialAcquisition
 from acquisition.trial_protocol import protocol_from_dict
+from hardware.audio_monitor import AudioMonitor
 from ui.camera_panel import CameraPanel
 from ui.control_panel import ControlPanel
 from ui.protocol_builder import ProtocolBuilderPanel
@@ -101,6 +102,10 @@ class MainWindow(QMainWindow):
         self._active_mode = "continuous"
         self._current_clamp_mode = "current_clamp"
         self._pending_protocol: dict | None = None
+
+        # Live spike audio.  Fed from the same AI chunk callback as the ring
+        # buffer; silent until the user ticks the Audio box.
+        self._audio_monitor = AudioMonitor()
 
         # --- Panels ---
         self._trace_panel = LiveTracePanel()
@@ -166,6 +171,8 @@ class MainWindow(QMainWindow):
         self._wire_chrome_and_sidebar()
         self._wire_protocol_builder()
 
+        self._restore_layout()
+
     # ------------------------------------------------------------------
     # Signal wiring
     # ------------------------------------------------------------------
@@ -192,7 +199,12 @@ class MainWindow(QMainWindow):
 
         self._acq.connect_frame_callback(self._camera_panel.update_frame)
         self._trial_acq.connect_frame_callback(self._camera_panel.update_frame)
-        self._trial_acq.connect_data_callback(self._acq.ring_buffer.push)
+
+        # Continuous mode already pushes to the ring buffer internally, so the
+        # data callback only has to feed audio.  Trial mode pushes via the
+        # callback, so there it fans out to both.
+        self._acq.connect_data_callback(self._audio_monitor.push)
+        self._trial_acq.connect_data_callback(self._fan_out_trial_chunk)
 
     def _wire_control_signals(self) -> None:
         self._ctrl_panel.start_requested.connect(self._on_start)
@@ -207,6 +219,8 @@ class MainWindow(QMainWindow):
         self._ctrl_panel.run_protocol_requested.connect(self._on_start_protocol)
         self._ctrl_panel.stop_protocol_requested.connect(self._on_stop_protocol)
         self._ctrl_panel.protocol_selected.connect(self._on_protocol_file_selected)
+        self._ctrl_panel.audio_enabled_changed.connect(self._audio_monitor.set_enabled)
+        self._ctrl_panel.audio_gain_changed.connect(self._audio_monitor.set_gain)
 
         self._camera_panel.ttl_config_changed.connect(self._on_ttl_changed)
         self._stim_panel.stimulus_applied.connect(self._acq.apply_stimulus_waveform)
@@ -235,7 +249,12 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _build_acquire_page(self) -> QWidget:
-        """Acquire: traces (left) + camera-pinned right column (subject / protocol / stim)."""
+        """Acquire: traces (left) + camera-pinned right column (subject / protocol / stim).
+
+        Both splitters are user-draggable and their positions survive a restart
+        (see :meth:`_restore_layout`): the horizontal one trades trace width for
+        sidebar width, the vertical one trades camera height for card height.
+        """
         page = QWidget()
         page_layout = QHBoxLayout(page)
         page_layout.setContentsMargins(0, 0, 0, 0)
@@ -245,21 +264,20 @@ class MainWindow(QMainWindow):
         splitter.setChildrenCollapsible(False)
         splitter.addWidget(self._trace_panel)
 
-        right = QWidget()
-        right_layout = QVBoxLayout(right)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(0)
+        right = QSplitter(Qt.Vertical)
+        right.setChildrenCollapsible(False)
 
         self._acquire_camera_mount = QFrame()
-        self._acquire_camera_mount.setFixedHeight(300)
+        self._acquire_camera_mount.setMinimumHeight(160)
         self._acquire_camera_mount.setFrameShape(QFrame.NoFrame)
         cm_layout = QVBoxLayout(self._acquire_camera_mount)
         cm_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.addWidget(self._acquire_camera_mount)
+        right.addWidget(self._acquire_camera_mount)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setMinimumHeight(120)
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -276,12 +294,21 @@ class MainWindow(QMainWindow):
 
         layout.addStretch(1)
         scroll.setWidget(container)
-        right_layout.addWidget(scroll, stretch=1)
+        right.addWidget(scroll)
+
+        # Camera holds the height it was dragged to; extra window height goes
+        # to the cards below it.
+        right.setStretchFactor(0, 0)
+        right.setStretchFactor(1, 1)
+        right.setSizes([300, 700])
 
         splitter.addWidget(right)
         splitter.setStretchFactor(0, 65)
         splitter.setStretchFactor(1, 35)
         splitter.setSizes([1000, 540])
+
+        self._acquire_splitter = splitter
+        self._acquire_right_splitter = right
 
         page_layout.addWidget(splitter)
 
@@ -593,6 +620,34 @@ class MainWindow(QMainWindow):
         return self._setup_camera_card
 
     # ------------------------------------------------------------------
+    # Layout persistence
+    # ------------------------------------------------------------------
+
+    def _persisted_splitters(self) -> list[tuple[str, QSplitter]]:
+        """Settings key -> splitter, shared by save and restore so keys can't drift."""
+        return [
+            ("acquire/main_splitter", self._acquire_splitter),
+            ("acquire/right_splitter", self._acquire_right_splitter),
+        ]
+
+    def _restore_layout(self) -> None:
+        """Re-apply splitter positions saved on the previous exit, if any.
+
+        ``QSettings()`` resolves against the org/app names set in ``main.py``.
+        A missing key leaves the built-in default sizes in place.
+        """
+        settings = QSettings()
+        for key, splitter in self._persisted_splitters():
+            state = settings.value(key)
+            if state is not None:
+                splitter.restoreState(state)
+
+    def _save_layout(self) -> None:
+        settings = QSettings()
+        for key, splitter in self._persisted_splitters():
+            settings.setValue(key, splitter.saveState())
+
+    # ------------------------------------------------------------------
     # Widget re-parenting helpers
     # ------------------------------------------------------------------
 
@@ -823,6 +878,18 @@ class MainWindow(QMainWindow):
     # Acquisition state callbacks
     # ------------------------------------------------------------------
 
+    def _fan_out_trial_chunk(self, chunk) -> None:
+        """Send a trial-mode AI chunk to the shared ring buffer and the speaker.
+
+        Trial mode has a single data callback, so both consumers are driven
+        from here.  Continuous mode fills the ring buffer itself.
+
+        Args:
+            chunk: ``(N_AI_CHANNELS, CHUNK_SIZE)`` float64 array in Volts.
+        """
+        self._acq.ring_buffer.push(chunk)
+        self._audio_monitor.push(chunk)
+
     def _on_acq_started(self) -> None:
         self._ctrl_panel.set_running(True)
         self._chrome.status_badge.set_state("acquiring")
@@ -910,6 +977,8 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def closeEvent(self, event) -> None:
+        self._save_layout()
+        self._audio_monitor.set_enabled(False)
         if self._trial_acq.is_running:
             self._trial_acq.stop()
         if self._acq.is_running:

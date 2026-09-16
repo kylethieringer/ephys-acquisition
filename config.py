@@ -249,6 +249,42 @@ AI_Y_DEFAULTS_VC: list[tuple[float, float]] = [
 Indices correspond to :data:`AI_CHANNELS_VC` row order.
 """
 
+# ---------------------------------------------------------------------------
+# Live audio monitor
+# ---------------------------------------------------------------------------
+
+AUDIO_CHANNEL_INDEX: int = 0
+"""Row of the AI chunk sent to the speaker.
+
+Row 0 is ``ScAmpOut`` (membrane potential) in current clamp and ``I_mem``
+(membrane current) in voltage clamp — in both modes the channel carrying
+the spikes.
+"""
+
+AUDIO_HIGHPASS_HZ: float = 100.0
+"""Corner frequency in Hz of the high-pass applied before playback.
+
+Removes the DC resting potential and slow baseline drift, which are
+inaudible anyway and would otherwise consume the whole output range.
+Action potentials (~1 ms) sit far above this corner and pass unattenuated.
+"""
+
+AUDIO_DEFAULT_GAIN: float = 0.1
+"""Volts-to-full-scale multiplier applied after the high-pass.
+
+At the default 0.1, a 10 V high-passed excursion (100 mV at the ai0 scale
+of 10 mV/V) reaches full scale.  Subthreshold activity is correspondingly
+quiet; raise the volume slider to hear it.
+"""
+
+AUDIO_BUFFER_MS: int = 50
+"""Audio sink buffer depth in ms.
+
+Small enough that what you hear stays roughly in step with the trace.
+Chunks arriving while the buffer is full are dropped rather than queued,
+so heavy GUI load causes a brief glitch instead of growing lag.
+"""
+
 TRACE_COLORS: list[str] = [
     "#00BFFF",   # ScAmpOut    — sky blue
     "#FF6B6B",   # RawAmpOut   — coral

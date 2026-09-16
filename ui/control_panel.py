@@ -40,11 +40,13 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QSizePolicy,
+    QSlider,
     QStyle,
     QVBoxLayout,
     QWidget,
 )
 
+from hardware.audio_monitor import gain_from_volume
 from ui.widgets import PillToggle
 
 
@@ -71,6 +73,10 @@ class ControlPanel(QWidget):
         stop_protocol_requested(): User clicked "Stop Protocol".
         protocol_selected(str): User chose a protocol file from the dropdown;
             argument is the full file path.
+        audio_enabled_changed(bool): User toggled the spike-audio monitor.
+        audio_gain_changed(float): User moved the volume slider.  Argument is
+            the playback gain, already mapped through
+            :func:`~hardware.audio_monitor.gain_from_volume`.
 
     Attributes:
         _save_dir (str): Currently selected save directory path.
@@ -88,6 +94,8 @@ class ControlPanel(QWidget):
     protocol_selected               = Signal(str)         # full file path
     status_text_changed             = Signal(str)         # forwarded from set_status
     expt_id_changed                 = Signal(str)         # forwarded from Experiment ID field
+    audio_enabled_changed           = Signal(bool)
+    audio_gain_changed              = Signal(float)       # playback gain, not slider %
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -445,6 +453,22 @@ class ControlPanel(QWidget):
         self._stop_rec_btn.setEnabled(False)
         self._stop_rec_btn.clicked.connect(self.stop_record_requested)
 
+        # Spike-audio monitor.  Off by default so starting acquisition never
+        # produces unexpected noise; independent of recording state.
+        self._audio_check = QCheckBox("🔊 Audio")
+        self._audio_check.setToolTip(
+            "Play the membrane channel through the speaker so spikes are audible"
+        )
+        self._audio_check.toggled.connect(self._on_audio_toggled)
+
+        self._audio_volume = QSlider(Qt.Horizontal)
+        self._audio_volume.setRange(0, 100)
+        self._audio_volume.setValue(50)
+        self._audio_volume.setFixedWidth(90)
+        self._audio_volume.setEnabled(False)
+        self._audio_volume.setToolTip("Monitor volume")
+        self._audio_volume.valueChanged.connect(self._on_audio_volume_changed)
+
         # Status label is hidden in the action bar (StatusBadge shows state
         # in the top chrome); kept here so set_status still works for API.
         self._status_lbl = QLabel("Ready")
@@ -453,18 +477,37 @@ class ControlPanel(QWidget):
 
         root.addWidget(self._start_btn)
         root.addWidget(self._stop_btn)
+        root.addWidget(self._make_separator())
+        root.addWidget(self._record_btn)
+        root.addWidget(self._stop_rec_btn)
+        root.addWidget(self._make_separator())
+        root.addWidget(self._audio_check)
+        root.addWidget(self._audio_volume)
+        root.addWidget(self._status_lbl, stretch=1)
+
+    @staticmethod
+    def _make_separator() -> QFrame:
+        """Build a short vertical rule for grouping the action bar buttons."""
         sep = QFrame()
         sep.setFrameShape(QFrame.VLine)
         sep.setStyleSheet("color: #2e333d;")
         sep.setFixedHeight(20)
-        root.addWidget(sep)
-        root.addWidget(self._record_btn)
-        root.addWidget(self._stop_rec_btn)
-        root.addWidget(self._status_lbl, stretch=1)
+        return sep
 
     # ------------------------------------------------------------------
     # Slots
     # ------------------------------------------------------------------
+
+    def _on_audio_toggled(self, checked: bool) -> None:
+        """Enable/disable the monitor and gate the volume slider with it."""
+        self._audio_volume.setEnabled(checked)
+        if checked:
+            self.audio_gain_changed.emit(gain_from_volume(self._audio_volume.value()))
+        self.audio_enabled_changed.emit(checked)
+
+    def _on_audio_volume_changed(self, value: int) -> None:
+        """Translate the slider position into a playback gain and emit it."""
+        self.audio_gain_changed.emit(gain_from_volume(value))
 
     def _scan_protocol_folder(self) -> None:
         """Scan the protocol folder and populate the dropdown with .json files."""
