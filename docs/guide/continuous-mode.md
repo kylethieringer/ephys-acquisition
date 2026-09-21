@@ -18,7 +18,8 @@ Start            → DAQ AI begins (traces visible); AO silent;
                    camera opens in hardware-triggered mode
                    (no TTL yet — no frames arrive)
 Record           → TTL fires; camera captures every triggered frame;
-                   HDF5 file and video file open
+                   HDF5 file and video file open; warns if no frame
+                   arrives within 2 s (recording continues)
 Stop Recording   → TTL ceases; after the guard delay HDF5 + video close;
                    camera stays open and armed for the next recording
 Stop             → camera closed; DAQ shut down

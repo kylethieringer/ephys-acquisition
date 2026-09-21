@@ -107,6 +107,10 @@ made after, and nothing in the file format signals the difference beyond
   - `2000`
   - How long the HDF5 stays open after TTL stops, to catch the trailing
     exposure return on `ai3`
+* - {py:data}`~config.NO_FRAME_WARNING_MS`
+  - `2000`
+  - If no camera frame has arrived this long after **Record**, the GUI warns
+    that no `.avi` will be written
 :::
 
 See {doc}`../getting-started/hardware-setup` for wiring and the explicit

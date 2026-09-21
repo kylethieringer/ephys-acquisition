@@ -44,8 +44,10 @@ from config import (
     AI_CHANNELS,
     AI_CHANNELS_VC,
     CAMERA_GUARD_DELAY_MS,
+    CTR_OUT_TERMINAL,
     DEFAULT_EXPOSURE_MS,
     DEFAULT_FRAME_RATE_HZ,
+    NO_FRAME_WARNING_MS,
     SAMPLE_RATE,
 )
 from acquisition.data_buffer import RingBuffer
@@ -77,6 +79,9 @@ class ContinuousAcquisition(QObject):
         stopped(): Emitted after all workers have shut down cleanly.
         error_occurred(str): Forwarded from workers; the acquisition loop
             has already been stopped when this fires.
+        warning_occurred(str): A non-fatal problem; acquisition and any
+            recording continue.  Currently: no camera frame within
+            :data:`~config.NO_FRAME_WARNING_MS` of :meth:`start_recording`.
         recording_started(object): Emitted when TTL is live and the HDF5
             file is open.  Argument is a ``pathlib.Path`` to the experiment
             folder.
@@ -106,6 +111,7 @@ class ContinuousAcquisition(QObject):
     started             = Signal()
     stopped             = Signal()
     error_occurred      = Signal(str)
+    warning_occurred    = Signal(str)      # non-fatal; acquisition continues
     recording_started   = Signal(object)   # Path — experiment folder
     recording_stopped   = Signal(int)      # n_samples_saved
     conversion_status   = Signal(str)      # status message for the UI
@@ -123,6 +129,13 @@ class ContinuousAcquisition(QObject):
         self._camera_worker: CameraWorker | None = None
         self._is_running      = False
         self._is_recording    = False
+        self._frame_seen      = False   # any camera frame since start_recording
+
+        # One timer, restarted per recording, so a quick stop/restart can't
+        # leave the previous recording's check pending.
+        self._first_frame_timer = QTimer(self)
+        self._first_frame_timer.setSingleShot(True)
+        self._first_frame_timer.timeout.connect(self._check_first_frame)
 
         self._clamp_mode    = "current_clamp"
         self._frame_rate_hz = DEFAULT_FRAME_RATE_HZ
@@ -292,6 +305,8 @@ class ContinuousAcquisition(QObject):
         self._metadata_path = folder / (h5_path.stem + "_metadata.json")
         self._write_metadata_json(metadata, h5_path, self._video_path)
         self._is_recording = True
+        self._frame_seen = False
+        self._first_frame_timer.start(NO_FRAME_WARNING_MS)
 
         if self._daq_worker is not None:
             self._daq_worker.clear_buffer_events()
@@ -557,9 +572,25 @@ class ContinuousAcquisition(QObject):
                 array.
         """
         if self._is_recording:
+            self._frame_seen = True
             self._write_video_frame(frame)
         if self._on_new_frame is not None:
             self._on_new_frame(frame)
+
+    def _check_first_frame(self) -> None:
+        """Warn if a recording has run :data:`~config.NO_FRAME_WARNING_MS` with no frames.
+
+        No frames means no .avi (the writer opens on the first frame), almost
+        always because the camera trigger is not reaching the camera.
+        Recording continues; the user decides whether to stop.
+        """
+        if self._is_recording and not self._frame_seen:
+            self.warning_occurred.emit(
+                f"No camera frames in the first {NO_FRAME_WARNING_MS / 1000:g} s "
+                f"of recording — no .avi will be written. Check the camera "
+                f"trigger path from {CTR_OUT_TERMINAL} to the camera and the "
+                f"TTLLoopback trace."
+            )
 
     def _write_video_frame(self, frame: NDArray) -> None:
         """Lazily open a ``cv2.VideoWriter`` on the first frame, then write.

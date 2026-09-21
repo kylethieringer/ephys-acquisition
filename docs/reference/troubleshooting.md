@@ -12,7 +12,15 @@ Camera not triggering
   {py:data}`config.TTL_LOW_V`) and the PFI12 → camera trigger wiring. The
   counter output terminal is set explicitly via `co_pulse_term` in
   {py:mod}`hardware.daq_config`; if that routing is wrong the counter still
-  runs and the camera silently never fires.
+  runs and the camera never fires.
+
+  In continuous mode this shows up as a **"No camera frames…"** warning about
+  2 s after **Record** ({py:data}`config.NO_FRAME_WARNING_MS`), and no `.avi`
+  is written. A flat `TTLLoopback` trace means the pulse is not reaching the
+  loopback. To split card-and-cable from the wiring after it, remove the
+  trigger wire from the PFI12 terminal on the breakout and meter that bare
+  terminal against D GND while the TTL runs. The meter reads about 2.5 V DC
+  at 50 % duty. If it does, the fault is in the wiring from that terminal on.
 
 Traces are flat or railed
 : Check amplifier gain and the clamp mode. A channel pinned at ±10 V is

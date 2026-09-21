@@ -181,6 +181,7 @@ class MainWindow(QMainWindow):
         self._acq.started.connect(self._on_acq_started)
         self._acq.stopped.connect(self._on_acq_stopped)
         self._acq.error_occurred.connect(self._on_error)
+        self._acq.warning_occurred.connect(self._on_warning)
         self._acq.recording_started.connect(self._on_recording_started)
         self._acq.recording_stopped.connect(self._on_recording_stopped)
         self._acq.conversion_status.connect(self._ctrl_panel.set_status)
@@ -971,6 +972,14 @@ class MainWindow(QMainWindow):
         self._ctrl_panel.set_status(f"Error: {msg}")
         self._chrome.status_badge.set_state("error")
         QMessageBox.critical(self, "Acquisition Error", msg)
+
+    def _on_warning(self, msg: str) -> None:
+        # Modeless: acquisition keeps running and Stop stays clickable.
+        self._ctrl_panel.set_status(f"Warning: {msg}")
+        box = QMessageBox(QMessageBox.Icon.Warning, "Acquisition Warning", msg, parent=self)
+        box.setWindowModality(Qt.WindowModality.NonModal)
+        box.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        box.show()
 
     # ------------------------------------------------------------------
     # Cleanup

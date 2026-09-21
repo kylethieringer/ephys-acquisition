@@ -221,6 +221,15 @@ duration so that any trailing exposure-signal transients on ai3 (Camera)
 are captured before the file is closed.
 """
 
+NO_FRAME_WARNING_MS: int = 2000
+"""Time in ms after Record by which the first camera frame must arrive.
+
+The TTL starts the moment recording starts, so a healthy camera delivers its
+first frame within one frame period.  If none has arrived by this deadline
+the GUI warns: the video writer opens lazily on the first frame, so without
+frames no .avi is written and the recording otherwise fails silently.
+"""
+
 # ---------------------------------------------------------------------------
 # Display defaults
 # ---------------------------------------------------------------------------
