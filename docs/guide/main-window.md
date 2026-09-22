@@ -12,7 +12,7 @@ changes as you switch sidebar tabs.
 │  i   │                    Page content (stacked)                     │
 │  d   │                                                               │
 │  e   ├───────────────────────────────────────────────────────────────┤
-│  b   │  Recording bar: [Start] [Stop] [● Record] [Stop Recording]    │
+│  b   │  Recording bar: [Start] [Stop] | [● Record] [Stop] | [Audio]  │
 │  a   │                                                               │
 │  r   │                                                               │
 └──────┴───────────────────────────────────────────────────────────────┘
@@ -51,6 +51,29 @@ Four buttons, in the order you use them:
 There is also a **Quick note** field for jotting an observation into the
 session metadata without leaving the page.
 
+### Audio monitor
+
+The **🔊 Audio** checkbox at the right of the bar plays the membrane channel
+through the speaker, the same way a patch amplifier's audio monitor does. It
+plays the recorded signal itself. Nothing is detected or synthesised. Spikes
+sound like pops, synaptic noise like hiss, and line pickup like a 60 Hz buzz.
+
+- It is **off by default**, so starting acquisition never makes unexpected
+  noise. It is independent of recording and works in both acquisition modes.
+- The slider beside it sets the volume. The scale is logarithmic, spanning
+  ±20 dB around {py:data}`config.AUDIO_DEFAULT_GAIN`. Raise it to hear
+  subthreshold activity.
+- The signal is high-passed at {py:data}`config.AUDIO_HIGHPASS_HZ` (100 Hz)
+  first. This strips the resting potential and slow drift, which would
+  otherwise use up the whole output range.
+- Playback stays within about {py:data}`config.AUDIO_BUFFER_MS` (50 ms) of the
+  trace. Under heavy GUI load a chunk is dropped, so you hear a brief glitch
+  rather than audio that falls further and further behind.
+
+If the machine has no audio output device, the checkbox does nothing and
+acquisition is unaffected. See {doc}`../reference/configuration` for the
+constants.
+
 ## Sidebar pages
 
 ::::{tab-set}
@@ -58,15 +81,28 @@ session metadata without leaving the page.
 :::{tab-item} Acquire
 The working page during an experiment.
 
-- **Left (65%)** — live rolling traces for every analog input channel, showing
+- **Left** — live rolling traces for every analog input channel, showing
   the last {py:data}`config.DISPLAY_SECONDS` seconds (5 s by default)
-- **Right (35%)**
-  - Camera preview, fixed at 300 px
-  - Subject card — experiment ID, genotype, age, sex
+- **Right**
+  - Camera preview
+  - Subject card — experiment ID, genotype, age, sex. The **↻** button beside
+    the Experiment ID field fills in the next unused ID (see below).
   - Protocol widget — dropdown of `.json` protocols from `D:/protocols`, with
     **Run Protocol** / **Stop Protocol**
   - Stimulus panel — ad-hoc step stimulus, continuous mode only. Labels switch
     between pA and mV with the clamp mode.
+
+Both dividers can be dragged. The vertical one trades trace width for sidebar
+width. The horizontal one trades camera height for card space. Their positions
+are saved on exit and restored at the next launch.
+
+**Next experiment ID.** Clicking **↻** scans the save directory for experiment
+folders (letters followed by digits, such as `fre074`). It fills in one past
+the highest number in the most recently modified series, keeping the existing
+zero-padding, so `fre074` gives `fre075`. To start or switch to another series,
+type its letter prefix into the field first (`kt`, say), then click. A prefix
+with no folders yet starts at `kt001`. If no ID can be worked out, the field is
+left unchanged.
 :::
 
 :::{tab-item} Protocol

@@ -17,6 +17,15 @@ A file picker opens. {py:mod}`analysis.analyze_steps` then:
 3. Computes resting membrane potential and input resistance
 4. Lets you browse and save overlay plots of the step responses
 
+**Resting potential** is the median Vm over a baseline window of up to
+500 ms (`BASELINE_MS`) that ends just before each protocol's first pulse. The
+window never starts earlier than 50 ms (`BASELINE_SETTLE_MS`) after the end of
+the previous pulse. Without that limit, protocols run back to back would pull
+the previous protocol's last depolarising step into the baseline and report
+driven Vm instead of rest. If fewer than 50 ms (`MIN_BASELINE_MS`) remain, RMP
+is `NaN` rather than a contaminated value. Input resistance is computed from
+this baseline, so it would carry the same error.
+
 Figures are written under `D:\results`.
 
 Non-interactively, {py:func}`analysis.analyze_steps.process_file` is the batch
@@ -34,7 +43,24 @@ n_spikes = len(idx)
 ```
 
 {py:func}`~analysis.detect_spikes.detect_spikes` returns sample indices of
-detected action potentials in a 1-D membrane-voltage trace. Tunable parameters:
+detected action potentials in a 1-D membrane-voltage trace. It never uses an
+absolute voltage threshold, because fly motor-neuron APs often peak well below
+0 mV.
+
+The default `method="adaptive"` sets its threshold from each trace's own noise:
+
+1. **Detrend.** A 20 ms median filter removes slow baseline humps and drift.
+2. **Prominence bar.** A peak must stand 6 robust SDs above the detrended
+   residual, and never less than 2.5 mV.
+3. **Rate-of-rise veto.** The peak must also rise as fast as an AP: 4 robust
+   SDs of the lightly smoothed derivative. A slow hump can be as tall as an
+   attenuated AP but never rises that quickly.
+
+A single fixed prominence can't serve every recording. APs shrink under strong
+current injection (in `fre071`, from about 9–12 mV at 150 pA to 3–9 mV at
+300 pA), so a bar high enough to reject artifacts in noisy recordings drops
+real spikes wherever the cell is driven hardest. The 2.5 mV floor stops the
+adaptive bar from sinking into the noise on quiet, silent cells.
 
 :::{list-table}
 :header-rows: 1
@@ -44,19 +70,46 @@ detected action potentials in a 1-D membrane-voltage trace. Tunable parameters:
   - Default
   - Meaning
 * - `method`
-  - `"find_peaks"`
-  - Detection strategy. Only `find_peaks` exists today; the branch structure is
-    there so a `"dvdt"` method can be added without touching call sites.
-* - `height_mV`
-  - `None`
-  - Absolute threshold; `None` means unconstrained
+  - `"adaptive"`
+  - `"adaptive"`, or `"find_peaks"` for the original fixed-prominence detector
 * - `prominence_mV`
   - `7.0`
-  - Peak prominence — the main selectivity knob
+  - Fixed prominence bar. `find_peaks` only.
+* - `height_mV`
+  - `None`
+  - Optional absolute peak-height floor; `None` disables it
 * - `min_distance_ms`
   - `2.0`
   - Refractory window between accepted peaks
+* - `detrend_ms`
+  - `20.0`
+  - Median-filter window for drift removal. Adaptive only.
+* - `noise_k`
+  - `6.0`
+  - Prominence bar in robust SDs of the residual. Adaptive only.
+* - `dvdt_k`
+  - `4.0`
+  - Rate-of-rise bar in robust SDs of the derivative. Adaptive only.
+* - `dvdt_smooth_ms`
+  - `0.5`
+  - Smoothing applied before differentiating. Adaptive only.
+* - `prominence_floor_mV`
+  - `2.5`
+  - Lower bound on the adaptive prominence bar. Adaptive only.
 :::
+
+:::{note}
+The adaptive constants were calibrated on recordings with known answers from
+this preparation: attenuated APs, step-transition artifacts, silent cells and
+clean spiking. They are empirical, not derived from first principles. Check
+them against a few traces before using them on a different cell type.
+:::
+
+When counting spikes per step,
+{py:func}`~analysis.analyze_steps.compute_step_firing_rates` also ignores any
+detection in the first 2 ms after step onset (`SPIKE_BLANK_MS`). At large
+amplitudes the capacitive transient is tall and fast enough to pass as a
+spike, whereas real first spikes arrive no earlier than about 3.6 ms.
 
 ## Across many recordings
 

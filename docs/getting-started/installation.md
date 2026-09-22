@@ -50,6 +50,19 @@ Expected output — the device name as it appears in NI MAX, and the sample rate
 Dev1 20000
 ```
 
+### Tests
+
+The pure-logic code (spike detection, RMP baseline windows, the audio monitor's
+signal path, the no-frames warning) has a pytest suite in `tests/`. None of it
+needs a DAQ, a camera or a sound card:
+
+```bash
+uv sync --group dev
+uv run python -m pytest
+```
+
+Widget layout and signal wiring are not covered by the suite.
+
 ## Run
 
 ```bash

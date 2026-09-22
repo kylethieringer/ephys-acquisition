@@ -43,12 +43,29 @@ Some tasks carry a one-click launcher that starts the relevant GUI or script.
 * - Update experiment log
   - **Refresh** rebuilds the log CSV · **Open** opens it
 * - Copy data to Google Drive
-  - **Dry run** previews the sync · **Sync** performs it
+  - **Dry run** previews the sync · **Sync** performs it (in a Cmder window, see below)
 * - Visualize data
   - Opens the analysis GUI
 * - Analyze steps
   - Runs the step-analysis tool
 :::
+
+## Google Drive sync
+
+**Dry run** and **Sync** run `utils/sync_to_gdrive.sh` (with and without
+`--dry-run`). It is a bash script that shows rclone's live progress, so it
+opens in a [Cmder](https://cmder.app/) terminal window rather than in the
+background. The window stays open after rclone finishes, so you can read the
+result, and closes when you press Enter.
+
+The checklist looks for Cmder in the `CMDER_ROOT` environment variable, then on
+`PATH`, then in `C:\Users\<you>\cmder`. If it can't find Cmder, it shows a
+dialog with the command to run by hand:
+
+```bash
+./utils/sync_to_gdrive.sh --dry-run
+./utils/sync_to_gdrive.sh
+```
 
 ## Editing the list
 

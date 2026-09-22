@@ -7,13 +7,16 @@ A real-time electrophysiology data acquisition system with integrated camera tri
 ## What it does
 
 - **Real-time acquisition** — continuous analog input at 20 kHz via NI DAQ, with a 5-second rolling display of every channel
-- **Camera integration** — Basler Pylon camera with hardware TTL triggering and exposure control
+- **Camera integration** — Basler Pylon camera with hardware TTL triggering and exposure control, and a warning if **Record** gets no frames
+- **Audio monitor** — hear the membrane channel through the speaker, like the audio monitor on a patch amplifier
 - **Current and voltage clamp** — switch modes with automatic channel relabelling and rescaling
 - **Protocol builder** — design current-step (CC) and voltage-step (VC) protocols in the GUI, or write the JSON directly
 - **Two acquisition modes** — continuous recording with sample-accurate stimulus events, or per-trial HDF5 with pre-allocated datasets
 - **Binary-first saving** — raw data goes to a `.bin` during acquisition and converts to HDF5 in the background; the `.bin` is always kept as a backup
 - **Automatic QC** — every recording gets a self-contained HTML report covering sample-count consistency, signal sanity, stimulus fidelity, and TTL ↔ video drift
 - **Rig alignment check** — a standalone weekly check against an Axon Patch-1U model cell, with long-term drift tracking
+- **Analysis** — intrinsic properties (RMP, input resistance, noise-adaptive spike detection), per-cell and mean F-I curves, and camera/Vm video alignment
+- **Experiment-day checklist** — the day's tasks in order, with one-click launchers for the GUI, the experiment log and the Google Drive sync
 
 ## Requirements
 
@@ -38,6 +41,15 @@ Hardware is configured in `config.py` — channel names, scaling factors, sample
 ```bash
 uv run python main.py
 ```
+
+## Tests
+
+```bash
+uv sync --group dev
+uv run python -m pytest
+```
+
+The suite covers the pure-logic code and needs no DAQ, camera or sound card.
 
 ## Documentation
 

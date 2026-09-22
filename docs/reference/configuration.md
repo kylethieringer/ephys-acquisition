@@ -116,6 +116,35 @@ made after, and nothing in the file format signals the difference beyond
 See {doc}`../getting-started/hardware-setup` for wiring and the explicit
 `co_pulse_term` routing requirement.
 
+## Audio monitor
+
+Settings for the **🔊 Audio** monitor in the recording bar. See
+{doc}`../guide/main-window`.
+
+:::{list-table}
+:header-rows: 1
+:widths: 34 14 52
+
+* - Constant
+  - Default
+  - Meaning
+* - {py:data}`~config.AUDIO_CHANNEL_INDEX`
+  - `0`
+  - AI row sent to the speaker. Row 0 is membrane potential in CC and membrane
+    current in VC.
+* - {py:data}`~config.AUDIO_HIGHPASS_HZ`
+  - `100.0`
+  - High-pass corner that strips the resting potential and slow drift
+* - {py:data}`~config.AUDIO_DEFAULT_GAIN`
+  - `0.1`
+  - Gain at the slider midpoint. At 0.1, a 100 mV excursion on `ai0` reaches
+    full scale.
+* - {py:data}`~config.AUDIO_BUFFER_MS`
+  - `50`
+  - Sound-card buffer depth. Chunks that arrive when it is full are dropped,
+    not queued, so the audio never lags behind the trace.
+:::
+
 ## Display
 
 {py:data}`~config.AI_Y_DEFAULTS` and {py:data}`~config.AI_Y_DEFAULTS_VC` give
