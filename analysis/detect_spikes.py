@@ -1,10 +1,12 @@
 """Spike detection for current-clamp membrane voltage traces.
 
 A single entry point :func:`detect_spikes` returns the sample indices of
-detected action potentials in a 1-D membrane voltage trace.  Today only
-``method="find_peaks"`` is implemented (a thin wrapper around
-:func:`scipy.signal.find_peaks`).  New methods (e.g. ``"dvdt"``) can be
-added as additional branches without changing call sites.
+detected action potentials in a 1-D membrane voltage trace.  Two methods
+are available: ``method="adaptive"`` (the default), which scales its
+prominence threshold to the trace's own noise and also requires an AP-like
+rate of rise, and ``method="find_peaks"``, the original fixed-prominence
+wrapper around :func:`scipy.signal.find_peaks`.  New methods can be added as
+additional branches without changing call sites.
 
 Example::
 

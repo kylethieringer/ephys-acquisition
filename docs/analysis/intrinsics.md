@@ -17,9 +17,12 @@ A file picker opens. {py:mod}`analysis.analyze_steps` then:
 3. Computes resting membrane potential and input resistance
 4. Lets you browse and save overlay plots of the step responses
 
-**Resting potential** is the median Vm over a baseline window of up to
-500 ms (`BASELINE_MS`) that ends just before each protocol's first pulse. The
-window never starts earlier than 50 ms (`BASELINE_SETTLE_MS`) after the end of
+**Resting potential** is the median Vm over a baseline window that ends just
+before each protocol's first pulse. The window starts at whichever is earlier:
+500 ms (`BASELINE_MS`) before that pulse, or the moment the protocol was
+applied. For protocols run from the protocol panel, the protocol is applied well
+before its first pulse, so the window can be several seconds long. For manual
+and waveform steps, it is just the 500 ms look-back. The window never starts earlier than 50 ms (`BASELINE_SETTLE_MS`) after the end of
 the previous pulse. Without that limit, protocols run back to back would pull
 the previous protocol's last depolarising step into the baseline and report
 driven Vm instead of rest. If fewer than 50 ms (`MIN_BASELINE_MS`) remain, RMP

@@ -52,20 +52,25 @@ Some tasks carry a one-click launcher that starts the relevant GUI or script.
 
 ## Google Drive sync
 
-**Dry run** and **Sync** run `utils/sync_to_gdrive.sh` (with and without
-`--dry-run`). It is a bash script that shows rclone's live progress, so it
-opens in a [Cmder](https://cmder.app/) terminal window rather than in the
-background. The window stays open after rclone finishes, so you can read the
-result, and closes when you press Enter.
+**Dry run** and **Sync** run `utils/run_gdrive_sync.sh` (with and without
+`--dry-run`). This wrapper calls the bash script `utils/sync_to_gdrive.sh`,
+which shows rclone's live progress. So the sync opens in a
+[Cmder](https://cmder.app/) terminal window rather than in the background.
+When rclone finishes, the wrapper keeps the window open so you can read the
+result. Press Enter to close it.
 
 The checklist looks for Cmder in the `CMDER_ROOT` environment variable, then on
 `PATH`, then in `C:\Users\<you>\cmder`. If it can't find Cmder, it shows a
-dialog with the command to run by hand:
+dialog with the sync command (`./utils/sync_to_gdrive.sh`) to run by hand. From
+a bash terminal in the repo root, you can also do a dry run first:
 
 ```bash
 ./utils/sync_to_gdrive.sh --dry-run
 ./utils/sync_to_gdrive.sh
 ```
+
+Running the script directly skips the wrapper, so nothing holds the terminal
+open afterwards. That's fine in a terminal you opened yourself.
 
 ## Editing the list
 

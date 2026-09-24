@@ -12,7 +12,7 @@ changes as you switch sidebar tabs.
 │  i   │                    Page content (stacked)                     │
 │  d   │                                                               │
 │  e   ├───────────────────────────────────────────────────────────────┤
-│  b   │  Recording bar: [Start] [Stop] | [● Record] [Stop] | [Audio]  │
+│  b   │  Recording: [Start] [Stop] | [● Record] [Stop Rec] | [Audio]  │
 │  a   │                                                               │
 │  r   │                                                               │
 └──────┴───────────────────────────────────────────────────────────────┘
@@ -98,10 +98,13 @@ are saved on exit and restored at the next launch.
 
 **Next experiment ID.** Clicking **↻** scans the save directory for experiment
 folders (letters followed by digits, such as `fre074`). It fills in one past
-the highest number in the most recently modified series, keeping the existing
-zero-padding, so `fre074` gives `fre075`. To start or switch to another series,
-type its letter prefix into the field first (`kt`, say), then click. A prefix
-with no folders yet starts at `kt001`. If no ID can be worked out, the field is
+the highest number in a series, keeping the existing zero-padding, so `fre074`
+gives `fre075`. The series comes from the letters already in the field: with
+`fre074` or just `fre` there, the click continues `fre`. The field usually still
+holds the last ID, so a click normally continues that series. Only when the field
+is empty does it use the series of the most recently modified folder. To start or
+switch to another series, type its letter prefix into the field first (`kt`,
+say), then click. A prefix with no folders yet starts at `kt001`. If no ID can be worked out, the field is
 left unchanged.
 :::
 
