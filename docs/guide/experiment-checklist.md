@@ -43,7 +43,7 @@ Some tasks carry a one-click launcher that starts the relevant GUI or script.
 * - Update experiment log
   - **Refresh** rebuilds the log CSV · **Open** opens it
 * - Copy data to Google Drive
-  - **Dry run** previews the sync · **Sync** performs it (in a Cmder window, see below)
+  - **Dry run** previews the sync · **Sync** performs it (in a terminal window, see below)
 * - Visualize data
   - Opens the analysis GUI
 * - Analyze steps
@@ -54,15 +54,18 @@ Some tasks carry a one-click launcher that starts the relevant GUI or script.
 
 **Dry run** and **Sync** run `utils/run_gdrive_sync.sh` (with and without
 `--dry-run`). This wrapper calls the bash script `utils/sync_to_gdrive.sh`,
-which shows rclone's live progress. So the sync opens in a
-[Cmder](https://cmder.app/) terminal window rather than in the background.
-When rclone finishes, the wrapper keeps the window open so you can read the
-result. Press Enter to close it.
+which shows rclone's live progress. So the sync opens in its own terminal
+window rather than in the background. The window is whatever your default
+terminal app is (Windows Terminal or the classic console, set under Windows
+Settings → System → For developers → Terminal). When rclone finishes, the
+wrapper keeps the window open so you can read the result. Press Enter to
+close it.
 
-The checklist looks for Cmder in the `CMDER_ROOT` environment variable, then on
-`PATH`, then in `C:\Users\<you>\cmder`. If it can't find Cmder, it shows a
-dialog with the sync command (`./utils/sync_to_gdrive.sh`) to run by hand. From
-a bash terminal in the repo root, you can also do a dry run first:
+The script runs under Git Bash, so Git for Windows must be installed. The
+checklist finds `bash.exe` next to `git` on `PATH`, then in the standard Git
+install folders, then in a Cmder-bundled Git (`CMDER_ROOT`). If it can't find
+Git Bash, it shows a dialog with the sync command (`./utils/sync_to_gdrive.sh`)
+to run by hand. From a bash terminal in the repo root, you can also do a dry run first:
 
 ```bash
 ./utils/sync_to_gdrive.sh --dry-run
