@@ -384,7 +384,17 @@ class MainWindow(QMainWindow):
         layout.addWidget(splitter, stretch=1)
 
         self._refresh_protocol_list()
-        return page
+
+        # The builder's natural minimum height (~950 px) exceeds a maximized
+        # 1080p window's client area, and QStackedWidget takes the largest
+        # page minimum even while this page is hidden.  Scroll instead, so the
+        # window isn't forced taller than the screen (pushing the action bar
+        # under the taskbar whenever a button click re-runs the layout).
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setWidget(page)
+        return scroll
 
     def _build_channels_page(self) -> QWidget:
         """Channels: full-page per-channel table (owns QCheckBox + ChannelYControls)."""
