@@ -17,3 +17,5 @@ logs/
 # Sphinx build output and AutoAPI-generated sources
 docs/_build/
 docs/autoapi/
+
+.superpowers/
