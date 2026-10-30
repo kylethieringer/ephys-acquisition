@@ -218,7 +218,8 @@ def load_protocol_metadata(h5_path: Path) -> list[dict]:
 # =========================================================================
 
 def smooth_cmd(data: np.ndarray, sr: int, display_scales: np.ndarray,
-               cmd_ch: int = CMD_CH) -> np.ndarray:
+               cmd_ch: int = CMD_CH,
+               exclude: np.ndarray | None = None) -> np.ndarray:
     """Median-filter the command-current channel, scale to pA, and
     de-offset against the silent baseline.
 
@@ -241,6 +242,10 @@ def smooth_cmd(data: np.ndarray, sr: int, display_scales: np.ndarray,
         Per-channel scale factors (raw volts -> display units).
     cmd_ch : int
         Index of the AmpCmd channel.
+    exclude : ndarray of bool, shape (n_samples,), optional
+        Samples to leave out of the offset estimate.  Ramps and chirps can
+        fill most of a recording, which would otherwise pull the estimate
+        away from true silence.
 
     Returns
     -------
@@ -254,8 +259,11 @@ def smooth_cmd(data: np.ndarray, sr: int, display_scales: np.ndarray,
     # samples within ±5 pA of that coarse estimate (i.e. the silent
     # regions between pulses).  Two-pass form handles offsets larger
     # than the refinement window.
-    coarse = float(np.median(smoothed))
-    near = smoothed[np.abs(smoothed - coarse) < 5.0]
+    baseline = smoothed if exclude is None else smoothed[~exclude]
+    if baseline.size == 0:
+        return smoothed
+    coarse = float(np.median(baseline))
+    near = baseline[np.abs(baseline - coarse) < 5.0]
     offset = float(np.median(near)) if near.size else coarse
     return smoothed - offset
 
@@ -409,6 +417,30 @@ def _has_ramp_or_chirp_windows(stimulus_events: dict,
     )
 
 
+def _ramp_or_chirp_mask(stimulus_events: dict,
+                        protocol_runs: list[dict],
+                        n_total: int) -> np.ndarray | None:
+    """Return a mask of samples inside ramp and chirp windows, or None if none."""
+    ev_types = stimulus_events["event_type"]
+    ev_samples = stimulus_events["sample_index"]
+    mask = np.zeros(n_total, dtype=bool)
+    for i, etype in enumerate(ev_types):
+        if etype != "apply":
+            continue
+        start = int(ev_samples[i])
+        if not _is_ramp_or_chirp_window(stimulus_events["stimulus_name"][i],
+                                        int(stimulus_events["stimulus_index"][i]),
+                                        start, protocol_runs):
+            continue
+        end = n_total
+        for j in range(i + 1, len(ev_types)):
+            if ev_types[j] in ("clear", "apply"):
+                end = int(ev_samples[j])
+                break
+        mask[max(0, start):max(0, end)] = True
+    return mask if mask.any() else None
+
+
 def _expected_step_count(stim_def: dict,
                          min_amp_pA: float = MIN_AMP_PA) -> int | None:
     """Predict the detectable pulse count for a step_protocol stimulus.
@@ -557,8 +589,11 @@ def find_step_protocols_from_events(
         ``stimulus_name``, ``stimulus_index``, ``expected_steps``,
         ``found_steps``.
     """
-    cmd_smooth = smooth_cmd(data, sr, display_scales)
     n_total = data.shape[1]
+    cmd_smooth = smooth_cmd(
+        data, sr, display_scales,
+        exclude=_ramp_or_chirp_mask(stimulus_events, protocol_runs, n_total),
+    )
 
     ev_types = stimulus_events["event_type"]
     ev_samples = stimulus_events["sample_index"]

@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
@@ -145,3 +146,49 @@ def test_recording_without_events_keeps_waveform_detection(monkeypatch, tmp_path
     })
     A.process_file(tmp_path / "old.h5", compute_step_rates=False)
     assert len(calls) == 1
+
+
+def _long_ramp_pa() -> np.ndarray:
+    """Ramps held long enough to fill most of the recording's samples."""
+    return generate_ramp_pa_array(-30, 100, 100, 50, 5000, 0, False, 10000)
+
+
+def _offset_chirp_pa() -> np.ndarray:
+    return generate_chirp_pa_array(5, 50, 8000, "log", 20, 30, 100)
+
+
+def _stub_loader(monkeypatch, data: np.ndarray, events: dict) -> None:
+    monkeypatch.setattr(A, "load_continuous_h5", lambda path: {
+        "data": data,
+        "sample_rate": SR,
+        "display_scales": DISPLAY_SCALES,
+        "stimulus_events": events,
+    })
+    monkeypatch.setattr(A, "write_csv", lambda *args: None)
+
+
+def test_long_ramps_leave_silence_at_zero(monkeypatch, tmp_path):
+    data, events = _recording((RAMP_NAME, _long_ramp_pa()))
+    _stub_loader(monkeypatch, data, events)
+    assert A.process_file(tmp_path / "ramps.h5", compute_step_rates=False) is None
+
+
+def test_offset_chirp_leaves_silence_at_zero(monkeypatch, tmp_path):
+    data, events = _recording((CHIRP_NAME, _offset_chirp_pa()))
+    _stub_loader(monkeypatch, data, events)
+    assert A.process_file(tmp_path / "chirps.h5", compute_step_rates=False) is None
+
+
+def test_long_ramps_do_not_shift_real_step_amplitudes():
+    data, events = _recording((STEP_NAME, _step_pa()), (RAMP_NAME, _long_ramp_pa()))
+    steps, meta = _find(data, events, [])
+    assert len(steps) == 1
+    assert meta[0]["stimulus_name"] == STEP_NAME
+    assert steps[0][0]["amplitude_pA"] == pytest.approx(100, abs=1)
+
+
+def test_mixed_recording_keeps_step_windows_with_sidecar():
+    data, events = _recording((STEP_NAME, _step_pa()), ("x", _long_ramp_pa()))
+    steps, meta = _find(data, events, [_run("step_protocol", "ramp")])
+    assert len(steps) == 1
+    assert meta[0]["stimulus_name"] == STEP_NAME

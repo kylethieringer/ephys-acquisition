@@ -74,7 +74,7 @@ from acquisition.trial_protocol import protocol_from_dict
 from hardware.audio_monitor import AudioMonitor
 from ui.camera_panel import CameraPanel
 from ui.control_panel import ControlPanel
-from ui.protocol_builder import ProtocolBuilderPanel
+from ui.protocol_builder import ProtocolBuilderPanel, confirm_protocol_runnable
 from ui.stimulus_panel import StimulusPanel
 from ui.trace_panel import ChannelYControls, LiveTracePanel
 from ui.widgets import Sidebar, TopChromeBar
@@ -851,6 +851,8 @@ class MainWindow(QMainWindow):
             protocol_dict = dict(self._pending_protocol)
             save_dir = protocol_dict.pop("save_dir", self._ctrl_panel.save_dir)
             protocol = protocol_from_dict(protocol_dict)
+            if not confirm_protocol_runnable(self, protocol):
+                return
             metadata = self._ctrl_panel.get_metadata()
 
             self._apply_channel_defs(protocol.clamp_mode)

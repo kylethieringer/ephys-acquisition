@@ -80,6 +80,9 @@ The builder refuses to run:
 - a ramp or chirp trial longer than 60 s
 - a frequency at or above 10 kHz, or a current beyond ±4000 pA
 
+**Run Protocol** on the Acquire page makes the same checks, and the builder
+won't load a file that fails them.
+
 Chirp frequencies above 1 kHz give a warning you can accept, because the analog
 output's stepping becomes significant.
 

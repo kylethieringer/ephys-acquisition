@@ -67,6 +67,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
+from acquisition.trial_waveforms import build_trial_waveform
 from acquisition.trial_protocol import (
     StimulusDefinition,
     TrialProtocol,
@@ -78,6 +79,39 @@ from acquisition.trial_protocol import (
     stimulus_label,
     validate_protocol,
 )
+
+
+def confirm_protocol_runnable(parent: QWidget, protocol: TrialProtocol) -> bool:
+    """Check a protocol before a run, asking the user about any warnings.
+
+    Every stimulus's waveform is built here too, so a stimulus that can't play
+    is caught before any recording opens rather than partway through a run.
+
+    Args:
+        parent: Parent widget for the dialogs.
+        protocol: Protocol about to run.
+
+    Returns:
+        ``True`` if the run should go ahead.
+    """
+    errors, warnings = validate_protocol(protocol)
+    if not errors:
+        for i, stim in enumerate(protocol.stimuli, start=1):
+            try:
+                build_trial_waveform(stim, protocol)
+            except ValueError as exc:
+                errors.append(f"Stimulus {i}: {exc}")
+    if errors:
+        QMessageBox.warning(parent, "Invalid Stimulus", "\n\n".join(errors))
+        return False
+    if warnings:
+        answer = QMessageBox.question(
+            parent, "Check Stimulus",
+            "\n\n".join(warnings) + "\n\nRun anyway?",
+            QMessageBox.Yes | QMessageBox.No,
+        )
+        return answer == QMessageBox.Yes
+    return True
 
 
 class ProtocolBuilderPanel(QWidget):
@@ -119,6 +153,10 @@ class ProtocolBuilderPanel(QWidget):
         """Load a protocol JSON file and populate all UI fields."""
         try:
             p = load_protocol(path)
+            # The editor's spin boxes would clamp bad values and hide them.
+            errors, _ = validate_protocol(p)
+            if errors:
+                raise ValueError("\n\n".join(errors))
             self._populate_from_protocol(p)
         except Exception as exc:
             QMessageBox.critical(self, "Load Error", f"Could not load protocol:\n{exc}")
@@ -347,14 +385,14 @@ class ProtocolBuilderPanel(QWidget):
         form = QFormLayout(w)
         form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
-        self._rp_start = self._stim_dbl(-4000, 4000, 0.0, 1, "pA")
-        self._rp_min = self._stim_dbl(-4000, 4000, 50.0, 1, "pA")
-        self._rp_max = self._stim_dbl(-4000, 4000, 150.0, 1, "pA")
-        self._rp_step = self._stim_dbl(0.1, 4000, 50.0, 1, "pA")
-        self._rp_width = self._stim_dbl(1, 60000, 1000.0, 0, "ms")
-        self._rp_hold = self._stim_dbl(0, 60000, 0.0, 0, "ms")
+        self._rp_start = self._stim_dbl(-4000, 4000, 0.0, 2, "pA")
+        self._rp_min = self._stim_dbl(-4000, 4000, 50.0, 2, "pA")
+        self._rp_max = self._stim_dbl(-4000, 4000, 150.0, 2, "pA")
+        self._rp_step = self._stim_dbl(0.01, 4000, 50.0, 2, "pA")
+        self._rp_width = self._stim_dbl(0.1, 60000, 1000.0, 1, "ms")
+        self._rp_hold = self._stim_dbl(0, 60000, 0.0, 1, "ms")
         self._rp_return = self._stim_combo([("Instant", "instant"), ("Ramp down", "ramp_down")])
-        self._rp_gap = self._stim_dbl(0, 60000, 500.0, 0, "ms")
+        self._rp_gap = self._stim_dbl(0, 60000, 500.0, 1, "ms")
         self._rp_reps = self._stim_reps()
 
         form.addRow("Start current:", self._rp_start)
@@ -373,13 +411,13 @@ class ProtocolBuilderPanel(QWidget):
         form = QFormLayout(w)
         form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
-        self._ch_start = self._stim_dbl(0, 10000, 0.5, 2, "Hz")
-        self._ch_end = self._stim_dbl(0, 10000, 100.0, 2, "Hz")
-        self._ch_dur = self._stim_dbl(1, 60000, 20000.0, 0, "ms")
+        self._ch_start = self._stim_dbl(0, 10000, 0.5, 3, "Hz")
+        self._ch_end = self._stim_dbl(0, 10000, 100.0, 3, "Hz")
+        self._ch_dur = self._stim_dbl(0.1, 60000, 20000.0, 1, "ms")
         self._ch_spacing = self._stim_combo([("Log", "log"), ("Linear", "linear")])
-        self._ch_amp = self._stim_dbl(0, 4000, 20.0, 1, "pA")
-        self._ch_offset = self._stim_dbl(-4000, 4000, 0.0, 1, "pA")
-        self._ch_gap = self._stim_dbl(0, 60000, 500.0, 0, "ms")
+        self._ch_amp = self._stim_dbl(0, 4000, 20.0, 2, "pA")
+        self._ch_offset = self._stim_dbl(-4000, 4000, 0.0, 2, "pA")
+        self._ch_gap = self._stim_dbl(0, 60000, 500.0, 1, "ms")
         self._ch_reps = self._stim_reps()
 
         form.addRow("Start frequency:", self._ch_start)
@@ -585,6 +623,8 @@ class ProtocolBuilderPanel(QWidget):
             page = 2
         self._stimuli[row].type = new_type
         self._stim_stack.setCurrentIndex(page)
+        # Show this row's own values, not whatever the page last displayed.
+        self._populate_editor(self._stimuli[row])
         self._on_stim_param_changed()
         self._update_estimated_time()
 
@@ -811,18 +851,8 @@ class ProtocolBuilderPanel(QWidget):
             )
             return
 
-        errors, warnings = validate_protocol(p)
-        if errors:
-            QMessageBox.warning(self, "Invalid Stimulus", "\n\n".join(errors))
+        if not confirm_protocol_runnable(self, p):
             return
-        if warnings:
-            answer = QMessageBox.question(
-                self, "Check Stimulus",
-                "\n\n".join(warnings) + "\n\nRun anyway?",
-                QMessageBox.Yes | QMessageBox.No,
-            )
-            if answer != QMessageBox.Yes:
-                return
 
         d = protocol_to_dict(p)
         d["save_dir"] = self._save_dir

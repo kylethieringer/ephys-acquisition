@@ -16,7 +16,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 from PySide6.QtWidgets import QMessageBox
 
-from acquisition.trial_protocol import save_protocol
+from acquisition.trial_protocol import StimulusDefinition, TrialProtocol, save_protocol
 from ui import protocol_builder as PB
 
 
@@ -173,3 +173,52 @@ def test_valid_run_is_not_interrupted(panel, monkeypatch):
     _add_ramp(panel)
     panel._on_run()
     assert len(runs) == 1
+
+
+def test_type_change_uses_the_rows_own_values(panel):
+    _add_ramp(panel)
+    panel._rp_max.setValue(300.0)
+    _add_ramp(panel)
+    assert panel.get_protocol().stimuli[1].ramp_max_peak_pA == 150.0
+
+
+def test_flipping_type_and_back_keeps_stored_values(panel):
+    _add_ramp(panel)
+    panel._rp_max.setValue(300.0)
+    _add_ramp(panel)
+    panel._rp_max.setValue(500.0)
+    panel._stim_list.setCurrentRow(0)
+    panel._ch_type_rb.setChecked(True)
+    panel._stim_list.setCurrentRow(1)
+    panel._stim_list.setCurrentRow(0)
+    panel._rp_type_rb.setChecked(True)
+    assert panel.get_protocol().stimuli[0].ramp_max_peak_pA == 300.0
+
+
+@pytest.mark.parametrize("stim", [
+    StimulusDefinition(type="ramp", ramp_start_pA=-5000.0),
+    StimulusDefinition(type="ramp", ramp_peak_step_pA=0.0),
+    StimulusDefinition(type="chirp", chirp_amplitude_pA=5000.0),
+])
+def test_load_refuses_a_stimulus_the_widgets_would_alter(panel, monkeypatch, tmp_path, stim):
+    shown: list[str] = []
+    monkeypatch.setattr(PB.QMessageBox, "critical",
+                        lambda parent, title, text: shown.append(text))
+    path = tmp_path / "bad.json"
+    save_protocol(TrialProtocol(stimuli=[stim]), path)
+    panel.load_protocol_from_file(path)
+    assert len(shown) == 1
+    assert panel.get_protocol().stimuli == []
+
+
+def test_load_keeps_precise_values(panel, tmp_path):
+    stim = StimulusDefinition(
+        type="chirp", chirp_start_hz=0.125, chirp_duration_ms=1500.5, chirp_amplitude_pA=12.25,
+    )
+    path = tmp_path / "precise.json"
+    save_protocol(TrialProtocol(stimuli=[stim]), path)
+    panel.load_protocol_from_file(path)
+    loaded = panel.get_protocol().stimuli[0]
+    assert loaded.chirp_start_hz == 0.125
+    assert loaded.chirp_duration_ms == 1500.5
+    assert loaded.chirp_amplitude_pA == 12.25
