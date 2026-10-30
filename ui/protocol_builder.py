@@ -74,6 +74,7 @@ from acquisition.trial_protocol import (
     protocol_from_dict,
     protocol_to_dict,
     save_protocol,
+    stimulus_label,
 )
 
 
@@ -216,11 +217,6 @@ class ProtocolBuilderPanel(QWidget):
 
         top_form = QFormLayout()
         top_form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
-        self._stim_name_edit = QLineEdit()
-        self._stim_name_edit.setPlaceholderText("e.g. 0-50 pA step protocol")
-        self._stim_name_edit.textChanged.connect(self._on_stim_name_changed)
-        top_form.addRow("Stimulus name:", self._stim_name_edit)
-
         type_row = QHBoxLayout()
         self._sc_type_rb = QRadioButton("Step protocol (CC)")
         self._vc_type_rb = QRadioButton("Voltage step (VC)")
@@ -258,6 +254,7 @@ class ProtocolBuilderPanel(QWidget):
             if suffix:
                 sb.setSuffix(f" {suffix}")
             sb.valueChanged.connect(self._update_estimated_time)
+            sb.valueChanged.connect(self._on_stim_param_changed)
             return sb
 
         self._sc_min = _dbl(-2000, 2000, -50.0, 1, "pA")
@@ -269,6 +266,7 @@ class ProtocolBuilderPanel(QWidget):
         self._sc_reps.setRange(1, 100)
         self._sc_reps.setValue(1)
         self._sc_reps.valueChanged.connect(self._update_estimated_time)
+        self._sc_reps.valueChanged.connect(self._on_stim_param_changed)
 
         form.addRow("Min current:", self._sc_min)
         form.addRow("Max current:", self._sc_max)
@@ -291,6 +289,7 @@ class ProtocolBuilderPanel(QWidget):
             if suffix:
                 sb.setSuffix(f" {suffix}")
             sb.valueChanged.connect(self._update_estimated_time)
+            sb.valueChanged.connect(self._on_stim_param_changed)
             return sb
 
         self._vs_step_mv = _dbl(-1000, 1000, -40.0, "mV")
@@ -420,13 +419,10 @@ class ProtocolBuilderPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _on_add(self) -> None:
-        stim = StimulusDefinition(
-            type="step_protocol",
-            name=f"Step protocol {len(self._stimuli)}",
-        )
+        stim = StimulusDefinition(type="step_protocol")
         self._stimuli.append(stim)
-        item = QListWidgetItem(stim.name)
-        self._stim_list.addItem(item)
+        self._stim_list.addItem(QListWidgetItem())
+        self._refresh_list_labels()
         self._stim_list.setCurrentRow(len(self._stimuli) - 1)
         self._update_estimated_time()
 
@@ -436,6 +432,7 @@ class ProtocolBuilderPanel(QWidget):
             return
         self._stim_list.takeItem(row)
         self._stimuli.pop(row)
+        self._refresh_list_labels()
         self._update_estimated_time()
 
     def _on_duplicate(self) -> None:
@@ -445,10 +442,9 @@ class ProtocolBuilderPanel(QWidget):
         self._sync_editor_to_stim()
         import copy
         stim = copy.deepcopy(self._stimuli[row])
-        stim.name = stim.name + " (copy)"
         self._stimuli.insert(row + 1, stim)
-        item = QListWidgetItem(stim.name)
-        self._stim_list.insertItem(row + 1, item)
+        self._stim_list.insertItem(row + 1, QListWidgetItem())
+        self._refresh_list_labels()
         self._stim_list.setCurrentRow(row + 1)
         self._update_estimated_time()
 
@@ -470,18 +466,23 @@ class ProtocolBuilderPanel(QWidget):
         self._stimuli[a], self._stimuli[b] = self._stimuli[b], self._stimuli[a]
         item_a = self._stim_list.takeItem(a)
         self._stim_list.insertItem(b, item_a)
+        self._refresh_list_labels()
 
     def _on_row_changed(self, row: int) -> None:
         if row < 0 or row >= len(self._stimuli):
             return
         self._populate_editor(self._stimuli[row])
 
-    def _on_stim_name_changed(self, text: str) -> None:
-        row = self._stim_list.currentRow()
-        if row < 0 or row >= len(self._stimuli):
-            return
-        self._stimuli[row].name = text
-        self._stim_list.item(row).setText(text)
+    def _refresh_list_labels(self) -> None:
+        """Label each list row with its position and parameter summary."""
+        for i, stim in enumerate(self._stimuli):
+            item = self._stim_list.item(i)
+            if item is not None:
+                item.setText(f"{i + 1}. {stimulus_label(stim)}")
+
+    def _on_stim_param_changed(self) -> None:
+        self._sync_editor_to_stim()
+        self._refresh_list_labels()
 
     def _on_stim_type_changed(self) -> None:
         row = self._stim_list.currentRow()
@@ -498,6 +499,7 @@ class ProtocolBuilderPanel(QWidget):
             page = 2
         self._stimuli[row].type = new_type
         self._stim_stack.setCurrentIndex(page)
+        self._on_stim_param_changed()
         self._update_estimated_time()
 
     # ------------------------------------------------------------------
@@ -506,7 +508,6 @@ class ProtocolBuilderPanel(QWidget):
 
     def _populate_editor(self, stim: StimulusDefinition) -> None:
         widgets = (
-            self._stim_name_edit,
             self._sc_type_rb, self._vc_type_rb, self._bl_type_rb,
             self._sc_min, self._sc_max, self._sc_step,
             self._sc_width, self._sc_gap, self._sc_reps,
@@ -515,8 +516,6 @@ class ProtocolBuilderPanel(QWidget):
         for w in widgets:
             w.blockSignals(True)
         try:
-            self._stim_name_edit.setText(stim.name)
-
             self._sc_type_rb.setChecked(stim.type == "step_protocol")
             self._vc_type_rb.setChecked(stim.type == "voltage_step")
             self._bl_type_rb.setChecked(stim.type == "baseline")
@@ -543,7 +542,6 @@ class ProtocolBuilderPanel(QWidget):
         if row < 0 or row >= len(self._stimuli):
             return
         stim = self._stimuli[row]
-        stim.name = self._stim_name_edit.text()
         if self._sc_type_rb.isChecked():
             stim.type = "step_protocol"
         elif self._vc_type_rb.isChecked():
@@ -608,8 +606,9 @@ class ProtocolBuilderPanel(QWidget):
 
         self._stim_list.clear()
         self._stimuli = list(p.stimuli)
-        for stim in self._stimuli:
-            self._stim_list.addItem(QListWidgetItem(stim.name))
+        for _ in self._stimuli:
+            self._stim_list.addItem(QListWidgetItem())
+        self._refresh_list_labels()
 
         if self._stimuli:
             self._stim_list.setCurrentRow(0)

@@ -71,7 +71,11 @@ except ImportError:
 
 from config import ChannelDef, N_AI_CHANNELS, SAMPLE_RATE
 from acquisition import write_common_hdf5_metadata
-from acquisition.trial_protocol import TrialProtocol, protocol_to_dict
+from acquisition.trial_protocol import (
+    TrialProtocol,
+    protocol_to_dict,
+    stimulus_label,
+)
 
 
 class TrialSaver:
@@ -151,7 +155,7 @@ class TrialSaver:
             "n_trials":       len(trial_order),
             "protocol_json":  json.dumps(protocol_to_dict(protocol), indent=2),
             "trial_order":    list(trial_order),
-            "trial_stimulus_names": [protocol.stimuli[i].name for i in trial_order],
+            "trial_stimulus_names": [stimulus_label(protocol.stimuli[i]) for i in trial_order],
             "trial_stimulus_types": [protocol.stimuli[i].type for i in trial_order],
             "subject": {
                 k: (str(v) if v else "") for k, v in subject_metadata.items()

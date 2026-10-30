@@ -75,6 +75,7 @@ from utils.stimulus_generator import get_actual_frame_rate
 from acquisition.trial_protocol import (
     TrialProtocol,
     build_trial_order,
+    stimulus_label,
 )
 from acquisition.trial_saver import TrialSaver
 from acquisition.trial_waveforms import build_trial_waveform
@@ -501,7 +502,7 @@ class TrialAcquisition(QObject):
             self._saver.write_trial(
                 trial_index    = self._trial_pos,
                 stimulus_index = stim_idx,
-                stimulus_name  = stim_def.name,
+                stimulus_name  = stimulus_label(stim_def),
                 onset_time     = onset_iso,
                 data           = self._trial_buf,
                 video_filename = video_filename,

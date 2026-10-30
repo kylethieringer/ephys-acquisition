@@ -68,7 +68,6 @@ def check_trial_commands(bundle: dict[str, Any]) -> Check:
         except Exception as exc:
             return Check(name, Status.FAIL, f"could not parse protocol JSON: {exc}")
 
-        stim_by_name = {s.name: s for s in protocol.stimuli}
         sr = int(bundle["sample_rate"])
         per_trial: list[dict[str, Any]] = []
         worst_status = Status.PASS
@@ -77,11 +76,12 @@ def check_trial_commands(bundle: dict[str, Any]) -> Check:
         for t in bundle["trials"]:
             ti = int(t["trial_index"])
             stim_name = t["stimulus_name"]
-            stim_def = stim_by_name.get(stim_name)
-            if stim_def is None:
+            si = int(t["stimulus_index"])
+            if not 0 <= si < len(protocol.stimuli):
                 per_trial.append({"trial": ti, "status": "skip",
-                                  "reason": f"no stim def named '{stim_name}'"})
+                                  "reason": f"no stim def at index {si}"})
                 continue
+            stim_def = protocol.stimuli[si]
 
             expected = build_trial_waveform(stim_def, protocol)
             recorded = np.asarray(t["data"][amp_idx], dtype=float)

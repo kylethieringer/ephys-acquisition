@@ -68,7 +68,10 @@ Trial order is randomised by
 `repeats_per_stimulus`. The realised order is written to
 `/metadata/trial_order`, and each trial group also carries its own
 `stimulus_name` and `stimulus_index` attributes — so analysis never has to
-reconstruct what was played.
+reconstruct what was played. `stimulus_name` is a label generated from the
+stimulus parameters (e.g. `Steps -50 to 50 pA by 10 pA`); use
+`stimulus_index` to identify the protocol entry, since two entries with the
+same parameters share a label.
 
 ## On disk
 

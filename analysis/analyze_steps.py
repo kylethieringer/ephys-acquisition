@@ -1121,7 +1121,7 @@ def add_scalebar(
     ax: plt.Axes,
     x_size: float,
     x_unit: str,
-    y_size: float,
+    y_size: float | None,
     y_unit: str,
     x_frac: float = 0.95,
     y_frac: float = -0.01,
@@ -1136,7 +1136,8 @@ def add_scalebar(
     ax : Axes
         Target matplotlib axes.
     x_size, y_size : float
-        Scale-bar lengths in data units.
+        Scale-bar lengths in data units.  ``y_size=None`` draws only the
+        horizontal (time) arm, for axes that already show a y axis.
     x_unit, y_unit : str
         Labels for each bar arm.
     x_frac, y_frac : float
@@ -1151,14 +1152,17 @@ def add_scalebar(
     x1 = xlim[0] + x_frac * x_range
     y0 = ylim[0] + y_frac * y_range
     x0 = x1 - x_size
-    y1 = y0 + y_size
 
     ax.plot([x0, x1], [y0, y0], color="black", linewidth=1.5, clip_on=False)
-    ax.plot([x1, x1], [y0, y1], color="black", linewidth=1.5, clip_on=False)
     ax.text(
         (x0 + x1) / 2, y0 - 0.02 * y_range, f"{x_size} {x_unit}",
         ha="center", va="top", fontsize=9,
     )
+    if y_size is None:
+        return
+
+    y1 = y0 + y_size
+    ax.plot([x1, x1], [y0, y1], color="black", linewidth=1.5, clip_on=False)
     ax.text(
         x1 + 0.01 * x_range, (y0 + y1) / 2, f"{y_size} {y_unit}",
         ha="left", va="center", fontsize=9,
@@ -1175,12 +1179,15 @@ def plot_step_overlay(
     cmd_pad_pA: float = 5.0,
     trace_alpha: float = 0.85,
     sweep_labels: list | None = None,
+    show_y_axis: bool = True,
 ) -> tuple[plt.Figure, tuple[plt.Axes, plt.Axes]]:
     """Plot overlaid step responses.
 
     Creates a two-panel figure: membrane potential on top (3:1 height
-    ratio) and command current on the bottom, with minimal aesthetics
-    (no spines/ticks), L-shaped scale bars, and an RMP marker.
+    ratio) and command current on the bottom.  By default each panel has
+    a labeled y axis (mV / pA) and a time-only scale bar.  With
+    ``show_y_axis=False`` the panels are bare, with L-shaped scale bars
+    and an RMP marker instead.
 
     **Coloring**
 
@@ -1208,6 +1215,10 @@ def plot_step_overlay(
     sweep_labels : list or None
         Optional labels, one per sweep. If given, switches coloring
         from amplitude-based to sweep-index-based and draws a legend.
+    show_y_axis : bool
+        If True (default), draw a left y axis with ticks and units on both
+        panels; the scale bars keep only their time arm and the RMP marker
+        is omitted (the axis gives the value).
 
     Returns
     -------
@@ -1260,36 +1271,50 @@ def plot_step_overlay(
     ax_vm.set_ylim(vm_vals.min() - vm_pad_mV, vm_vals.max() + vm_pad_mV)
     ax_cmd.set_ylim(cmd_vals.min() - cmd_pad_pA, cmd_vals.max() + cmd_pad_pA)
 
-    # Remove spines, ticks, and labels
+    # Remove spines, ticks, and labels (keeping the left axis if requested)
     for ax in (ax_vm, ax_cmd):
-        for spine in ax.spines.values():
-            spine.set_visible(False)
+        for name, spine in ax.spines.items():
+            spine.set_visible(show_y_axis and name == "left")
         ax.set_xticks([])
-        ax.set_yticks([])
         ax.set_xlabel("")
-        ax.set_ylabel("")
+        if not show_y_axis:
+            ax.set_yticks([])
+            ax.set_ylabel("")
 
-    # RMP marker from pre-step baseline
-    baseline_vals = []
-    for sweep_segs in segment_lists:
-        for seg in sweep_segs:
-            mask = seg["time_ms"] < 0
-            if np.any(mask):
-                baseline_vals.append(np.median(seg["vm_mV"][mask]))
-    rmp = np.median(baseline_vals)
-    rmp_rounded = round(rmp)
+    if show_y_axis:
+        ax_vm.yaxis.set_major_locator(plt.MaxNLocator(nbins=5))
+        ax_cmd.yaxis.set_major_locator(plt.MaxNLocator(nbins=3))
+        for ax in (ax_vm, ax_cmd):
+            ax.tick_params(axis="y", labelsize=9)
+        ax_vm.set_ylabel("Vm (mV)", fontsize=10)
+        ax_cmd.set_ylabel("I (pA)", fontsize=10)
+        fig.align_ylabels((ax_vm, ax_cmd))
 
-    xlim = ax_vm.get_xlim()
-    tick_x = xlim[0]
-    ax_vm.plot(tick_x, rmp, marker="_", markersize=8, color="black",
-               clip_on=False)
-    ax_vm.text(
-        tick_x - 0.02 * (xlim[1] - xlim[0]), rmp, f"{rmp_rounded} mV",
-        ha="right", va="center", fontsize=9,
-    )
+        # Time-only scale bars; the y axis carries amplitude
+        add_scalebar(ax_vm, *vm_scalebar[:2], None, vm_scalebar[3])
+        add_scalebar(ax_cmd, *cmd_scalebar[:2], None, cmd_scalebar[3])
+    else:
+        # RMP marker from pre-step baseline
+        baseline_vals = []
+        for sweep_segs in segment_lists:
+            for seg in sweep_segs:
+                mask = seg["time_ms"] < 0
+                if np.any(mask):
+                    baseline_vals.append(np.median(seg["vm_mV"][mask]))
+        rmp = np.median(baseline_vals)
+        rmp_rounded = round(rmp)
 
-    add_scalebar(ax_vm, *vm_scalebar)
-    add_scalebar(ax_cmd, *cmd_scalebar)
+        xlim = ax_vm.get_xlim()
+        tick_x = xlim[0]
+        ax_vm.plot(tick_x, rmp, marker="_", markersize=8, color="black",
+                   clip_on=False)
+        ax_vm.text(
+            tick_x - 0.02 * (xlim[1] - xlim[0]), rmp, f"{rmp_rounded} mV",
+            ha="right", va="center", fontsize=9,
+        )
+
+        add_scalebar(ax_vm, *vm_scalebar)
+        add_scalebar(ax_cmd, *cmd_scalebar)
 
     if color_by_sweep:
         legend_handles = [
@@ -1596,12 +1621,15 @@ def interactive_loop(
     """
     n = len(step_protocols)
     overlay_mode = True  # toggled with "m"; controls behavior for multi-select
+    show_y_axis = True   # toggled with "y"; y axis vs. scale bars
 
     while True:
         mode_tag = "overlay" if overlay_mode else "separate"
+        axis_tag = "y axis" if show_y_axis else "scale bars"
         choice = input(
-            f'[{mode_tag}] Enter step_protocol number(s) to plot '
-            f'(e.g. "0", "0-5", "all"), "m" to toggle mode, or "q" to quit: '
+            f'[{mode_tag}, {axis_tag}] Enter step_protocol number(s) to plot '
+            f'(e.g. "0", "0-5", "all"), "m" to toggle mode, '
+            f'"y" to toggle y axis, or "q" to quit: '
         ).strip()
 
         if choice.lower() == "q":
@@ -1610,6 +1638,11 @@ def interactive_loop(
             overlay_mode = not overlay_mode
             new_tag = "overlay" if overlay_mode else "separate"
             print(f"  Multi-select mode: {new_tag}\n")
+            continue
+        if choice.lower() == "y":
+            show_y_axis = not show_y_axis
+            new_tag = "y axis" if show_y_axis else "scale bars"
+            print(f"  Plot style: {new_tag}\n")
             continue
 
         indices = parse_selection(choice, n)
@@ -1634,7 +1667,9 @@ def interactive_loop(
                     continue
 
                 segments = extract_step_segments(data, steps, sr, display_scales)
-                fig, _ = plot_step_overlay([segments], title=None)
+                fig, _ = plot_step_overlay(
+                    [segments], title=None, show_y_axis=show_y_axis,
+                )
                 plt.show(block=False)
                 plt.pause(0.1)
 
@@ -1672,6 +1707,7 @@ def interactive_loop(
             fig, _ = plot_step_overlay(
                 segment_lists, title=None,
                 sweep_labels=used_indices,
+                show_y_axis=show_y_axis,
             )
             plt.show(block=False)
             plt.pause(0.1)

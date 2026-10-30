@@ -67,7 +67,10 @@ ACTIONS: dict[str, list[str]] = {
 
 # Non-subprocess actions handled directly in _run_action (e.g. open a file,
 # launch a terminal script).
-SPECIAL_ACTIONS: set[str] = {"open_log", "sync_gdrive", "sync_gdrive_dryrun"}
+SPECIAL_ACTIONS: set[str] = {"open_log", "open_calendar", "sync_gdrive", "sync_gdrive_dryrun"}
+
+# Written next to the log by update_experiment_log.py (via progress_calendar.py).
+PROGRESS_CALENDAR_PATH = EXPERIMENT_LOG_PATH.with_name("_progress_calendar.html")
 
 
 def _find_git_bash() -> Path | None:
@@ -375,6 +378,9 @@ class ChecklistWindow(QMainWindow):
         if key == "open_log":
             self._open_experiment_log()
             return
+        if key == "open_calendar":
+            self._open_progress_calendar()
+            return
         if key in ("sync_gdrive", "sync_gdrive_dryrun"):
             self._run_sync(dry_run=(key == "sync_gdrive_dryrun"))
             return
@@ -445,6 +451,25 @@ class ChecklistWindow(QMainWindow):
             QMessageBox.warning(
                 self,
                 "Open experiment log",
+                f"Could not open {path}:\n{e}",
+            )
+
+    def _open_progress_calendar(self) -> None:
+        path = PROGRESS_CALENDAR_PATH
+        if not path.exists():
+            QMessageBox.warning(
+                self,
+                "Open progress calendar",
+                f"Calendar not found:\n{path}\n\n"
+                "Click 'Refresh' to generate it from the experiment log.",
+            )
+            return
+        try:
+            os.startfile(str(path))  # type: ignore[attr-defined]
+        except OSError as e:
+            QMessageBox.warning(
+                self,
+                "Open progress calendar",
                 f"Could not open {path}:\n{e}",
             )
 

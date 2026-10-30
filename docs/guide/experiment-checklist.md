@@ -41,7 +41,7 @@ Some tasks carry a one-click launcher that starts the relevant GUI or script.
 * - Stain brain
   - —
 * - Update experiment log
-  - **Refresh** rebuilds the log CSV · **Open** opens it
+  - **Refresh** rebuilds the log CSV and the progress calendar · **Open** opens the CSV · **Calendar** opens the calendar
 * - Copy data to Google Drive
   - **Dry run** previews the sync · **Sync** performs it (in a terminal window, see below)
 * - Visualize data

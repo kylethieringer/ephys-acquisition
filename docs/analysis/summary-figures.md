@@ -29,10 +29,16 @@ D:\data\_fi_protocols.csv
 
 Override the path with `--fi-protocols`.
 
+The side-car is also the **whitelist** for all three figures. A recording that
+passes the experiment-log filters but has no row in the side-car is left out
+of the F-I, RMP, and Ri plots alike, and the run prints how many were
+excluded. A row with only `metadata_file` filled in still whitelists that
+recording for RMP and Ri; it just contributes no F-I curve.
+
 :::{warning}
-If the side-car is missing, the tool says so and the F-I plot comes out empty —
-it does not fail. An empty F-I panel almost always means a missing or
-mismatched side-car rather than missing data.
+If the side-car is missing, the tool says so and no recordings are included —
+it does not fail. Empty figures almost always mean a missing or mismatched
+side-car rather than missing data.
 :::
 
 The side-car may also carry an explicit `cell_id` column, which overrides the
@@ -62,6 +68,11 @@ points, and the strip plots join that cell's conditions with a line.
 
 Excluded by default. `--include-drug` plots them alongside the drug-free ones,
 and output filenames gain a `_withdrug` suffix so both sets can coexist.
+
+Figure filenames end with the render date, e.g.
+`dvmn_fi_withdrug_mean-split_20261028.png`, so re-running on a later day keeps
+the earlier figures. A re-run on the same day overwrites them. The manifest
+CSV (`{cell_type}_summary.csv`) is not dated and always holds the latest run.
 
 In the figures, drug points are hollow and drug F-I curves dashed.
 

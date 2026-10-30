@@ -182,6 +182,18 @@ def main() -> None:
 
     update(data_dir, output)
 
+    # Rebuild the progress calendar from the fresh log; a calendar failure
+    # must not look like a failed log update.
+    _project_root = Path(__file__).resolve().parent.parent
+    if str(_project_root) not in sys.path:
+        sys.path.insert(0, str(_project_root))
+    try:
+        from utils.progress_calendar import write_calendar
+
+        write_calendar(output)
+    except Exception as e:  # noqa: BLE001
+        print(f"Warning: progress calendar not updated: {e}", file=sys.stderr)
+
 
 if __name__ == "__main__":
     main()

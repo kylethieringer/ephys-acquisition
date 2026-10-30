@@ -3,7 +3,8 @@
 Walks the experiment log via :func:`batch_intrinsics.collect_intrinsics`,
 joins on a user-maintained side-car ``D:\\data\\_fi_protocols.csv`` that
 names which step_protocols in each recording are the F-I repeats, and
-aggregates per cell.
+aggregates per cell.  The side-car is also the whitelist: a recording
+not listed in it is left out of all three figures (F-I, RMP, Ri).
 
 Drug-applied recordings are excluded by default; pass ``--include-drug``
 to plot them alongside the drug-free ones.  Output filenames then gain a
@@ -38,6 +39,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from datetime import date
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -244,11 +246,14 @@ def _clean_spines(
 
 def _parse_side_car(
     fi_protocols_path: Path,
-) -> tuple[dict[str, list[dict]], dict[str, str]]:
+) -> tuple[set[str], dict[str, list[dict]], dict[str, str]]:
     """Read the side-car CSV.
 
     Returns
     -------
+    listed_basenames
+        Every recording named in the side-car.  This is the whitelist:
+        recordings not listed are dropped from all three figures.
     specs_by_basename
         ``{basename_of_metadata_file: [{"fi_min_pA", "fi_max_pA", "fi_n_steps"}, ...]}``.
         One side-car row contributes one spec; multiple rows for the
@@ -256,12 +261,13 @@ def _parse_side_car(
     explicit_cell_ids
         ``{basename: cell_id}`` for rows where the user supplied one.
     """
+    listed_basenames: set[str] = set()
     specs_by_basename: dict[str, list[dict]] = {}
     explicit_cell_ids: dict[str, str] = {}
 
     if not fi_protocols_path.exists():
-        print(f"Side-car {fi_protocols_path} not found; F-I plot will be empty.")
-        return specs_by_basename, explicit_cell_ids
+        print(f"Side-car {fi_protocols_path} not found; no recordings are whitelisted.")
+        return listed_basenames, specs_by_basename, explicit_cell_ids
 
     side = pd.read_csv(fi_protocols_path, dtype=str).fillna("")
     for _, srow in side.iterrows():
@@ -269,6 +275,7 @@ def _parse_side_car(
         if not mf:
             continue
         bn = Path(mf).name
+        listed_basenames.add(bn)
 
         fi_min = str(srow.get("fi_min_pA", "")).strip()
         fi_max = str(srow.get("fi_max_pA", "")).strip()
@@ -291,7 +298,7 @@ def _parse_side_car(
             else:
                 explicit_cell_ids[bn] = cid
 
-    return specs_by_basename, explicit_cell_ids
+    return listed_basenames, specs_by_basename, explicit_cell_ids
 
 
 # =========================================================================
@@ -686,6 +693,10 @@ def summarize_cell_type(
     dashed/hollow markers, and every output filename gains a
     ``_withdrug`` suffix so the drug-free figures are not overwritten.
 
+    Figure filenames end with the render date (``_YYYYMMDD``), so a
+    re-run on a later day keeps the earlier figures; the manifest CSV is
+    undated and always holds the latest run.
+
     ``mean_curve`` restyles the F-I figure only: ``"split"`` draws thin
     per-cell lines under one mean +/- SEM per condition, ``"pooled"``
     greys every cell and draws a single mean across all of them.  Both
@@ -728,9 +739,25 @@ def summarize_cell_type(
     # Matching uses the basename of `metadata_file` so the side-car may
     # use either the bare filename or the subdir-prefixed form from the
     # experiment log.
-    specs_by_basename, explicit_cell_ids = _parse_side_car(fi_protocols_path)
+    listed_basenames, specs_by_basename, explicit_cell_ids = _parse_side_car(
+        fi_protocols_path
+    )
 
     batch["_basename"] = batch["metadata_file"].map(lambda s: Path(s).name)
+
+    # The side-car is the whitelist for all three figures, not just F-I.
+    is_listed = batch["_basename"].isin(listed_basenames)
+    n_unlisted = int((~is_listed).sum())
+    if n_unlisted:
+        print(
+            f"Excluded {n_unlisted} recording(s) not listed in "
+            f"{fi_protocols_path.name}."
+        )
+    batch = batch[is_listed].copy()
+    if batch.empty:
+        print(f"No recordings remain for cell type {cell_type!r}.")
+        return pd.DataFrame()
+
     batch["_fi_specs"] = batch["_basename"].map(
         lambda bn: specs_by_basename.get(bn, [])
     )
@@ -786,9 +813,11 @@ def summarize_cell_type(
     # Only the F-I figure changes with --mean-curve, so only it takes the
     # extra suffix; the strips are byte-identical either way.
     fi_suffix = suffix + (f"_mean-{mean_curve}" if mean_curve else "")
-    fi_path = fig_dir / f"{cell_type}_fi{fi_suffix}.png"
-    rmp_path = fig_dir / f"{cell_type}_rmp{suffix}.png"
-    ri_path = fig_dir / f"{cell_type}_ri{suffix}.png"
+    # Render date last, so re-renders on later days sit beside older ones.
+    datestr = date.today().strftime("%Y%m%d")
+    fi_path = fig_dir / f"{cell_type}_fi{fi_suffix}_{datestr}.png"
+    rmp_path = fig_dir / f"{cell_type}_rmp{suffix}_{datestr}.png"
+    ri_path = fig_dir / f"{cell_type}_ri{suffix}_{datestr}.png"
     fig_fi = _plot_fi(cells, cell_type, fi_path, color_map,
                       mean_curve=mean_curve, mean_min_cells=mean_min_cells)
     fig_rmp = _plot_strip(

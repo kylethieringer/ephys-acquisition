@@ -11,7 +11,8 @@
     { "id": "update_experiment_log", "label": "Update experiment log",
       "actions": [
         { "key": "update_log", "label": "Refresh" },
-        { "key": "open_log",   "label": "Open" }
+        { "key": "open_log",   "label": "Open" },
+        { "key": "open_calendar", "label": "Calendar" }
       ]
     },
     { "id": "copy_to_drive",         "label": "Copy data to Google Drive",

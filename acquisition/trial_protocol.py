@@ -95,8 +95,6 @@ class StimulusDefinition:
 
     Attributes:
         type: Stimulus type — ``"step_protocol"`` or ``"voltage_step"``.
-        name: Human-readable label shown in the protocol builder and
-            stored in the HDF5 file.
         min_pA: Lowest current step amplitude in pA (step protocol only).
         max_pA: Highest current step amplitude in pA (step protocol only).
         step_pA: Step size between amplitudes in pA (step protocol only).
@@ -115,7 +113,6 @@ class StimulusDefinition:
     """
 
     type: str = "step_protocol"
-    name: str = "Unnamed stimulus"
 
     # Step-protocol fields (CC)
     min_pA:                Optional[float] = -50.0
@@ -175,6 +172,32 @@ class TrialProtocol:
     stimuli: list[StimulusDefinition] = field(default_factory=list)
 
 
+def stimulus_label(s: StimulusDefinition) -> str:
+    """Describe a stimulus from its parameters, e.g. ``"Steps -50 to 50 pA by 10 pA"``.
+
+    Used as the display label in the protocol builder and as the
+    ``stimulus_name`` stored in the HDF5 file.  Two stimuli with the same
+    parameters get the same label; use ``stimulus_index`` to tell
+    protocol entries apart.
+
+    Args:
+        s: Stimulus to describe.
+
+    Returns:
+        A short human-readable description.
+    """
+    if s.type == "step_protocol":
+        label = f"Steps {s.min_pA:g} to {s.max_pA:g} pA by {s.step_pA:g} pA"
+        if s.step_protocol_repeats and s.step_protocol_repeats > 1:
+            label += f" x{s.step_protocol_repeats}"
+        return label
+    if s.type == "voltage_step":
+        return f"Voltage step {s.step_mV:g} mV, {s.duration_ms:g} ms"
+    if s.type == "baseline":
+        return "Baseline"
+    return s.type
+
+
 # ---------------------------------------------------------------------------
 # Serialisation helpers
 # ---------------------------------------------------------------------------
@@ -185,6 +208,8 @@ def _normalize_legacy_stim_dict(s: dict) -> dict:
     Older protocols used ``"staircase"`` as the stimulus ``type`` and
     stored the repeat count under ``"staircase_repeats"``.  Both keys
     were renamed to ``"step_protocol"`` / ``"step_protocol_repeats"``.
+    Older protocols also carried a user-entered ``"name"``, which was
+    removed in favour of :func:`stimulus_label`; it is dropped here.
     This helper converts old → new in place on a copy and is safe to
     apply to dicts that already use the new schema (it is a no-op).
 
@@ -196,6 +221,7 @@ def _normalize_legacy_stim_dict(s: dict) -> dict:
         A new dict with legacy keys rewritten to the current schema.
     """
     s = dict(s)
+    s.pop("name", None)
     if s.get("type") == "staircase":
         s["type"] = "step_protocol"
     if "staircase_repeats" in s and "step_protocol_repeats" not in s:
