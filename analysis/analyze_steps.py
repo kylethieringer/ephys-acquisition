@@ -360,6 +360,55 @@ def _find_protocol_run(apply_sample: int,
     return best
 
 
+def _is_ramp_or_chirp_window(stimulus_name: str,
+                             stimulus_index: int,
+                             sample: int,
+                             protocol_runs: list[dict]) -> bool:
+    """Return True if an apply->clear window played a ramp or chirp.
+
+    The protocol sidecar decides when it is available.  Without one, the
+    generated ``stimulus_name`` label is used instead.
+
+    Parameters
+    ----------
+    stimulus_name : str
+        Label stored with the stimulus event.
+    stimulus_index : int
+        Protocol entry index stored with the stimulus event.
+    sample : int
+        Sample index of the window's apply event.
+    protocol_runs : list[dict]
+        Parsed protocol runs from the sidecar JSON.
+
+    Returns
+    -------
+    bool
+        True for a ramp or chirp window.
+    """
+    run = _find_protocol_run(sample, protocol_runs)
+    if run is not None:
+        stimuli = run.get("protocol_dict", {}).get("stimuli", [])
+        if 0 <= stimulus_index < len(stimuli):
+            return stimuli[stimulus_index].get("type") in ("ramp", "chirp")
+    return stimulus_name.startswith(("Ramp ", "Chirp "))
+
+
+def _has_ramp_or_chirp_windows(stimulus_events: dict,
+                               protocol_runs: list[dict]) -> bool:
+    """Return True if any apply event in the recording played a ramp or chirp."""
+    return any(
+        etype == "apply" and _is_ramp_or_chirp_window(
+            name, int(idx), int(sample), protocol_runs,
+        )
+        for etype, name, idx, sample in zip(
+            stimulus_events["event_type"],
+            stimulus_events["stimulus_name"],
+            stimulus_events["stimulus_index"],
+            stimulus_events["sample_index"],
+        )
+    )
+
+
 def _expected_step_count(stim_def: dict,
                          min_amp_pA: float = MIN_AMP_PA) -> int | None:
     """Predict the detectable pulse count for a step_protocol stimulus.
@@ -535,6 +584,11 @@ def find_step_protocols_from_events(
         start_sample = max(0, min(start_sample, n_total))
         end_sample = max(start_sample, min(end_sample, n_total))
         if end_sample <= start_sample:
+            continue
+
+        # A ramp reads as one false pulse and a chirp as many.
+        if _is_ramp_or_chirp_window(ev_names[i], int(ev_idx[i]),
+                                    start_sample, protocol_runs):
             continue
 
         pulses = find_pulses(cmd_smooth[start_sample:end_sample], sr)
@@ -1783,7 +1837,13 @@ def process_file(
         step_protocols, step_protocol_meta = [], []
         detection_source = None
 
-    if not step_protocols:
+    # Waveform detection can't tell stimuli apart, so it would read skipped
+    # ramp and chirp windows as steps.
+    skipped_ramp_or_chirp = (
+        stimulus_events is not None
+        and _has_ramp_or_chirp_windows(stimulus_events, protocol_runs)
+    )
+    if not step_protocols and not skipped_ramp_or_chirp:
         if detection_source is None:
             print("No stimulus events found. Falling back to waveform detection.")
         else:
