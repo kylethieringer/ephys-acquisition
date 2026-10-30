@@ -8,7 +8,8 @@ Waveforms are returned as 1-D ``float64`` NumPy arrays unless otherwise noted.
 
 Waveform units
 --------------
-- **Stimulus functions** (``generate_ao0_waveform``, ``generate_step_protocol_pa_array``):
+- **Stimulus functions** (``generate_ao0_waveform``, ``generate_step_protocol_pa_array``,
+  ``generate_ramp_pa_array``, ``generate_chirp_pa_array``):
   see individual docstrings — some return pA, others return Volts.
 - **TTL functions**: return Volts, switching between
   :data:`~config.TTL_HIGH_V` (5 V) and :data:`~config.TTL_LOW_V` (0 V).
@@ -148,6 +149,103 @@ def generate_step_protocol_pa_array(
         one_pass[start : start + width_samples] = amp_pa
 
     return np.tile(one_pass, repeats)
+
+
+def generate_ramp_pa_array(
+    start_pa: float,
+    min_peak_pa: float,
+    max_peak_pa: float,
+    peak_step_pa: float,
+    ramp_ms: float,
+    hold_ms: float,
+    ramp_down: bool,
+    gap_ms: float,
+    repeats: int = 1,
+) -> NDArray[np.float64]:
+    """Generate a ramp-series current waveform in pA units (not scaled to Volts).
+
+    Each ramp rises linearly from ``start_pa`` to its peak, holds for
+    ``hold_ms``, returns to ``start_pa`` (over ``ramp_ms`` if ``ramp_down``,
+    otherwise immediately), then stays at ``start_pa`` for ``gap_ms``.
+    Peaks run from ``min_peak_pa`` to ``max_peak_pa`` inclusive.
+
+    Args:
+        start_pa: Current at the start of each ramp and during gaps, in pA.
+        min_peak_pa: Peak of the first ramp in pA.
+        max_peak_pa: Peak of the last ramp in pA.
+        peak_step_pa: Increase in peak between ramps in pA.  Must be positive.
+        ramp_ms: Time from ``start_pa`` to the peak in ms.
+        hold_ms: Time held at the peak in ms.
+        ramp_down: ``True`` to ramp back down instead of returning instantly.
+        gap_ms: Time at ``start_pa`` after each ramp in ms.
+        repeats: Number of times the full series is tiled.
+
+    Returns:
+        1-D float64 array in pA.
+    """
+    ramp_samples = max(1, int(ramp_ms / 1000.0 * SAMPLE_RATE))
+    hold_samples = max(0, int(hold_ms / 1000.0 * SAMPLE_RATE))
+    gap_samples  = max(0, int(gap_ms  / 1000.0 * SAMPLE_RATE))
+
+    segments: list[NDArray[np.float64]] = []
+    for peak_pa in get_step_amplitudes(min_peak_pa, max_peak_pa, peak_step_pa):
+        segments.append(np.linspace(start_pa, peak_pa, ramp_samples))
+        segments.append(np.full(hold_samples, peak_pa, dtype=np.float64))
+        if ramp_down:
+            segments.append(np.linspace(peak_pa, start_pa, ramp_samples))
+        segments.append(np.full(gap_samples, start_pa, dtype=np.float64))
+
+    if not segments:
+        return np.empty(0, dtype=np.float64)
+    return np.tile(np.concatenate(segments), repeats)
+
+
+def generate_chirp_pa_array(
+    start_hz: float,
+    end_hz: float,
+    duration_ms: float,
+    spacing: str,
+    amplitude_pa: float,
+    offset_pa: float,
+    gap_ms: float,
+    repeats: int = 1,
+) -> NDArray[np.float64]:
+    """Generate a chirp current waveform in pA units (not scaled to Volts).
+
+    A sine sweep with zero starting phase, so the same parameters always give
+    the same samples, followed by ``gap_ms`` at 0 pA.
+
+    Args:
+        start_hz: Instantaneous frequency at the start of the sweep in Hz.
+        end_hz: Instantaneous frequency at the end of the sweep in Hz.
+        duration_ms: Length of one sweep in ms.
+        spacing: ``"log"`` or ``"linear"``.
+        amplitude_pa: Peak sine amplitude in pA.
+        offset_pa: DC offset added during the sweep in pA.
+        gap_ms: Time at 0 pA after each sweep in ms.
+        repeats: Number of times the sweep and gap are tiled.
+
+    Returns:
+        1-D float64 array in pA.
+
+    Raises:
+        ValueError: If ``spacing`` is not ``"log"`` or ``"linear"``.
+    """
+    sweep_samples = max(1, int(duration_ms / 1000.0 * SAMPLE_RATE))
+    gap_samples   = max(0, int(gap_ms      / 1000.0 * SAMPLE_RATE))
+    t = np.arange(sweep_samples) / SAMPLE_RATE
+    sweep_s = sweep_samples / SAMPLE_RATE
+
+    if spacing == "linear":
+        phase = 2 * np.pi * (start_hz * t + (end_hz - start_hz) * t**2 / (2 * sweep_s))
+    elif spacing == "log":
+        ratio = end_hz / start_hz
+        phase = 2 * np.pi * start_hz * sweep_s / np.log(ratio) * (ratio ** (t / sweep_s) - 1)
+    else:
+        raise ValueError(f"Unknown chirp spacing: {spacing!r}")
+
+    sweep = offset_pa + amplitude_pa * np.sin(phase)
+    return np.tile(np.concatenate([sweep, np.zeros(gap_samples)]), repeats)
 
 
 def generate_ao0_waveform(
