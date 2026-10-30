@@ -5,31 +5,23 @@ Runs the real widgets offscreen, with only the blocking message boxes stubbed.
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
 import pytest
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QMessageBox
 
 from acquisition.trial_protocol import save_protocol
 from ui import protocol_builder as PB
 
 
-@pytest.fixture(scope="module")
-def app():
-    return QApplication.instance() or QApplication([])
-
-
 @pytest.fixture
-def panel(app):
+def panel():
     return PB.ProtocolBuilderPanel()
 
 
