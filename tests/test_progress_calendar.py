@@ -2,7 +2,7 @@ import datetime as dt
 
 import pandas as pd
 
-from utils.progress_calendar import _month_labels, _weekday_grid, summarize_days
+from utils.progress_calendar import _month_labels, _status, _tooltip, _weekday_grid, summarize_days
 
 
 def _log(rows):
@@ -29,3 +29,15 @@ def test_weekday_grid_and_month_labels():
     assert weeks[0][0] == dt.date(2026, 3, 30)  # starts on the Monday
     assert all(len(w) == 5 for w in weeks)
     assert _month_labels(weeks) == [(0, "Apr"), (4, "May")]  # week of Apr 27 ends Fri May 1
+
+
+def test_out_of_lab_days_unless_recorded():
+    days = summarize_days(_log([
+        ["fre001", "fre001/fre001_x_20260623_101010_metadata.json", True, None, None],
+    ]))
+    assert _status(dt.date(2026, 6, 18), days) == "away"   # range start
+    assert _status(dt.date(2026, 7, 1), days) == "away"    # range end, inclusive
+    assert _status(dt.date(2026, 7, 2), days) == "empty"
+    assert _status(dt.date(2026, 10, 23), days) == "away"  # single day
+    assert _status(dt.date(2026, 6, 23), days) == "kept"   # recording wins
+    assert "Out of lab" in _tooltip(dt.date(2026, 9, 1), days)
