@@ -39,7 +39,9 @@ extensions = [
 ]
 
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+# docs/superpowers/ holds internal design specs and implementation plans,
+# not user-facing pages; without this they trip -W as orphan documents.
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "superpowers"]
 
 # -- MyST (Markdown) ---------------------------------------------------------
 
