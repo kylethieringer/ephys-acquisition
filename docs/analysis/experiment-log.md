@@ -39,7 +39,10 @@ Nothing warns you. Check for the lock file if you are unsure.
 
 Each refresh also writes `_progress_calendar.html`, `.png` and `.pdf` next to
 the log: a weekday calendar (weeks × Mon–Fri) where a day is **gray** if you
-recorded and **green** if any recording that day has `keep` set. Hover a day
+recorded and **green** if any recording that day has `keep` set. Days out of
+the lab are blank with a **slash** through them — edit the `OUT_OF_LAB` date ranges at the top of
+`utils/progress_calendar.py` to add more (a recording on one of those days
+still shows as gray/green). Hover a day
 in the HTML for its expt IDs, recording/kept counts, cell types and genotypes.
 `expt_xx` test recordings are left out. To rebuild it on its own:
 
