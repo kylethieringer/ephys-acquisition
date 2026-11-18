@@ -3,8 +3,8 @@
 #
 # Runs sync_to_gdrive.sh in the current terminal, then holds the window open
 # so the final result / any errors stay readable. Launched by
-# experiment_checklist.py through Cmder (ConEmu -run); kept as a separate
-# script so the launcher's command line needs no nested quoting.
+# experiment_checklist.py with Git Bash in a new console window; kept as a separate
+# script so the launcher only needs a single bash invocation.
 #
 # Any arguments are forwarded to sync_to_gdrive.sh (e.g. --dry-run).
 

@@ -52,8 +52,9 @@ STATE_FILE = Path(__file__).resolve().parent / ".checklist_state.json"
 EXPERIMENT_LOG_PATH = Path("D:/data/_experiment_log.csv")
 
 # Google Drive sync (utils/sync_to_gdrive.sh) is a bash script with live
-# progress output, so it's launched in a Cmder terminal window rather than
-# detached. run_gdrive_sync.sh wraps it and holds the window open at the end.
+# progress output, so it's launched in its own console window (whatever the
+# system's default terminal is) rather than detached. run_gdrive_sync.sh
+# wraps it and holds the window open at the end.
 GDRIVE_SYNC_WRAPPER = PROJECT_ROOT / "utils" / "run_gdrive_sync.sh"
 
 # Subprocess actions: key → argv list passed to subprocess.Popen.
@@ -66,33 +67,39 @@ ACTIONS: dict[str, list[str]] = {
 
 # Non-subprocess actions handled directly in _run_action (e.g. open a file,
 # launch a terminal script).
-SPECIAL_ACTIONS: set[str] = {"open_log", "sync_gdrive", "sync_gdrive_dryrun"}
+SPECIAL_ACTIONS: set[str] = {"open_log", "open_calendar", "sync_gdrive", "sync_gdrive_dryrun"}
+
+# Written next to the log by update_experiment_log.py (via progress_calendar.py).
+PROGRESS_CALENDAR_PATH = EXPERIMENT_LOG_PATH.with_name("_progress_calendar.html")
 
 
-def _find_cmder() -> Path | None:
-    """Locate Cmder.exe, used to host the bash sync script in a terminal.
+def _find_git_bash() -> Path | None:
+    """Locate Git for Windows' bash.exe, used to run the bash sync script.
 
-    Checks the CMDER_ROOT env var, then PATH, then the default install dir.
-    Returns None if Cmder can't be found.
+    Derives it from git on PATH, then checks the standard install dirs and a
+    Cmder-vendored copy. Never uses the bash.exe in System32, which is the
+    WSL launcher.
+    Returns None if Git Bash can't be found.
     """
-    root = os.environ.get("CMDER_ROOT")
-    if root:
-        exe = Path(root) / "Cmder.exe"
-        if exe.exists():
-            return exe
-    which = shutil.which("Cmder")
-    if which:
-        return Path(which)
-    default = Path.home() / "cmder" / "Cmder.exe"
-    return default if default.exists() else None
+    candidates: list[Path] = []
+    git = shutil.which("git")
+    if git:
+        # git.exe lives in <root>/cmd, <root>/bin or <root>/mingw64/bin.
+        for parent in Path(git).resolve().parents:
+            candidates.append(parent / "bin" / "bash.exe")
+    for env in ("ProgramFiles", "ProgramW6432", "ProgramFiles(x86)", "LOCALAPPDATA"):
+        base = os.environ.get(env)
+        if base:
+            sub = "Programs/Git" if env == "LOCALAPPDATA" else "Git"
+            candidates.append(Path(base) / sub / "bin" / "bash.exe")
+    cmder_root = os.environ.get("CMDER_ROOT")
+    if cmder_root:
+        candidates.append(Path(cmder_root) / "vendor" / "git-for-windows" / "bin" / "bash.exe")
+    for c in candidates:
+        if c.is_file():
+            return c
+    return None
 
-
-def _to_bash_path(path: Path) -> str:
-    """Convert a Windows path to a Git-bash POSIX path (C:\\a -> /c/a)."""
-    s = path.resolve().as_posix()  # e.g. 'D:/ephys-acquisition/utils/x.sh'
-    if len(s) >= 2 and s[1] == ":":
-        s = "/" + s[0].lower() + s[2:]
-    return s
 
 # ---------------------------------------------------------------------------
 # Stylesheet (subset of main.py's dark theme)
@@ -371,6 +378,9 @@ class ChecklistWindow(QMainWindow):
         if key == "open_log":
             self._open_experiment_log()
             return
+        if key == "open_calendar":
+            self._open_progress_calendar()
+            return
         if key in ("sync_gdrive", "sync_gdrive_dryrun"):
             self._run_sync(dry_run=(key == "sync_gdrive_dryrun"))
             return
@@ -389,35 +399,39 @@ class ChecklistWindow(QMainWindow):
             )
 
     def _run_sync(self, dry_run: bool) -> None:
-        """Launch the Google Drive sync in a Cmder terminal window.
+        """Launch the Google Drive sync in a new terminal window.
 
-        Cmder hosts the bash wrapper (run_gdrive_sync.sh) via ConEmu's -run, so
-        rclone's live --progress is visible and the window holds open at the end.
-        The wrapper path has no spaces, so no nested quoting is needed.
+        Runs the bash wrapper (run_gdrive_sync.sh) with Git Bash in a new
+        console, which Windows opens in the default terminal app (Windows
+        Terminal, conhost, ...). rclone's live --progress stays visible and
+        the wrapper holds the window open at the end.
         """
-        cmder = _find_cmder()
-        if cmder is None:
+        bash = _find_git_bash()
+        if bash is None:
             QMessageBox.warning(
                 self,
                 "Copy to Google Drive",
-                "Cmder was not found. Set the CMDER_ROOT environment variable "
-                "or install Cmder to C:\\Users\\<you>\\cmder.\n\n"
-                "You can still run the sync manually:\n"
+                "Git Bash was not found. Install Git for Windows "
+                "(https://git-scm.com/download/win).\n\n"
+                "You can still run the sync manually from a bash terminal:\n"
                 "    ./utils/sync_to_gdrive.sh",
             )
             return
 
-        wrapper = _to_bash_path(GDRIVE_SYNC_WRAPPER)
-        run = f"bash {wrapper} --dry-run" if dry_run else f"bash {wrapper}"
+        cmd = [str(bash), GDRIVE_SYNC_WRAPPER.as_posix()]
+        if dry_run:
+            cmd.append("--dry-run")
         try:
             subprocess.Popen(
-                [str(cmder), "/START", str(PROJECT_ROOT), "/X", f"-run {run}"],
+                cmd,
+                cwd=str(PROJECT_ROOT),
+                creationflags=subprocess.CREATE_NEW_CONSOLE,
             )
         except (FileNotFoundError, OSError) as e:
             QMessageBox.warning(
                 self,
                 "Copy to Google Drive",
-                f"Failed to launch Cmder:\n{e}",
+                f"Failed to launch Git Bash:\n{e}",
             )
 
     def _open_experiment_log(self) -> None:
@@ -437,6 +451,25 @@ class ChecklistWindow(QMainWindow):
             QMessageBox.warning(
                 self,
                 "Open experiment log",
+                f"Could not open {path}:\n{e}",
+            )
+
+    def _open_progress_calendar(self) -> None:
+        path = PROGRESS_CALENDAR_PATH
+        if not path.exists():
+            QMessageBox.warning(
+                self,
+                "Open progress calendar",
+                f"Calendar not found:\n{path}\n\n"
+                "Click 'Refresh' to generate it from the experiment log.",
+            )
+            return
+        try:
+            os.startfile(str(path))  # type: ignore[attr-defined]
+        except OSError as e:
+            QMessageBox.warning(
+                self,
+                "Open progress calendar",
                 f"Could not open {path}:\n{e}",
             )
 

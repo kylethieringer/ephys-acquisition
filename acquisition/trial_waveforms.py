@@ -15,12 +15,14 @@ Current-clamp (CC) trial waveform layout
 
     [zeros × pre_samples]
     [hyperpol_pulse × hyperpol_samples]   ← access-resistance measurement
-    [zeros × gap_samples]                 ← gap between hyperpol and step protocol
-    [step_protocol waveform × step_protocol_samples]
+    [zeros × gap_samples]                 ← gap between hyperpol and stimulus
+    [step protocol, ramp or chirp waveform]
     [zeros × post_samples]
 
 The hyperpolarization section is omitted when
 :attr:`~acquisition.trial_protocol.TrialProtocol.hyperpolarization` is ``None``.
+For a ramp, the gap after the hyperpolarization pulse sits at the ramp's start
+current instead of zero, so the cell settles there before the first ramp.
 Camera TTL fires at trial start and covers the entire waveform (pre + stim + post).
 
 Voltage-clamp (VC) trial waveform layout
@@ -45,7 +47,11 @@ from numpy.typing import NDArray
 
 from config import AO_MV_PER_VOLT, AO_PA_PER_VOLT, SAMPLE_RATE
 from acquisition.trial_protocol import HyperpolarizationParams, StimulusDefinition, TrialProtocol
-from utils.stimulus_generator import generate_step_protocol_pa_array
+from utils.stimulus_generator import (
+    generate_chirp_pa_array,
+    generate_ramp_pa_array,
+    generate_step_protocol_pa_array,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +77,60 @@ def _ms_to_samples(ms: float, sample_rate: int = SAMPLE_RATE) -> int:
 # Current-clamp waveform
 # ---------------------------------------------------------------------------
 
+def _cc_stimulus_pa(stim_def: StimulusDefinition) -> NDArray[np.float64]:
+    """Return the body of a current-clamp stimulus in pA.
+
+    A ``voltage_step`` in a current-clamp protocol has always played the step
+    protocol fields.  It still does, so old recordings regenerate unchanged.
+
+    Args:
+        stim_def: Stimulus definition.
+
+    Returns:
+        1-D float64 array in pA, excluding the hyperpolarization pulse and
+        pre/post windows.
+
+    Raises:
+        ValueError: If ``stim_def.type`` has no current-clamp waveform.
+    """
+    gap_ms  = stim_def.gap_ms or 0.0
+    repeats = stim_def.step_protocol_repeats or 1
+
+    if stim_def.type == "ramp":
+        return generate_ramp_pa_array(
+            start_pa     = stim_def.ramp_start_pA,
+            min_peak_pa  = stim_def.ramp_min_peak_pA,
+            max_peak_pa  = stim_def.ramp_max_peak_pA,
+            peak_step_pa = stim_def.ramp_peak_step_pA,
+            ramp_ms      = stim_def.ramp_duration_ms,
+            hold_ms      = stim_def.ramp_hold_ms,
+            ramp_down    = stim_def.ramp_return == "ramp_down",
+            gap_ms       = gap_ms,
+            repeats      = repeats,
+        )
+    if stim_def.type == "chirp":
+        return generate_chirp_pa_array(
+            start_hz     = stim_def.chirp_start_hz,
+            end_hz       = stim_def.chirp_end_hz,
+            duration_ms  = stim_def.chirp_duration_ms,
+            spacing      = stim_def.chirp_spacing,
+            amplitude_pa = stim_def.chirp_amplitude_pA,
+            offset_pa    = stim_def.chirp_offset_pA,
+            gap_ms       = gap_ms,
+            repeats      = repeats,
+        )
+    if stim_def.type in ("step_protocol", "voltage_step"):
+        return generate_step_protocol_pa_array(
+            min_pa   = stim_def.min_pA or 0.0,
+            max_pa   = stim_def.max_pA or 0.0,
+            step_pa  = stim_def.step_pA or 1.0,
+            width_ms = stim_def.step_width_ms or 500.0,
+            gap_ms   = gap_ms,
+            repeats  = repeats,
+        )
+    raise ValueError(f"No current-clamp waveform for stimulus type {stim_def.type!r}")
+
+
 def build_cc_trial_waveform(
     stim_def: StimulusDefinition,
     pre_ms: float,
@@ -88,20 +148,20 @@ def build_cc_trial_waveform(
 
         [0 V × pre_samples]
         [hyperpol_V × hyperpol_samples]       ← only when hyperpol is not None
-        [0 V × gap_samples]                   ← stim_def.gap_ms reused as post-hyperpol gap
-        [step_protocol_V × step_protocol_samples]
+        [gap_V × gap_samples]                 ← stim_def.gap_ms reused as post-hyperpol gap
+        [stimulus_V × stimulus_samples]
         [0 V × post_samples]
 
+    ``gap_V`` is 0 V, or a ramp's start current so it holds through the gap.
+
     Args:
-        stim_def: Step-protocol stimulus definition containing ``min_pA``,
-            ``max_pA``, ``step_pA``, ``step_width_ms``, ``gap_ms``, and
-            ``step_protocol_repeats``.
+        stim_def: Step-protocol, ramp or chirp stimulus definition.
         pre_ms: Silent baseline duration before the stimulus in ms.
         post_ms: Silent tail duration after the stimulus in ms.
         hyperpol: Optional hyperpolarization pulse parameters.  When provided,
             a negative current pulse of ``hyperpol.amplitude_pA`` pA lasting
             ``hyperpol.duration_ms`` ms is prepended, followed by a gap of
-            ``stim_def.gap_ms`` ms before the step protocol begins.
+            ``stim_def.gap_ms`` ms before the stimulus begins.
             Pass ``None`` to omit the pulse.
         sample_rate: DAQ sample rate in Hz.  Defaults to
             :data:`~config.SAMPLE_RATE`.
@@ -109,7 +169,10 @@ def build_cc_trial_waveform(
     Returns:
         1-D float64 array of ao0 voltages in V.  Total length =
         ``pre_samples + hyperpol_samples + gap_samples
-        + step_protocol_samples + post_samples``.
+        + stimulus_samples + post_samples``.
+
+    Raises:
+        ValueError: If ``stim_def.type`` has no current-clamp waveform.
     """
     pre_samples  = _ms_to_samples(pre_ms,  sample_rate)
     post_samples = _ms_to_samples(post_ms, sample_rate)
@@ -121,27 +184,20 @@ def build_cc_trial_waveform(
                              hyperpol.amplitude_pA / AO_PA_PER_VOLT,
                              dtype=np.float64)
         gap_samples = _ms_to_samples(stim_def.gap_ms or 0.0, sample_rate)
-        gap_v = np.zeros(gap_samples, dtype=np.float64)
+        gap_pa = stim_def.ramp_start_pA if stim_def.type == "ramp" else 0.0
+        gap_v = np.full(gap_samples, gap_pa / AO_PA_PER_VOLT, dtype=np.float64)
     else:
         hyperpol_v = np.empty(0, dtype=np.float64)
         gap_v      = np.empty(0, dtype=np.float64)
 
-    # Step protocol (pA → Volts)
-    step_protocol_pa = generate_step_protocol_pa_array(
-        min_pa   = stim_def.min_pA or 0.0,
-        max_pa   = stim_def.max_pA or 0.0,
-        step_pa  = stim_def.step_pA or 1.0,
-        width_ms = stim_def.step_width_ms or 500.0,
-        gap_ms   = stim_def.gap_ms or 0.0,
-        repeats  = stim_def.step_protocol_repeats or 1,
-    )
-    step_protocol_v = step_protocol_pa / AO_PA_PER_VOLT
+    # Stimulus body (pA → Volts)
+    stimulus_v = _cc_stimulus_pa(stim_def) / AO_PA_PER_VOLT
 
     return np.concatenate([
         np.zeros(pre_samples,  dtype=np.float64),
         hyperpol_v,
         gap_v,
-        step_protocol_v,
+        stimulus_v,
         np.zeros(post_samples, dtype=np.float64),
     ])
 
@@ -219,6 +275,10 @@ def build_trial_waveform(
 
     Returns:
         1-D float64 array of ao0 voltages in V.
+
+    Raises:
+        ValueError: If a ramp or chirp is in a voltage-clamp protocol, which
+            would otherwise play ``step_mV`` as a voltage step.
     """
     if stim_def.type == "baseline":
         # AO stays at 0 V for the full trial window (pre + post only, no stim).
@@ -226,6 +286,8 @@ def build_trial_waveform(
         return np.zeros(n, dtype=np.float64)
 
     if protocol.clamp_mode == "voltage_clamp":
+        if stim_def.type in ("ramp", "chirp"):
+            raise ValueError(f"A {stim_def.type} needs a current-clamp protocol")
         return build_vc_trial_waveform(
             stim_def,
             pre_ms         = protocol.pre_ms,

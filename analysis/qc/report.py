@@ -258,17 +258,16 @@ def _plot_trial_cmd_overlay(bundle: dict[str, Any]) -> str:
     if not protocol_json:
         raise RuntimeError("no protocol JSON")
     protocol = protocol_from_dict(json.loads(protocol_json))
-    stim_by_name = {s.name: s for s in protocol.stimuli}
-
-    seen: dict[str, dict[str, Any]] = {}
+    seen: dict[int, dict[str, Any]] = {}
     for t in bundle["trials"]:
-        stim_name = t["stimulus_name"]
-        if stim_name in seen or stim_name not in stim_by_name:
+        si = int(t["stimulus_index"])
+        if si in seen or not 0 <= si < len(protocol.stimuli):
             continue
-        expected = build_trial_waveform(stim_by_name[stim_name], protocol)
+        expected = build_trial_waveform(protocol.stimuli[si], protocol)
         recorded = np.asarray(t["data"][amp_idx], dtype=float)
         n = min(expected.size, recorded.size)
-        seen[stim_name] = {"exp": expected[:n], "rec": recorded[:n]}
+        seen[si] = {"exp": expected[:n], "rec": recorded[:n],
+                    "name": t["stimulus_name"]}
 
     if not seen:
         raise RuntimeError("no stimuli to plot")
@@ -278,12 +277,12 @@ def _plot_trial_cmd_overlay(bundle: dict[str, Any]) -> str:
                              sharex=False)
     if len(seen) == 1:
         axes = [axes]
-    for ax, (name, traces) in zip(axes, seen.items()):
+    for ax, (si, traces) in zip(axes, seen.items()):
         t = np.arange(traces["exp"].size) / sr
         ax.plot(t, traces["exp"], label="commanded", linewidth=1.0)
         ax.plot(t, traces["rec"], label="recorded",  linewidth=0.7, alpha=0.8)
         ax.set_ylabel("ao0 (V)")
-        ax.set_title(name)
+        ax.set_title(f"[{si}] {traces['name']}")
         ax.legend(loc="upper right", fontsize=9)
     axes[-1].set_xlabel("Time (s)")
     fig.tight_layout()

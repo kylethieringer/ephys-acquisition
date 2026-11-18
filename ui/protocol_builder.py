@@ -46,6 +46,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
+    QComboBox,
     QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
@@ -66,6 +67,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
+from acquisition.trial_waveforms import build_trial_waveform
 from acquisition.trial_protocol import (
     StimulusDefinition,
     TrialProtocol,
@@ -74,7 +76,42 @@ from acquisition.trial_protocol import (
     protocol_from_dict,
     protocol_to_dict,
     save_protocol,
+    stimulus_label,
+    validate_protocol,
 )
+
+
+def confirm_protocol_runnable(parent: QWidget, protocol: TrialProtocol) -> bool:
+    """Check a protocol before a run, asking the user about any warnings.
+
+    Every stimulus's waveform is built here too, so a stimulus that can't play
+    is caught before any recording opens rather than partway through a run.
+
+    Args:
+        parent: Parent widget for the dialogs.
+        protocol: Protocol about to run.
+
+    Returns:
+        ``True`` if the run should go ahead.
+    """
+    errors, warnings = validate_protocol(protocol)
+    if not errors:
+        for i, stim in enumerate(protocol.stimuli, start=1):
+            try:
+                build_trial_waveform(stim, protocol)
+            except ValueError as exc:
+                errors.append(f"Stimulus {i}: {exc}")
+    if errors:
+        QMessageBox.warning(parent, "Invalid Stimulus", "\n\n".join(errors))
+        return False
+    if warnings:
+        answer = QMessageBox.question(
+            parent, "Check Stimulus",
+            "\n\n".join(warnings) + "\n\nRun anyway?",
+            QMessageBox.Yes | QMessageBox.No,
+        )
+        return answer == QMessageBox.Yes
+    return True
 
 
 class ProtocolBuilderPanel(QWidget):
@@ -116,6 +153,10 @@ class ProtocolBuilderPanel(QWidget):
         """Load a protocol JSON file and populate all UI fields."""
         try:
             p = load_protocol(path)
+            # The editor's spin boxes would clamp bad values and hide them.
+            errors, _ = validate_protocol(p)
+            if errors:
+                raise ValueError("\n\n".join(errors))
             self._populate_from_protocol(p)
         except Exception as exc:
             QMessageBox.critical(self, "Load Error", f"Could not load protocol:\n{exc}")
@@ -216,22 +257,17 @@ class ProtocolBuilderPanel(QWidget):
 
         top_form = QFormLayout()
         top_form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
-        self._stim_name_edit = QLineEdit()
-        self._stim_name_edit.setPlaceholderText("e.g. 0-50 pA step protocol")
-        self._stim_name_edit.textChanged.connect(self._on_stim_name_changed)
-        top_form.addRow("Stimulus name:", self._stim_name_edit)
-
         type_row = QHBoxLayout()
         self._sc_type_rb = QRadioButton("Step protocol (CC)")
+        self._rp_type_rb = QRadioButton("Ramp (CC)")
+        self._ch_type_rb = QRadioButton("Chirp (CC)")
         self._vc_type_rb = QRadioButton("Voltage step (VC)")
         self._bl_type_rb = QRadioButton("Baseline")
         self._sc_type_rb.setChecked(True)
-        self._sc_type_rb.toggled.connect(self._on_stim_type_changed)
-        self._vc_type_rb.toggled.connect(self._on_stim_type_changed)
-        self._bl_type_rb.toggled.connect(self._on_stim_type_changed)
-        type_row.addWidget(self._sc_type_rb)
-        type_row.addWidget(self._vc_type_rb)
-        type_row.addWidget(self._bl_type_rb)
+        for rb in (self._sc_type_rb, self._rp_type_rb, self._ch_type_rb,
+                   self._vc_type_rb, self._bl_type_rb):
+            rb.toggled.connect(self._on_stim_type_changed)
+            type_row.addWidget(rb)
         type_row.addStretch()
         top_form.addRow("Type:", type_row)
         outer.addLayout(top_form)
@@ -240,6 +276,8 @@ class ProtocolBuilderPanel(QWidget):
         self._stim_stack.addWidget(self._build_step_protocol_page())
         self._stim_stack.addWidget(self._build_vstep_page())
         self._stim_stack.addWidget(self._build_baseline_page())
+        self._stim_stack.addWidget(self._build_ramp_page())
+        self._stim_stack.addWidget(self._build_chirp_page())
         outer.addWidget(self._stim_stack)
         outer.addStretch()
 
@@ -258,17 +296,19 @@ class ProtocolBuilderPanel(QWidget):
             if suffix:
                 sb.setSuffix(f" {suffix}")
             sb.valueChanged.connect(self._update_estimated_time)
+            sb.valueChanged.connect(self._on_stim_param_changed)
             return sb
 
         self._sc_min = _dbl(-2000, 2000, -50.0, 1, "pA")
         self._sc_max = _dbl(-2000, 2000, 50.0, 1, "pA")
         self._sc_step = _dbl(0.1, 2000, 10.0, 1, "pA")
         self._sc_width = _dbl(1, 10000, 500.0, 0, "ms")
-        self._sc_gap = _dbl(0, 10000, 100.0, 0, "ms")
+        self._sc_gap = _dbl(0, 10000, 500.0, 0, "ms")
         self._sc_reps = QSpinBox()
         self._sc_reps.setRange(1, 100)
         self._sc_reps.setValue(1)
         self._sc_reps.valueChanged.connect(self._update_estimated_time)
+        self._sc_reps.valueChanged.connect(self._on_stim_param_changed)
 
         form.addRow("Min current:", self._sc_min)
         form.addRow("Max current:", self._sc_max)
@@ -291,6 +331,7 @@ class ProtocolBuilderPanel(QWidget):
             if suffix:
                 sb.setSuffix(f" {suffix}")
             sb.valueChanged.connect(self._update_estimated_time)
+            sb.valueChanged.connect(self._on_stim_param_changed)
             return sb
 
         self._vs_step_mv = _dbl(-1000, 1000, -40.0, "mV")
@@ -311,6 +352,82 @@ class ProtocolBuilderPanel(QWidget):
         lbl.setWordWrap(True)
         layout.addWidget(lbl)
         layout.addStretch()
+        return w
+
+    def _stim_dbl(self, vmin, vmax, val, decimals, suffix) -> QDoubleSpinBox:
+        sb = QDoubleSpinBox()
+        sb.setRange(vmin, vmax)
+        sb.setDecimals(decimals)
+        sb.setValue(val)
+        sb.setSuffix(f" {suffix}")
+        sb.valueChanged.connect(self._update_estimated_time)
+        sb.valueChanged.connect(self._on_stim_param_changed)
+        return sb
+
+    def _stim_reps(self) -> QSpinBox:
+        sb = QSpinBox()
+        sb.setRange(1, 100)
+        sb.setValue(1)
+        sb.valueChanged.connect(self._update_estimated_time)
+        sb.valueChanged.connect(self._on_stim_param_changed)
+        return sb
+
+    def _stim_combo(self, items: list[tuple[str, str]]) -> QComboBox:
+        combo = QComboBox()
+        for text, data in items:
+            combo.addItem(text, data)
+        combo.currentIndexChanged.connect(self._update_estimated_time)
+        combo.currentIndexChanged.connect(self._on_stim_param_changed)
+        return combo
+
+    def _build_ramp_page(self) -> QWidget:
+        w = QWidget()
+        form = QFormLayout(w)
+        form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+
+        self._rp_start = self._stim_dbl(-4000, 4000, 0.0, 2, "pA")
+        self._rp_min = self._stim_dbl(-4000, 4000, 50.0, 2, "pA")
+        self._rp_max = self._stim_dbl(-4000, 4000, 150.0, 2, "pA")
+        self._rp_step = self._stim_dbl(0.01, 4000, 50.0, 2, "pA")
+        self._rp_width = self._stim_dbl(0.1, 60000, 1000.0, 1, "ms")
+        self._rp_hold = self._stim_dbl(0, 60000, 0.0, 1, "ms")
+        self._rp_return = self._stim_combo([("Instant", "instant"), ("Ramp down", "ramp_down")])
+        self._rp_gap = self._stim_dbl(0, 60000, 500.0, 1, "ms")
+        self._rp_reps = self._stim_reps()
+
+        form.addRow("Start current:", self._rp_start)
+        form.addRow("Lowest peak current:", self._rp_min)
+        form.addRow("Highest peak current:", self._rp_max)
+        form.addRow("Peak step size:", self._rp_step)
+        form.addRow("Ramp duration:", self._rp_width)
+        form.addRow("Hold at peak:", self._rp_hold)
+        form.addRow("Return to start:", self._rp_return)
+        form.addRow("Gap between ramps:", self._rp_gap)
+        form.addRow("Repeats:", self._rp_reps)
+        return w
+
+    def _build_chirp_page(self) -> QWidget:
+        w = QWidget()
+        form = QFormLayout(w)
+        form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+
+        self._ch_start = self._stim_dbl(0, 10000, 0.5, 3, "Hz")
+        self._ch_end = self._stim_dbl(0, 10000, 100.0, 3, "Hz")
+        self._ch_dur = self._stim_dbl(0.1, 60000, 20000.0, 1, "ms")
+        self._ch_spacing = self._stim_combo([("Log", "log"), ("Linear", "linear")])
+        self._ch_amp = self._stim_dbl(0, 4000, 20.0, 2, "pA")
+        self._ch_offset = self._stim_dbl(-4000, 4000, 0.0, 2, "pA")
+        self._ch_gap = self._stim_dbl(0, 60000, 500.0, 1, "ms")
+        self._ch_reps = self._stim_reps()
+
+        form.addRow("Start frequency:", self._ch_start)
+        form.addRow("End frequency:", self._ch_end)
+        form.addRow("Sweep duration:", self._ch_dur)
+        form.addRow("Sweep spacing:", self._ch_spacing)
+        form.addRow("Amplitude (peak):", self._ch_amp)
+        form.addRow("DC offset:", self._ch_offset)
+        form.addRow("Gap between chirps:", self._ch_gap)
+        form.addRow("Repeats:", self._ch_reps)
         return w
 
     def _build_global_settings(self) -> QWidget:
@@ -420,14 +537,21 @@ class ProtocolBuilderPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _on_add(self) -> None:
-        stim = StimulusDefinition(
-            type="step_protocol",
-            name=f"Step protocol {len(self._stimuli)}",
-        )
+        keep_entered_values = self._stim_list.currentRow() < 0
+        new_type, _ = self._selected_type()
+        stim = StimulusDefinition(type=new_type)
         self._stimuli.append(stim)
-        item = QListWidgetItem(stim.name)
-        self._stim_list.addItem(item)
-        self._stim_list.setCurrentRow(len(self._stimuli) - 1)
+        self._stim_list.addItem(QListWidgetItem())
+        self._refresh_list_labels()
+        if keep_entered_values:
+            # The page was filled in before this row existed, so read it
+            # rather than letting the row change overwrite it with defaults.
+            self._stim_list.blockSignals(True)
+            self._stim_list.setCurrentRow(len(self._stimuli) - 1)
+            self._stim_list.blockSignals(False)
+            self._on_stim_param_changed()
+        else:
+            self._stim_list.setCurrentRow(len(self._stimuli) - 1)
         self._update_estimated_time()
 
     def _on_remove(self) -> None:
@@ -436,6 +560,7 @@ class ProtocolBuilderPanel(QWidget):
             return
         self._stim_list.takeItem(row)
         self._stimuli.pop(row)
+        self._refresh_list_labels()
         self._update_estimated_time()
 
     def _on_duplicate(self) -> None:
@@ -445,10 +570,9 @@ class ProtocolBuilderPanel(QWidget):
         self._sync_editor_to_stim()
         import copy
         stim = copy.deepcopy(self._stimuli[row])
-        stim.name = stim.name + " (copy)"
         self._stimuli.insert(row + 1, stim)
-        item = QListWidgetItem(stim.name)
-        self._stim_list.insertItem(row + 1, item)
+        self._stim_list.insertItem(row + 1, QListWidgetItem())
+        self._refresh_list_labels()
         self._stim_list.setCurrentRow(row + 1)
         self._update_estimated_time()
 
@@ -470,34 +594,46 @@ class ProtocolBuilderPanel(QWidget):
         self._stimuli[a], self._stimuli[b] = self._stimuli[b], self._stimuli[a]
         item_a = self._stim_list.takeItem(a)
         self._stim_list.insertItem(b, item_a)
+        self._refresh_list_labels()
 
     def _on_row_changed(self, row: int) -> None:
         if row < 0 or row >= len(self._stimuli):
             return
         self._populate_editor(self._stimuli[row])
 
-    def _on_stim_name_changed(self, text: str) -> None:
-        row = self._stim_list.currentRow()
-        if row < 0 or row >= len(self._stimuli):
-            return
-        self._stimuli[row].name = text
-        self._stim_list.item(row).setText(text)
+    def _refresh_list_labels(self) -> None:
+        """Label each list row with its position and parameter summary."""
+        for i, stim in enumerate(self._stimuli):
+            item = self._stim_list.item(i)
+            if item is not None:
+                item.setText(f"{i + 1}. {stimulus_label(stim)}")
+
+    def _on_stim_param_changed(self) -> None:
+        self._sync_editor_to_stim()
+        self._refresh_list_labels()
+
+    def _selected_type(self) -> tuple[str, int]:
+        """Return the checked stimulus type and its editor page index."""
+        if self._sc_type_rb.isChecked():
+            return "step_protocol", 0
+        if self._vc_type_rb.isChecked():
+            return "voltage_step", 1
+        if self._rp_type_rb.isChecked():
+            return "ramp", 3
+        if self._ch_type_rb.isChecked():
+            return "chirp", 4
+        return "baseline", 2
 
     def _on_stim_type_changed(self) -> None:
+        new_type, page = self._selected_type()
+        self._stim_stack.setCurrentIndex(page)
         row = self._stim_list.currentRow()
         if row < 0:
             return
-        if self._sc_type_rb.isChecked():
-            new_type = "step_protocol"
-            page = 0
-        elif self._vc_type_rb.isChecked():
-            new_type = "voltage_step"
-            page = 1
-        else:
-            new_type = "baseline"
-            page = 2
         self._stimuli[row].type = new_type
-        self._stim_stack.setCurrentIndex(page)
+        # Show this row's own values, not whatever the page last displayed.
+        self._populate_editor(self._stimuli[row])
+        self._on_stim_param_changed()
         self._update_estimated_time()
 
     # ------------------------------------------------------------------
@@ -506,22 +642,28 @@ class ProtocolBuilderPanel(QWidget):
 
     def _populate_editor(self, stim: StimulusDefinition) -> None:
         widgets = (
-            self._stim_name_edit,
             self._sc_type_rb, self._vc_type_rb, self._bl_type_rb,
             self._sc_min, self._sc_max, self._sc_step,
             self._sc_width, self._sc_gap, self._sc_reps,
             self._vs_step_mv, self._vs_duration,
+            self._rp_type_rb, self._ch_type_rb,
+            self._rp_start, self._rp_min, self._rp_max, self._rp_step,
+            self._rp_width, self._rp_hold, self._rp_return, self._rp_gap, self._rp_reps,
+            self._ch_start, self._ch_end, self._ch_dur, self._ch_spacing,
+            self._ch_amp, self._ch_offset, self._ch_gap, self._ch_reps,
         )
         for w in widgets:
             w.blockSignals(True)
         try:
-            self._stim_name_edit.setText(stim.name)
-
             self._sc_type_rb.setChecked(stim.type == "step_protocol")
             self._vc_type_rb.setChecked(stim.type == "voltage_step")
             self._bl_type_rb.setChecked(stim.type == "baseline")
+            self._rp_type_rb.setChecked(stim.type == "ramp")
+            self._ch_type_rb.setChecked(stim.type == "chirp")
 
-            page = {"step_protocol": 0, "voltage_step": 1, "baseline": 2}.get(stim.type, 0)
+            page = {
+                "step_protocol": 0, "voltage_step": 1, "baseline": 2, "ramp": 3, "chirp": 4,
+            }.get(stim.type, 0)
             self._stim_stack.setCurrentIndex(page)
 
             if stim.type == "step_protocol":
@@ -534,6 +676,25 @@ class ProtocolBuilderPanel(QWidget):
             elif stim.type == "voltage_step":
                 self._vs_step_mv.setValue(stim.step_mV if stim.step_mV is not None else -40.0)
                 self._vs_duration.setValue(stim.duration_ms if stim.duration_ms is not None else 500.0)
+            elif stim.type == "ramp":
+                self._rp_start.setValue(stim.ramp_start_pA)
+                self._rp_min.setValue(stim.ramp_min_peak_pA)
+                self._rp_max.setValue(stim.ramp_max_peak_pA)
+                self._rp_step.setValue(stim.ramp_peak_step_pA)
+                self._rp_width.setValue(stim.ramp_duration_ms)
+                self._rp_hold.setValue(stim.ramp_hold_ms)
+                self._rp_return.setCurrentIndex(self._rp_return.findData(stim.ramp_return))
+                self._rp_gap.setValue(stim.gap_ms if stim.gap_ms is not None else 500.0)
+                self._rp_reps.setValue(stim.step_protocol_repeats if stim.step_protocol_repeats is not None else 1)
+            elif stim.type == "chirp":
+                self._ch_start.setValue(stim.chirp_start_hz)
+                self._ch_end.setValue(stim.chirp_end_hz)
+                self._ch_dur.setValue(stim.chirp_duration_ms)
+                self._ch_spacing.setCurrentIndex(self._ch_spacing.findData(stim.chirp_spacing))
+                self._ch_amp.setValue(stim.chirp_amplitude_pA)
+                self._ch_offset.setValue(stim.chirp_offset_pA)
+                self._ch_gap.setValue(stim.gap_ms if stim.gap_ms is not None else 500.0)
+                self._ch_reps.setValue(stim.step_protocol_repeats if stim.step_protocol_repeats is not None else 1)
         finally:
             for w in widgets:
                 w.blockSignals(False)
@@ -543,11 +704,14 @@ class ProtocolBuilderPanel(QWidget):
         if row < 0 or row >= len(self._stimuli):
             return
         stim = self._stimuli[row]
-        stim.name = self._stim_name_edit.text()
         if self._sc_type_rb.isChecked():
             stim.type = "step_protocol"
         elif self._vc_type_rb.isChecked():
             stim.type = "voltage_step"
+        elif self._rp_type_rb.isChecked():
+            stim.type = "ramp"
+        elif self._ch_type_rb.isChecked():
+            stim.type = "chirp"
         else:
             stim.type = "baseline"
 
@@ -561,6 +725,25 @@ class ProtocolBuilderPanel(QWidget):
         elif stim.type == "voltage_step":
             stim.step_mV = self._vs_step_mv.value()
             stim.duration_ms = self._vs_duration.value()
+        elif stim.type == "ramp":
+            stim.ramp_start_pA = self._rp_start.value()
+            stim.ramp_min_peak_pA = self._rp_min.value()
+            stim.ramp_max_peak_pA = self._rp_max.value()
+            stim.ramp_peak_step_pA = self._rp_step.value()
+            stim.ramp_duration_ms = self._rp_width.value()
+            stim.ramp_hold_ms = self._rp_hold.value()
+            stim.ramp_return = self._rp_return.currentData()
+            stim.gap_ms = self._rp_gap.value()
+            stim.step_protocol_repeats = self._rp_reps.value()
+        elif stim.type == "chirp":
+            stim.chirp_start_hz = self._ch_start.value()
+            stim.chirp_end_hz = self._ch_end.value()
+            stim.chirp_duration_ms = self._ch_dur.value()
+            stim.chirp_spacing = self._ch_spacing.currentData()
+            stim.chirp_amplitude_pA = self._ch_amp.value()
+            stim.chirp_offset_pA = self._ch_offset.value()
+            stim.gap_ms = self._ch_gap.value()
+            stim.step_protocol_repeats = self._ch_reps.value()
 
     # ------------------------------------------------------------------
     # Protocol construction / population
@@ -608,8 +791,9 @@ class ProtocolBuilderPanel(QWidget):
 
         self._stim_list.clear()
         self._stimuli = list(p.stimuli)
-        for stim in self._stimuli:
-            self._stim_list.addItem(QListWidgetItem(stim.name))
+        for _ in self._stimuli:
+            self._stim_list.addItem(QListWidgetItem())
+        self._refresh_list_labels()
 
         if self._stimuli:
             self._stim_list.setCurrentRow(0)
@@ -673,6 +857,9 @@ class ProtocolBuilderPanel(QWidget):
                 self, "No Stimuli",
                 "Add at least one stimulus before running."
             )
+            return
+
+        if not confirm_protocol_runnable(self, p):
             return
 
         d = protocol_to_dict(p)

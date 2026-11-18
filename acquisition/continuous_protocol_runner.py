@@ -36,7 +36,11 @@ import numpy as np
 from numpy.typing import NDArray
 
 from config import SAMPLE_RATE
-from acquisition.trial_protocol import TrialProtocol, build_trial_order
+from acquisition.trial_protocol import (
+    TrialProtocol,
+    build_trial_order,
+    stimulus_label,
+)
 from acquisition.trial_waveforms import build_trial_waveform
 
 
@@ -164,14 +168,14 @@ class ContinuousProtocolRunner:
                 sample_offset = apply_offset,
                 action        = "apply",
                 waveform      = waveform,
-                stim_name     = stim_def.name,
+                stim_name     = stimulus_label(stim_def),
                 stim_idx      = stim_idx,
             ))
             self._events.append(_Event(
                 sample_offset = clear_offset,
                 action        = "clear",
                 waveform      = None,
-                stim_name     = stim_def.name,
+                stim_name     = stimulus_label(stim_def),
                 stim_idx      = stim_idx,
             ))
 

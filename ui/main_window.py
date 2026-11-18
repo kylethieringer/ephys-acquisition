@@ -74,7 +74,7 @@ from acquisition.trial_protocol import protocol_from_dict
 from hardware.audio_monitor import AudioMonitor
 from ui.camera_panel import CameraPanel
 from ui.control_panel import ControlPanel
-from ui.protocol_builder import ProtocolBuilderPanel
+from ui.protocol_builder import ProtocolBuilderPanel, confirm_protocol_runnable
 from ui.stimulus_panel import StimulusPanel
 from ui.trace_panel import ChannelYControls, LiveTracePanel
 from ui.widgets import Sidebar, TopChromeBar
@@ -384,7 +384,17 @@ class MainWindow(QMainWindow):
         layout.addWidget(splitter, stretch=1)
 
         self._refresh_protocol_list()
-        return page
+
+        # The builder's natural minimum height (~950 px) exceeds a maximized
+        # 1080p window's client area, and QStackedWidget takes the largest
+        # page minimum even while this page is hidden.  Scroll instead, so the
+        # window isn't forced taller than the screen (pushing the action bar
+        # under the taskbar whenever a button click re-runs the layout).
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setWidget(page)
+        return scroll
 
     def _build_channels_page(self) -> QWidget:
         """Channels: full-page per-channel table (owns QCheckBox + ChannelYControls)."""
@@ -841,6 +851,8 @@ class MainWindow(QMainWindow):
             protocol_dict = dict(self._pending_protocol)
             save_dir = protocol_dict.pop("save_dir", self._ctrl_panel.save_dir)
             protocol = protocol_from_dict(protocol_dict)
+            if not confirm_protocol_runnable(self, protocol):
+                return
             metadata = self._ctrl_panel.get_metadata()
 
             self._apply_channel_defs(protocol.clamp_mode)
