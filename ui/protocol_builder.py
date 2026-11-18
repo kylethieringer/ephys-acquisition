@@ -303,7 +303,7 @@ class ProtocolBuilderPanel(QWidget):
         self._sc_max = _dbl(-2000, 2000, 50.0, 1, "pA")
         self._sc_step = _dbl(0.1, 2000, 10.0, 1, "pA")
         self._sc_width = _dbl(1, 10000, 500.0, 0, "ms")
-        self._sc_gap = _dbl(0, 10000, 100.0, 0, "ms")
+        self._sc_gap = _dbl(0, 10000, 500.0, 0, "ms")
         self._sc_reps = QSpinBox()
         self._sc_reps.setRange(1, 100)
         self._sc_reps.setValue(1)
@@ -537,11 +537,21 @@ class ProtocolBuilderPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _on_add(self) -> None:
-        stim = StimulusDefinition(type="step_protocol")
+        keep_entered_values = self._stim_list.currentRow() < 0
+        new_type, _ = self._selected_type()
+        stim = StimulusDefinition(type=new_type)
         self._stimuli.append(stim)
         self._stim_list.addItem(QListWidgetItem())
         self._refresh_list_labels()
-        self._stim_list.setCurrentRow(len(self._stimuli) - 1)
+        if keep_entered_values:
+            # The page was filled in before this row existed, so read it
+            # rather than letting the row change overwrite it with defaults.
+            self._stim_list.blockSignals(True)
+            self._stim_list.setCurrentRow(len(self._stimuli) - 1)
+            self._stim_list.blockSignals(False)
+            self._on_stim_param_changed()
+        else:
+            self._stim_list.setCurrentRow(len(self._stimuli) - 1)
         self._update_estimated_time()
 
     def _on_remove(self) -> None:
@@ -602,27 +612,25 @@ class ProtocolBuilderPanel(QWidget):
         self._sync_editor_to_stim()
         self._refresh_list_labels()
 
+    def _selected_type(self) -> tuple[str, int]:
+        """Return the checked stimulus type and its editor page index."""
+        if self._sc_type_rb.isChecked():
+            return "step_protocol", 0
+        if self._vc_type_rb.isChecked():
+            return "voltage_step", 1
+        if self._rp_type_rb.isChecked():
+            return "ramp", 3
+        if self._ch_type_rb.isChecked():
+            return "chirp", 4
+        return "baseline", 2
+
     def _on_stim_type_changed(self) -> None:
+        new_type, page = self._selected_type()
+        self._stim_stack.setCurrentIndex(page)
         row = self._stim_list.currentRow()
         if row < 0:
             return
-        if self._sc_type_rb.isChecked():
-            new_type = "step_protocol"
-            page = 0
-        elif self._vc_type_rb.isChecked():
-            new_type = "voltage_step"
-            page = 1
-        elif self._rp_type_rb.isChecked():
-            new_type = "ramp"
-            page = 3
-        elif self._ch_type_rb.isChecked():
-            new_type = "chirp"
-            page = 4
-        else:
-            new_type = "baseline"
-            page = 2
         self._stimuli[row].type = new_type
-        self._stim_stack.setCurrentIndex(page)
         # Show this row's own values, not whatever the page last displayed.
         self._populate_editor(self._stimuli[row])
         self._on_stim_param_changed()

@@ -60,6 +60,9 @@ Ramps and chirps are current-clamp stimuli and can share a protocol with steps
 and baselines. Each trial still has the pre baseline, hyperpolarizing pulse and
 post baseline.
 
+In the builder, **+ Add** creates whichever type is selected under **Type**.
+Changing the type of a selected stimulus converts that stimulus.
+
 A **ramp** rises linearly from the start current to a peak, with one ramp for
 each peak from the lowest to the highest. You can hold at the peak, and return
 either instantly or by ramping down over the same time as the ramp up.

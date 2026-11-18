@@ -195,6 +195,61 @@ def test_flipping_type_and_back_keeps_stored_values(panel):
     assert panel.get_protocol().stimuli[0].ramp_max_peak_pA == 300.0
 
 
+def test_choosing_a_type_with_no_stimulus_shows_its_page(panel):
+    panel._rp_type_rb.click()
+    assert panel._stim_stack.currentIndex() == 3
+    panel._ch_type_rb.click()
+    assert panel._stim_stack.currentIndex() == 4
+
+
+def test_add_creates_the_chosen_type(panel):
+    panel._rp_type_rb.click()
+    panel._add_btn.click()
+    assert panel.get_protocol().stimuli[0].type == "ramp"
+    assert panel._rp_type_rb.isChecked()
+    assert panel._stim_stack.currentIndex() == 3
+
+
+def test_add_keeps_values_entered_before_any_stimulus_exists(panel):
+    panel._ch_type_rb.click()
+    panel._ch_end.setValue(50.0)
+    panel._ch_amp.setValue(35.0)
+    panel._add_btn.click()
+    stim = panel.get_protocol().stimuli[0]
+    assert stim.chirp_end_hz == 50.0
+    assert stim.chirp_amplitude_pA == 35.0
+
+
+@pytest.mark.parametrize("radio", [
+    "_sc_type_rb", "_vc_type_rb", "_bl_type_rb", "_rp_type_rb", "_ch_type_rb",
+])
+def test_first_stimulus_matches_later_ones_of_its_type(panel, radio):
+    getattr(panel, radio).click()
+    panel._add_btn.click()
+    panel._add_btn.click()
+    first, second = panel.get_protocol().stimuli
+    assert first == second
+
+
+def test_add_with_a_row_selected_starts_from_defaults(panel):
+    _add_ramp(panel)
+    panel._rp_max.setValue(300.0)
+    panel._add_btn.click()
+    ramp, added = panel.get_protocol().stimuli
+    assert added.type == "ramp"
+    assert added.ramp_max_peak_pA == StimulusDefinition().ramp_max_peak_pA
+    assert ramp.ramp_max_peak_pA == 300.0
+
+
+def test_type_chosen_after_removing_the_last_stimulus_is_added(panel):
+    panel._add_btn.click()
+    panel._remove_btn.click()
+    panel._ch_type_rb.click()
+    assert panel._stim_stack.currentIndex() == 4
+    panel._add_btn.click()
+    assert panel.get_protocol().stimuli[0].type == "chirp"
+
+
 @pytest.mark.parametrize("stim", [
     StimulusDefinition(type="ramp", ramp_start_pA=-5000.0),
     StimulusDefinition(type="ramp", ramp_peak_step_pA=0.0),
